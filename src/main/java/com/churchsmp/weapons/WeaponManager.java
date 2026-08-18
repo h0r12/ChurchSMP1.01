@@ -62,6 +62,7 @@ public class WeaponManager {
         meta.lore(lore);
 
         meta.getPersistentDataContainer().set(weaponKey, PersistentDataType.STRING, type.getId());
+        meta.setItemModel(new NamespacedKey("churchsmp", type.getId()))
         item.setItemMeta(meta);
         return item;
     }
