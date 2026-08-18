@@ -61,9 +61,9 @@ public class WeaponManager {
                 NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
 
-        meta.getPersistentDataCountainer().set(weaponKey, PersistentDataType.STRING, type.getId());
-        meta.setItemModel(new Namespaced("churchsmp", type.getId()));
-        item.setItemMeat(meta);
+        meta.getPersistentDataContainer().set(weaponKey, PersistentDataType.STRING, type.getId());
+        meta.setItemModel(new NamespacedKey("churchsmp", type.getId()));
+        item.setItemMeta(meta);
         return item;
     }
 
