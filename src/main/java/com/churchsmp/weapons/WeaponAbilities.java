@@ -181,7 +181,7 @@ public class WeaponAbilities {
             }
         }
         player.getWorld().spawnParticle(Particle.BUBBLE_COLUMN_UP, player.getLocation(), 60, radius / 2, 0.5, radius / 2, 0.05);
-        player.playSound(player.getLocation(), Sound.ENTITY_GUARDIAN_ATTACK_WATER, 1f, 0.8f);
+        player.playSound(player.getLocation(), Sound.ENTITY_GUARDIAN_ATTACK, 1f, 0.8f);
         msg(player, "The Leviathan drags your foes closer.");
     }
 
