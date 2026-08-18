@@ -1,0 +1,76 @@
+# ===================== Church SMP Configuration =====================
+
+alignment:
+  min: -100
+  max: 100
+  decay-per-day: 2          # points moved back toward 0 each in-game day
+  tiers:
+    saint: 61                # score >= this -> Saint
+    righteous: 21             # score >= this -> Righteous
+    nullified-low: -20        # score between nullified-low and righteous-1 -> Nullified
+    wicked: -60                # score >= this (and < -20) -> Wicked
+    # anything below "wicked" threshold -> Fallen
+
+good-deeds:
+  tithe-per-item: 2
+  tithe-daily-cap: 40
+  cure-zombie-villager: 10
+  heal-player: 5
+  revive-assist: 8
+  feed-hungry: 3
+  altar-prayer: 1
+  altar-prayer-daily-cap: 5
+  build-on-holy-ground-per-10-blocks: 1
+  breed-animal-near-church: 2
+  donate-command: 3
+  sermon-attendance: 5
+
+evil-deeds:
+  murder-player: -15
+  kill-villager: -8
+  griefing-church: -10
+  desecrate-holy-ground: -12
+  summon-wither: -20
+  necromancy: -10
+  animal-sacrifice: -5
+  blasphemy: -3
+  betray-ally: -20
+
+effects:
+  tick-interval-seconds: 5
+  saint:
+    regeneration-amplifier: 1
+    resistance-amplifier: 0
+    absorption-on-tick: true
+  righteous:
+    regeneration-amplifier: 0
+    speed-amplifier: 0
+    fall-damage-negate-chance: 0.25
+  wicked:
+    weakness-amplifier: 0
+    hunger-amplifier: 0
+    holy-ground-slowness-amplifier: 1
+  fallen:
+    weakness-amplifier: 1
+    mining-fatigue-amplifier: 0
+    extra-hearts-removed: 2
+    holy-ground-burns: true
+
+weapons:
+  cooldown-seconds:
+    ability-1: 20
+    ability-2: 90
+  require-exact-tier-for-nullified: true
+  deactivate-on-tier-mismatch: true
+
+confession:
+  points-per-item: 2
+  daily-cap: 30
+
+sermon:
+  default-duration-seconds: 60
+  default-radius: 20
+
+chat-filter:
+  blasphemy-detection-enabled: false
+  flagged-phrases: []

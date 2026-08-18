@@ -1,0 +1,34 @@
+name: ChurchSMP
+version: '1.0.0'
+main: com.churchsmp.ChurchSMP
+api-version: '1.21'
+author: ChurchSMP Team
+description: Bible/Heaven-themed morality plugin with alignment-gated weapons and effects.
+
+commands:
+  alignment:
+    description: View your (or another player's) alignment score and tier.
+    usage: /alignment [player]
+    permission: churchsmp.alignment
+  donate:
+    description: Donate items to another player as a good deed.
+    usage: /donate <player>
+    permission: churchsmp.donate
+  churchadmin:
+    description: Admin commands for alignment, weapons, regions, and shrines.
+    usage: /churchadmin <give|set|region|shrine> ...
+    permission: churchsmp.admin
+  sermon:
+    description: Start or cancel a sermon event.
+    usage: /sermon <start|cancel>
+    permission: churchsmp.sermon
+
+permissions:
+  churchsmp.alignment:
+    default: true
+  churchsmp.donate:
+    default: true
+  churchsmp.sermon:
+    default: true
+  churchsmp.admin:
+    default: op
