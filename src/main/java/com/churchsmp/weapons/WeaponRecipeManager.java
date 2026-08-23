@@ -73,7 +73,7 @@ public class WeaponRecipeManager {
                         'C', Material.GOLD_NUGGET // "thirty pieces of silver" — represented with gold nuggets
                 ));
 
-        register(WeaponType.STAFF_OF_SOLOMON,
+        register(WeaponType.VOIDBREAKER,
                 new String[]{" Q ", "BRB", " Q "},
                 Map(
                         'Q', Material.QUARTZ,

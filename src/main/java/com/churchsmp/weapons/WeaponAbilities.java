@@ -5,60 +5,82 @@ import com.churchsmp.alignment.AlignmentManager;
 import com.churchsmp.alignment.AlignmentTier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.Collection;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Actual gameplay effects triggered by each weapon ability.
- * Kept intentionally straightforward (potion effects / particles / simple
- * physics) so each method is a clear extension point for further tuning.
+ * execute() returns how many seconds the trigger slot that was just used
+ * should go on cooldown for — most weapons just echo the configured
+ * default, but VoidBreaker needs a different cooldown per named ability
+ * even though both share the same "ability 1" trigger.
  */
 public class WeaponAbilities {
 
     private final ChurchSMP plugin;
     private final AlignmentManager alignmentManager;
 
+    private static final Set<Material> GOLDEN_FOODS = EnumSet.of(
+            Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.GOLDEN_CARROT);
+
     public WeaponAbilities(ChurchSMP plugin) {
         this.plugin = plugin;
         this.alignmentManager = plugin.getAlignmentManager();
     }
 
-    public void execute(WeaponType type, int ability, Player player) {
+    /** Returns the cooldown (in seconds) to apply to the trigger slot just used. */
+    public int execute(WeaponType type, int ability, Player player) {
         switch (type) {
-            case BLADE_OF_ARCHANGEL -> {
+            case BLADE_OF_ARCHANGEL:
                 if (ability == 1) radiantBarrier(player); else holyNova(player);
-            }
-            case SWORD_OF_DAVID -> {
+                break;
+            case SWORD_OF_DAVID:
                 if (ability == 1) smiteBeam(player); else giantSlayer(player);
-            }
-            case STAFF_OF_MOSES -> {
+                break;
+            case STAFF_OF_MOSES:
                 if (ability == 1) partingWave(player); else seaPath(player);
-            }
-            case SCYTHE_OF_CAIN -> {
+                break;
+            case SCYTHE_OF_CAIN:
                 if (ability == 1) lifestealStrike(player); else markOfCain(player);
-            }
-            case TRIDENT_OF_LEVIATHAN -> {
+                break;
+            case TRIDENT_OF_LEVIATHAN:
                 if (ability == 1) whirlpoolPull(player); else leviathanRoar(player);
-            }
-            case BLADE_OF_JUDAS -> {
+                break;
+            case BLADE_OF_JUDAS:
                 if (ability == 1) backstabEscape(player); else thirtyPiecesOfSilver(player);
-            }
-            case STAFF_OF_SOLOMON -> {
-                if (ability == 1) judgment(player); else wisdomsVerdict(player);
-            }
+                break;
+            case VOIDBREAKER:
+                if (ability == 2) {
+                    spacedBound(player);
+                    return 0; // Spaced Bound has no cooldown, by design
+                }
+                ItemStack held = player.getInventory().getItemInMainHand();
+                if (held.containsEnchantment(Enchantment.BREACH)) {
+                    lightlessPhos(player);
+                    return 120;
+                } else {
+                    spiralBoom(player);
+                    return 15;
+                }
         }
+        return plugin.getWeaponManager().getConfiguredCooldown(ability);
     }
 
     // ---------------- GOOD ----------------
@@ -133,10 +155,10 @@ public class WeaponAbilities {
             Block b = origin.clone().add(dir.clone().multiply(i)).getBlock();
             if (b.getType().isAir()) {
                 org.bukkit.block.data.BlockData original = b.getBlockData();
-                b.setType(org.bukkit.Material.WATER);
+                b.setType(Material.WATER);
                 new BukkitRunnable() {
                     @Override public void run() {
-                        if (b.getType() == org.bukkit.Material.WATER) {
+                        if (b.getType() == Material.WATER) {
                             b.setBlockData(original);
                         }
                     }
@@ -226,36 +248,158 @@ public class WeaponAbilities {
         msg(player, "You pay in blood for power.");
     }
 
-    // ---------------- NULLIFIED ----------------
+    // ---------------- NULLIFIED (VoidBreaker) ----------------
 
-    private void judgment(Player player) {
-        double radius = 15;
-        for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
-            if (e instanceof Player target) {
-                AlignmentTier tier = alignmentManager.getTier(target);
-                Particle.DustOptions dust = new Particle.DustOptions(
-                        tier.isGood() ? org.bukkit.Color.YELLOW
-                                : tier.isEvil() ? org.bukkit.Color.RED
-                                : org.bukkit.Color.WHITE, 1.2f);
-                target.getWorld().spawnParticle(Particle.DUST, target.getLocation().add(0, 2.2, 0), 20, 0.3, 0.1, 0.3, dust);
+    /**
+     * Density-mode Ability 1. Draws a custom particle "lightning spiral" at
+     * whatever the player is looking at (entity or block), pulsing damage
+     * and a Blindness+Slowness III debuff to anything in a ~4x4 area there
+     * over 5 seconds. This is fully custom particle work — no vanilla
+     * LightningBolt entity is summoned.
+     */
+    private void spiralBoom(Player player) {
+        Location epicenter = resolveCrosshairLocation(player, 20);
+        player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1.2f);
+        player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1f);
+        msg(player, "Spiral Boom crackles to life!");
+
+        double damagePerPulse = plugin.getConfig().getDouble("voidbreaker.spiral-boom-damage-per-pulse", 3);
+        double areaRadius = 2.0; // approximates the requested "4x4" area
+
+        new BukkitRunnable() {
+            int tick = 0; // counts in 2-tick steps, 50 steps = 100 ticks = 5s
+
+            @Override
+            public void run() {
+                if (tick >= 50 || !epicenter.getWorld().isChunkLoaded(epicenter.getBlockX() >> 4, epicenter.getBlockZ() >> 4)) {
+                    cancel();
+                    return;
+                }
+                double angle = tick * 0.7;
+                double radius = 1.1;
+                double height = ((tick % 20) / 20.0) * 2.5;
+                Location point = epicenter.clone().add(radius * Math.cos(angle), height, radius * Math.sin(angle));
+                epicenter.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 3, 0.05, 0.05, 0.05, 0.01);
+                if (tick % 5 == 0) {
+                    epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1);
+                    for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 2, areaRadius)) {
+                        if (e instanceof LivingEntity le) {
+                            le.damage(damagePerPulse, player);
+                            le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0));
+                            le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 2));
+                        }
+                    }
+                }
+                tick++;
             }
-        }
-        msg(player, "You perceive the alignment of those nearby.");
+        }.runTaskTimer(plugin, 0L, 2L);
     }
 
-    private void wisdomsVerdict(Player player) {
-        double radius = 8;
-        Collection<Entity> nearby = player.getNearbyEntities(radius, radius, radius);
-        long durationTicks = 100L; // 5s
-        for (Entity e : nearby) {
+    /**
+     * Breach-mode Ability 1. Dark AoE burst centered on the caster dealing
+     * heavy damage, and "nullifying" whatever every nearby player is
+     * holding — durability damage to weapons/tools, consuming non-golden
+     * food, or long-cooldown-locking a target's own VoidBreaker.
+     */
+    private void lightlessPhos(Player player) {
+        double range = 5; // approximates "10x10"
+        double damage = plugin.getConfig().getDouble("voidbreaker.lightless-phos-damage", 20);
+
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 0.8f);
+        for (int i = 0; i < 60; i++) {
+            double x = (Math.random() - 0.5) * range * 2;
+            double y = Math.random() * 3;
+            double z = (Math.random() - 0.5) * range * 2;
+            player.getWorld().spawnParticle(Particle.SCULK_SOUL, player.getLocation().add(x, y, z), 1, 0, 0, 0, 0);
+        }
+        msg(player, "Lightless Ph\u014ds consumes the light around you.");
+
+        for (Entity e : player.getNearbyEntities(range, range, range)) {
+            if (e.equals(player) || !(e instanceof LivingEntity le)) continue;
+            le.damage(damage, player);
+
             if (e instanceof Player target) {
-                plugin.getNullifiedZoneManager().nullify(target, durationTicks);
+                nullifyHeldItem(target);
             }
         }
-        plugin.getNullifiedZoneManager().nullify(player, durationTicks);
-        player.getWorld().spawnParticle(Particle.WITCH, player.getLocation(), 80, radius / 2, 1, radius / 2, 0.05);
-        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1f, 1f);
-        msg(player, "Wisdom's Verdict silences all abilities nearby.");
+    }
+
+    private void nullifyHeldItem(Player target) {
+        ItemStack held = target.getInventory().getItemInMainHand();
+        if (held == null || held.getType() == Material.AIR) return;
+
+        if (held.getType() == Material.MACE) {
+            plugin.getWeaponManager().putOnCooldown(target, WeaponType.VOIDBREAKER, 1, 120);
+            plugin.getWeaponManager().putOnCooldown(target, WeaponType.VOIDBREAKER, 2, 120);
+            title(target, "Nullifying yours pride, after all");
+            return;
+        }
+        if (isWeaponMaterial(held.getType())) {
+            damageDurability(target, held, 0.20);
+            title(target, "Nullifying yours wrath");
+            return;
+        }
+        if (isDiggingMaterial(held.getType())) {
+            damageDurability(target, held, 0.20);
+            title(target, "Nullifying yours greed");
+            return;
+        }
+        if (held.getType().isEdible() && !GOLDEN_FOODS.contains(held.getType())) {
+            held.setAmount(Math.max(0, held.getAmount() - 1));
+            target.getInventory().setItemInMainHand(held);
+            title(target, "Nullifying yours gluttony");
+        }
+    }
+
+    private void damageDurability(Player target, ItemStack item, double percentOfMax) {
+        if (!(item.getItemMeta() instanceof Damageable dmg)) return;
+        if (item.getItemMeta().isUnbreakable()) return;
+        int maxDurability = item.getType().getMaxDurability();
+        if (maxDurability <= 0) return;
+        int addDamage = Math.max(1, (int) (maxDurability * percentOfMax));
+        dmg.setDamage(Math.min(maxDurability, dmg.getDamage() + addDamage));
+        item.setItemMeta((org.bukkit.inventory.meta.ItemMeta) dmg);
+        target.getInventory().setItemInMainHand(item);
+    }
+
+    private boolean isWeaponMaterial(Material material) {
+        String name = material.name();
+        return name.endsWith("_SWORD") || material == Material.TRIDENT;
+    }
+
+    private boolean isDiggingMaterial(Material material) {
+        String name = material.name();
+        return name.endsWith("_PICKAXE") || name.endsWith("_SHOVEL")
+                || name.endsWith("_AXE") || name.endsWith("_HOE");
+    }
+
+    /**
+     * Ability 2. Toggles VoidBreaker between Density mode (default) and
+     * Breach mode by swapping the real vanilla enchantments on the item —
+     * this lets the game engine handle the actual mace smash-attack math,
+     * rather than the plugin re-implementing it. Also gives a short
+     * forward dash for a bit of mobility. No cooldown.
+     */
+    private void spacedBound(Player player) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        boolean wasBreach = item.containsEnchantment(Enchantment.BREACH);
+
+        if (wasBreach) {
+            item.removeEnchantment(Enchantment.BREACH);
+            item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
+            msg(player, "VoidBreaker shifts into Density mode.");
+        } else {
+            item.removeEnchantment(Enchantment.DENSITY);
+            item.addUnsafeEnchantment(Enchantment.BREACH, 6);
+            msg(player, "VoidBreaker shifts into Breach mode.");
+        }
+        player.getInventory().setItemInMainHand(item);
+
+        Vector dash = player.getLocation().getDirection().normalize().multiply(1.4);
+        dash.setY(0.35);
+        player.setVelocity(dash);
+        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 20, 0.3, 0.1, 0.3, 0.02);
+        player.playSound(player.getLocation(), Sound.ENTITY_PHANTOM_FLAP, 0.7f, 1.6f);
     }
 
     // ---------------- helpers ----------------
@@ -273,7 +417,21 @@ public class WeaponAbilities {
         return target instanceof LivingEntity le ? le : null;
     }
 
+    /** Entity under the crosshair if there is one, else the targeted block's location, else a point ahead of the player. */
+    private Location resolveCrosshairLocation(Player player, double range) {
+        LivingEntity entity = getTargetedEntity(player, range);
+        if (entity != null) return entity.getLocation();
+        Block block = player.getTargetBlockExact((int) range);
+        if (block != null) return block.getLocation().add(0.5, 1, 0.5);
+        return player.getLocation().add(player.getLocation().getDirection().multiply(5));
+    }
+
     private void msg(Player player, String text) {
         player.sendActionBar(Component.text(text, NamedTextColor.LIGHT_PURPLE));
+    }
+
+    private void title(Player player, String text) {
+        player.showTitle(Title.title(Component.empty(),
+                Component.text(text, NamedTextColor.DARK_PURPLE)));
     }
 }

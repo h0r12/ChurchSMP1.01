@@ -3,7 +3,7 @@
 alignment:
   min: -100
   max: 100
-  decay-per-day: 2          # points moved back toward 0 each in-game day
+  decay-per-day: 2.5          # points moved back toward 0 each in-game day
   tiers:
     saint: 61                # score >= this -> Saint
     righteous: 21             # score >= this -> Righteous
@@ -62,6 +62,10 @@ weapons:
     ability-2: 90
   require-exact-tier-for-nullified: true
   deactivate-on-tier-mismatch: true
+
+voidbreaker:
+  spiral-boom-damage-per-pulse: 3
+  lightless-phos-damage: 20
 
 confession:
   points-per-item: 2

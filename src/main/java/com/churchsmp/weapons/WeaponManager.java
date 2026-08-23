@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.NamespacedKey;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -64,6 +65,17 @@ public class WeaponManager {
         meta.getPersistentDataContainer().set(weaponKey, PersistentDataType.STRING, type.getId());
         meta.setItemModel(new NamespacedKey("churchsmp", type.getId()));
         item.setItemMeta(meta);
+
+        if (type == WeaponType.VOIDBREAKER) {
+            ItemMeta voidMeta = item.getItemMeta();
+            voidMeta.setUnbreakable(true);
+            item.setItemMeta(voidMeta);
+            // Default mode: Density. Spaced Bound toggles this to Breach and back.
+            item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
+            item.addUnsafeEnchantment(Enchantment.FIRE_ASPECT, 2);
+            item.addUnsafeEnchantment(Enchantment.WIND_BURST, 1);
+        }
+
         return item;
     }
 

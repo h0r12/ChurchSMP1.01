@@ -45,11 +45,11 @@ public enum WeaponType {
             "Ability 1: Backstab + Smoke Escape",
             "Ability 2: Thirty Pieces of Silver (self-sac guaranteed crit)"
     ),
-    STAFF_OF_SOLOMON(
-            "staff_of_solomon", "Staff of Solomon", Material.BLAZE_ROD,
+    VOIDBREAKER(
+            "voidbreaker", "VoidBreaker", Material.MACE,
             Category.NULLIFIED,
-            "Ability 1: Judgment (reveal nearby alignments)",
-            "Ability 2: Wisdom's Verdict (nullify abilities in radius)"
+            "Ability 1 (Density mode): Spiral Boom (spiral lightning shock)",
+            "Ability 2: Spaced Bound (toggle Density/Breach + dash)"
     );
 
     public enum Category { GOOD, EVIL, NULLIFIED }

@@ -65,8 +65,10 @@ public class WeaponListener implements Listener {
             return;
         }
 
-        abilities.execute(type, ability, player);
-        weaponManager.putOnCooldown(player, type, ability, weaponManager.getConfiguredCooldown(ability));
+        int cooldownSeconds = abilities.execute(type, ability, player);
+        if (cooldownSeconds > 0) {
+            weaponManager.putOnCooldown(player, type, ability, cooldownSeconds);
+        }
     }
 
     private void actionBar(Player player, String text) {

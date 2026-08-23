@@ -58,6 +58,7 @@ public class SermonManager {
             public void run() {
                 elapsed += checkIntervalTicks;
                 refreshAttendees();
+                playClearEffect();
                 if (elapsed >= totalTicks) {
                     finish();
                     cancel();
@@ -67,6 +68,42 @@ public class SermonManager {
 
         return true;
     }
+
+    /**
+     * The visible "clear effect" marking an active sermon: a bright particle
+     * column at the sermon location so it's obvious to everyone where and
+     * that it's happening, plus a cleansing pass that clears negative status
+     * effects from anyone currently counted as an attendee — a small,
+     * tangible benefit for actually staying and listening.
+     */
+    private void playClearEffect() {
+        for (int i = 0; i < 20; i++) {
+            location.getWorld().spawnParticle(org.bukkit.Particle.END_ROD,
+                    location.clone().add(0, i * 0.3, 0), 2, 0.15, 0, 0.15, 0.01);
+        }
+        location.getWorld().playSound(location, org.bukkit.Sound.BLOCK_BEACON_AMBIENT, 1f, 1.5f);
+
+        for (UUID id : currentAttendees) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null) continue;
+            for (org.bukkit.potion.PotionEffectType negative : NEGATIVE_EFFECTS) {
+                if (p.hasPotionEffect(negative)) {
+                    p.removePotionEffect(negative);
+                }
+            }
+        }
+    }
+
+    private static final org.bukkit.potion.PotionEffectType[] NEGATIVE_EFFECTS = {
+            org.bukkit.potion.PotionEffectType.POISON,
+            org.bukkit.potion.PotionEffectType.WITHER,
+            org.bukkit.potion.PotionEffectType.BLINDNESS,
+            org.bukkit.potion.PotionEffectType.SLOWNESS,
+            org.bukkit.potion.PotionEffectType.WEAKNESS,
+            org.bukkit.potion.PotionEffectType.NAUSEA,
+            org.bukkit.potion.PotionEffectType.HUNGER,
+            org.bukkit.potion.PotionEffectType.MINING_FATIGUE
+    };
 
     private void refreshAttendees() {
         Set<UUID> stillPresent = new HashSet<>();

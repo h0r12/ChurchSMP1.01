@@ -17,6 +17,7 @@ import com.churchsmp.weapons.NullifiedZoneManager;
 import com.churchsmp.weapons.WeaponAbilities;
 import com.churchsmp.weapons.WeaponListener;
 import com.churchsmp.weapons.WeaponManager;
+import com.churchsmp.weapons.WeaponPassiveEffects;
 import com.churchsmp.weapons.WeaponRecipeManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -31,6 +32,7 @@ public final class ChurchSMP extends JavaPlugin {
     private SermonManager sermonManager;
     private RegionWandListener regionWandListener;
     private EffectListener effectListener;
+    private WeaponPassiveEffects weaponPassiveEffects;
 
     @Override
     public void onEnable() {
@@ -56,6 +58,8 @@ public final class ChurchSMP extends JavaPlugin {
         this.effectListener = new EffectListener(this);
         getServer().getPluginManager().registerEvents(effectListener, this);
         effectListener.startTicking();
+        this.weaponPassiveEffects = new WeaponPassiveEffects(this);
+        weaponPassiveEffects.start();
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();
