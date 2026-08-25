@@ -271,26 +271,40 @@ public class WeaponAbilities {
 
             @Override
             public void run() {
-                if (tick >= 50 || !epicenter.getWorld().isChunkLoaded(epicenter.getBlockX() >> 4, epicenter.getBlockZ() >> 4)) {
-                    cancel();
-                    return;
-                }
-                double angle = tick * 0.7;
-                double radius = 1.1;
-                double height = ((tick % 20) / 20.0) * 2.5;
-                Location point = epicenter.clone().add(radius * Math.cos(angle), height, radius * Math.sin(angle));
-                epicenter.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 3, 0.05, 0.05, 0.05, 0.01);
-                if (tick % 5 == 0) {
-                    epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1);
-                    for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 2, areaRadius)) {
-                        if (e instanceof LivingEntity le) {
-                            le.damage(damagePerPulse, player);
-                            le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0));
-                            le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 2));
+                try {
+                    if (tick >= 50 || epicenter.getWorld() == null
+                            || !epicenter.getWorld().isChunkLoaded(epicenter.getBlockX() >> 4, epicenter.getBlockZ() >> 4)) {
+                        cancel();
+                        return;
+                    }
+                    double angle = tick * 0.7;
+                    double radius = 1.3;
+                    double height = ((tick % 20) / 20.0) * 2.5;
+                    Location point = epicenter.clone().add(radius * Math.cos(angle), height, radius * Math.sin(angle));
+
+                    // ELECTRIC_SPARK alone is tiny and easy to miss — layer a bright
+                    // END_ROD trail on top so the spiral is obvious at a glance.
+                    epicenter.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 6, 0.05, 0.05, 0.05, 0.02);
+                    epicenter.getWorld().spawnParticle(Particle.END_ROD, point, 2, 0.02, 0.02, 0.02, 0.01);
+
+                    if (tick % 5 == 0) {
+                        epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1);
+                        for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 3, areaRadius)) {
+                            if (e instanceof LivingEntity le && !le.equals(player)) {
+                                le.damage(damagePerPulse, player);
+                                le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0));
+                                le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 2));
+                            }
                         }
                     }
+                    tick++;
+                } catch (Exception ex) {
+                    // A silently-dying repeating task looks exactly like "it did
+                    // nothing" — log it loudly instead so it shows up in console.
+                    plugin.getLogger().warning("Spiral Boom animation error: " + ex);
+                    ex.printStackTrace();
+                    cancel();
                 }
-                tick++;
             }
         }.runTaskTimer(plugin, 0L, 2L);
     }
