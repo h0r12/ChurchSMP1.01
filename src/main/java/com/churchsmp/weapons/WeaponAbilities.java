@@ -6,6 +6,7 @@ import com.churchsmp.alignment.AlignmentTier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -107,7 +108,7 @@ public class WeaponAbilities {
                 le.damage(6, player);
             }
         }
-        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation(), 1);
+        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation(), 1, Color.WHITE);
         player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation(), 100, radius / 2, 1, radius / 2, 0.05);
         player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.2f);
         msg(player, "Holy Nova erupts around you!");
@@ -288,7 +289,7 @@ public class WeaponAbilities {
                     epicenter.getWorld().spawnParticle(Particle.END_ROD, point, 2, 0.02, 0.02, 0.02, 0.01);
 
                     if (tick % 5 == 0) {
-                        epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1);
+                        epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1, Color.WHITE);
                         for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 3, areaRadius)) {
                             if (e instanceof LivingEntity le && !le.equals(player)) {
                                 le.damage(damagePerPulse, player);
