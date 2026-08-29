@@ -18,13 +18,16 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Actual gameplay effects triggered by each weapon ability.
@@ -33,10 +36,14 @@ import java.util.Set;
  * default, but VoidBreaker needs a different cooldown per named ability
  * even though both share the same "ability 1" trigger.
  */
-public class WeaponAbilities {
+public class WeaponAbilities implements org.bukkit.event.Listener {
 
     private final ChurchSMP plugin;
     private final AlignmentManager alignmentManager;
+    private final org.bukkit.NamespacedKey judasSkullKey;
+    private final Set<UUID> spiralBoomStrikes = new java.util.HashSet<>();
+    private final Set<UUID> bloodyRainActive = new java.util.HashSet<>();
+    private final java.util.Map<UUID, Long> lastBloodyRainDash = new java.util.HashMap<>();
 
     private static final Set<Material> GOLDEN_FOODS = EnumSet.of(
             Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.GOLDEN_CARROT);
@@ -44,16 +51,21 @@ public class WeaponAbilities {
     public WeaponAbilities(ChurchSMP plugin) {
         this.plugin = plugin;
         this.alignmentManager = plugin.getAlignmentManager();
+        this.judasSkullKey = new org.bukkit.NamespacedKey(plugin, "judas_skull");
+    }
+
+    public org.bukkit.NamespacedKey getJudasSkullKey() {
+        return judasSkullKey;
     }
 
     /** Returns the cooldown (in seconds) to apply to the trigger slot just used. */
     public int execute(WeaponType type, int ability, Player player) {
         switch (type) {
             case BLADE_OF_ARCHANGEL:
-                if (ability == 1) radiantBarrier(player); else holyNova(player);
+                if (ability == 1) radiantBarrier(player); else energizedBeam(player);
                 break;
             case SWORD_OF_DAVID:
-                if (ability == 1) smiteBeam(player); else giantSlayer(player);
+                if (ability == 1) unseenPierce(player); else giantSlayer(player);
                 break;
             case STAFF_OF_MOSES:
                 if (ability == 1) partingWave(player); else seaPath(player);
@@ -61,21 +73,26 @@ public class WeaponAbilities {
             case SCYTHE_OF_CAIN:
                 if (ability == 1) lifestealStrike(player); else markOfCain(player);
                 break;
-            case TRIDENT_OF_LEVIATHAN:
-                if (ability == 1) whirlpoolPull(player); else leviathanRoar(player);
+            case SORROWESS:
+                if (ability == 1) {
+                    griefShards(player);
+                } else {
+                    leviathanRoar(player);
+                    return 0; // cooldown is applied manually once the 30s buff ends
+                }
                 break;
             case BLADE_OF_JUDAS:
-                if (ability == 1) backstabEscape(player); else thirtyPiecesOfSilver(player);
+                if (ability == 1) hemorrhagedMold(player); else thirtyPiecesOfSilver(player);
                 break;
             case VOIDBREAKER:
                 if (ability == 2) {
                     spacedBound(player);
-                    return 0; // Spaced Bound has no cooldown, by design
+                    return 5;
                 }
                 ItemStack held = player.getInventory().getItemInMainHand();
                 if (held.containsEnchantment(Enchantment.BREACH)) {
                     lightlessPhos(player);
-                    return 120;
+                    return 60;
                 } else {
                     spiralBoom(player);
                     return 15;
@@ -88,30 +105,93 @@ public class WeaponAbilities {
 
     private void radiantBarrier(Player player) {
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 80, 1));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 100, 0));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0));
         player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1, 0), 40, 0.6, 1, 0.6, 0.02);
         player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 0.6f, 1.4f);
         msg(player, "The Archangel shields you.");
     }
 
-    private void holyNova(Player player) {
-        double radius = 5;
-        for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
-            if (e instanceof Player target) {
-                AlignmentTier tier = alignmentManager.getTier(target);
-                if (tier.isEvil()) {
-                    target.damage(6, player);
-                } else if (tier.isGood()) {
-                    target.setHealth(Math.min(target.getHealth() + 4, target.getMaxHealth()));
+    /**
+     * Energized Beam (formerly Holy Nova). Same charge-up boss-bar telegraph
+     * as before, but the release is now a targeted true-damage beam rather
+     * than a self-centered nova — 5 hearts through armor, with a bonus
+     * against Evil-tier/Undead targets, and heavy particle work along the
+     * whole beam path.
+     */
+    private void energizedBeam(Player player) {
+        int chargeTicks = 40; // 2 seconds
+        org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
+                player.getName() + " is charging Energized Beam...",
+                org.bukkit.boss.BarColor.YELLOW, org.bukkit.boss.BarStyle.SOLID);
+        bar.setProgress(0);
+        for (Entity e : player.getNearbyEntities(15, 15, 15)) {
+            if (e instanceof Player nearby) bar.addPlayer(nearby);
+        }
+        bar.addPlayer(player);
+
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                try {
+                    tick++;
+                    bar.setProgress(Math.min(1.0, (double) tick / chargeTicks));
+                    player.getWorld().spawnParticle(Particle.END_ROD,
+                            player.getLocation().add(0, 1, 0), 4, 0.4, 0.6, 0.4, 0.01);
+                    if (tick >= chargeTicks) {
+                        bar.removeAll();
+                        fireBeam(player);
+                        cancel();
+                    }
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Energized Beam charge error: " + ex);
+                    ex.printStackTrace();
+                    bar.removeAll();
+                    cancel();
                 }
-            } else if (e instanceof LivingEntity le && isUndead(le)) {
-                le.damage(6, player);
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void fireBeam(Player player) {
+        double trueDamage = 10; // 5 hearts, ignoring armor entirely
+        Location eye = player.getEyeLocation();
+        LivingEntity target = resolveForgivingTarget(player, 25);
+
+        Location endPoint = target != null
+                ? target.getLocation().add(0, target.getHeight() / 2, 0)
+                : eye.clone().add(eye.getDirection().multiply(25));
+
+        Vector direction = endPoint.toVector().subtract(eye.toVector());
+        double distance = direction.length();
+        direction.normalize();
+
+        for (double d = 0; d < distance; d += 0.4) {
+            Location point = eye.clone().add(direction.clone().multiply(d));
+            player.getWorld().spawnParticle(Particle.END_ROD, point, 3, 0.05, 0.05, 0.05, 0.01);
+            player.getWorld().spawnParticle(Particle.FLASH, point, 0);
+            if ((int) (d * 10) % 5 == 0) {
+                player.getWorld().spawnParticle(Particle.WITCH, point, 2, 0.1, 0.1, 0.1, 0);
             }
         }
-        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation(), 1, Color.WHITE);
-        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation(), 100, radius / 2, 1, radius / 2, 0.05);
-        player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.2f);
-        msg(player, "Holy Nova erupts around you!");
+        player.getWorld().spawnParticle(Particle.EXPLOSION, endPoint, 1);
+        player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.4f);
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.8f, 1.6f);
+
+        if (target != null) {
+            boolean bonus = (target instanceof Player p && alignmentManager.getTier(p).isEvil()) || isUndead(target);
+            double damage = bonus ? trueDamage * 1.5 : trueDamage;
+
+            double registerAmount = Math.min(0.5, damage);
+            target.damage(registerAmount, player);
+            target.setHealth(Math.max(0, target.getHealth() - (damage - registerAmount)));
+
+            target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1, Color.WHITE);
+            msg(player, "Energized Beam pierces " + target.getName() + "!");
+        } else {
+            msg(player, "Energized Beam fires into the void.");
+        }
     }
 
     private void smiteBeam(Player player) {
@@ -125,6 +205,52 @@ public class WeaponAbilities {
         target.getWorld().spawnParticle(Particle.END_ROD, target.getLocation().add(0, 1, 0), 30, 0.3, 0.5, 0.3, 0.05);
         player.playSound(player.getLocation(), Sound.ENTITY_ARROW_HIT, 1f, 1.6f);
         msg(player, "Smite Beam strikes " + target.getName() + "!");
+    }
+
+    /**
+     * Ability 1 (Unseen Pierce). Blinds the target, then teleports the
+     * caster behind them 4 times in fast succession, lunging for a small
+     * hit each time (totalling 4.5 damage) with a visual-only lightning
+     * bolt on every landing.
+     */
+    private void unseenPierce(Player player) {
+        LivingEntity target = resolveForgivingTarget(player, 15);
+        if (target == null) {
+            msg(player, "No target in sight.");
+            return;
+        }
+        target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 80, 0));
+        double[] hitDamages = {1.0, 1.0, 1.0, 1.5}; // sums to 4.5
+
+        new BukkitRunnable() {
+            int hit = 0;
+
+            @Override
+            public void run() {
+                try {
+                    if (hit >= 4 || target.isDead() || !target.isValid()) {
+                        cancel();
+                        return;
+                    }
+                    Vector behind = target.getLocation().getDirection().normalize().multiply(-1.3);
+                    Location dest = target.getLocation().add(behind);
+                    dest.setDirection(target.getLocation().toVector().subtract(dest.toVector()));
+                    player.teleport(dest);
+
+                    target.damage(hitDamages[hit], player);
+                    target.getWorld().strikeLightningEffect(target.getLocation());
+                    player.getWorld().spawnParticle(Particle.END_ROD, dest, 15, 0.2, 0.3, 0.2, 0.02);
+                    player.playSound(dest, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.3f);
+                    hit++;
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Unseen Pierce error: " + ex);
+                    ex.printStackTrace();
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 3L, 3L); // fast pace — 4 hits in under a second
+
+        msg(player, "Unseen Pierce begins!");
     }
 
     private void giantSlayer(Player player) {
@@ -185,68 +311,230 @@ public class WeaponAbilities {
     }
 
     private void markOfCain(Player player) {
-        LivingEntity target = getTargetedEntity(player, 15);
+        LivingEntity target = resolveForgivingTarget(player, 15);
         if (target == null) {
             msg(player, "No target in sight.");
             return;
         }
-        target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 100, 1));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 100, 0));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 140, 2));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 140, 0));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 60, 0));
+
+        // Much more visual weight: a dark swirling mark on the target.
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                try {
+                    if (tick >= 40 || target.isDead() || !target.isValid()) {
+                        cancel();
+                        return;
+                    }
+                    double angle = tick * 0.6;
+                    Location point = target.getLocation().add(
+                            Math.cos(angle) * 0.6, 1 + Math.sin(tick * 0.2) * 0.3, Math.sin(angle) * 0.6);
+                    Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(90, 0, 0), 1.2f);
+                    target.getWorld().spawnParticle(Particle.DUST, point, 2, 0, 0, 0, 0, dust);
+                    tick++;
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Mark of Cain animation error: " + ex);
+                    ex.printStackTrace();
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+
+        player.playSound(target.getLocation(), Sound.ENTITY_WITHER_HURT, 0.7f, 0.6f);
         msg(player, "The Mark of Cain is placed upon " + target.getName() + ".");
     }
 
-    private void whirlpoolPull(Player player) {
-        double radius = 5;
-        for (Entity e : player.getNearbyEntities(radius, 2, radius)) {
-            if (e instanceof LivingEntity le && !e.equals(player)) {
-                Vector pull = player.getLocation().toVector().subtract(le.getLocation().toVector()).normalize().multiply(0.6);
-                le.setVelocity(pull);
-            }
+    /**
+     * Ability 1 (Grief Shards). Summons 5 floating red daggers around the
+     * caster, then fires them one after another at whatever's under the
+     * crosshair, each dealing 1 damage (5 total if all connect).
+     */
+    private void griefShards(Player player) {
+        LivingEntity target = resolveForgivingTarget(player, 20);
+        if (target == null) {
+            msg(player, "No target in sight.");
+            return;
         }
-        player.getWorld().spawnParticle(Particle.BUBBLE_COLUMN_UP, player.getLocation(), 60, radius / 2, 0.5, radius / 2, 0.05);
-        player.playSound(player.getLocation(), Sound.ENTITY_GUARDIAN_ATTACK, 1f, 0.8f);
-        msg(player, "The Leviathan drags your foes closer.");
+
+        // Floating daggers ring briefly around the caster before launching.
+        for (int i = 0; i < 5; i++) {
+            double angle = (2 * Math.PI / 5) * i;
+            Location point = player.getLocation().add(Math.cos(angle) * 0.9, 1.2, Math.sin(angle) * 0.9);
+            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(200, 0, 0), 1.3f);
+            player.getWorld().spawnParticle(Particle.DUST, point, 3, 0.03, 0.03, 0.03, 0, dust);
+        }
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, 0.8f, 0.7f);
+
+        new BukkitRunnable() {
+            int shard = 0;
+
+            @Override
+            public void run() {
+                try {
+                    if (shard >= 5 || target.isDead() || !target.isValid()) {
+                        cancel();
+                        return;
+                    }
+                    Location from = player.getEyeLocation();
+                    Location to = target.getLocation().add(0, target.getHeight() / 2, 0);
+                    Vector direction = to.toVector().subtract(from.toVector());
+                    double distance = direction.length();
+                    direction.normalize();
+
+                    Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(200, 0, 0), 1f);
+                    for (double d = 0; d < distance; d += 0.5) {
+                        Location trailPoint = from.clone().add(direction.clone().multiply(d));
+                        player.getWorld().spawnParticle(Particle.DUST, trailPoint, 1, 0, 0, 0, 0, dust);
+                    }
+                    target.damage(1, player);
+                    player.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT, 1f, 0.6f);
+                    shard++;
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Grief Shards error: " + ex);
+                    ex.printStackTrace();
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 4L, 4L);
+
+        msg(player, "Grief Shards fly at " + target.getName() + "!");
     }
 
+    /**
+     * Ability 2 (Bloody Rain). A 30-second state: cherry-leaf "rain" falls
+     * in a 5x5 area around the caster (following them), anything that
+     * enters that area gets Wither+Darkness, and — as close as the public
+     * API allows to true vanilla Riptide-anywhere — right-clicking with
+     * Sorrowess during this window manually launches a riptide-style dash
+     * regardless of whether you're actually wet. Cooldown (60s) only
+     * starts once the 30 seconds run out, not on activation.
+     */
     private void leviathanRoar(Player player) {
-        double radius = 6;
-        for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
-            if (e instanceof LivingEntity le && !e.equals(player)) {
-                le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 0));
-                le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1));
+        UUID id = player.getUniqueId();
+        if (bloodyRainActive.contains(id)) {
+            msg(player, "Bloody Rain is already falling.");
+            return;
+        }
+        bloodyRainActive.add(id);
+        msg(player, "Bloody Rain begins to fall.");
+        player.playSound(player.getLocation(), Sound.ENTITY_PHANTOM_AMBIENT, 0.7f, 0.6f);
+
+        new BukkitRunnable() {
+            int tick = 0; // advances by 4 each run (every 4 ticks)
+
+            @Override
+            public void run() {
+                try {
+                    if (tick >= 600 || !player.isOnline()) {
+                        bloodyRainActive.remove(id);
+                        cancel();
+                        plugin.getWeaponManager().putOnCooldown(player, WeaponType.SORROWESS, 2, 60);
+                        if (player.isOnline()) msg(player, "Bloody Rain fades.");
+                        return;
+                    }
+                    Location center = player.getLocation();
+                    for (int i = 0; i < 4; i++) {
+                        double x = (Math.random() - 0.5) * 5;
+                        double z = (Math.random() - 0.5) * 5;
+                        center.getWorld().spawnParticle(Particle.CHERRY_LEAVES, center.clone().add(x, 2.5, z), 1, 0, 0, 0, 0);
+                    }
+                    for (Entity e : player.getNearbyEntities(2.5, 2.5, 2.5)) {
+                        if (e instanceof LivingEntity le && !le.equals(player)) {
+                            le.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 40, 0));
+                            le.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 40, 0));
+                        }
+                    }
+                    tick += 4;
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Bloody Rain error: " + ex);
+                    ex.printStackTrace();
+                    bloodyRainActive.remove(id);
+                    cancel();
+                }
             }
-        }
-        player.getWorld().spawnParticle(Particle.SONIC_BOOM, player.getLocation(), 1);
-        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 1f, 0.7f);
-        msg(player, "The Leviathan's roar echoes out!");
+        }.runTaskTimer(plugin, 0L, 4L);
     }
 
-    private void backstabEscape(Player player) {
-        LivingEntity target = getTargetedEntity(player, 4);
-        if (target != null) {
-            Vector toTarget = target.getLocation().toVector().subtract(player.getLocation().toVector()).normalize();
-            Vector targetFacing = target.getLocation().getDirection().normalize();
-            boolean isBehind = toTarget.dot(targetFacing) > 0.3;
-            target.damage(isBehind ? 8 : 4, player);
-        }
-        player.getWorld().spawnParticle(Particle.LARGE_SMOKE, player.getLocation(), 40, 0.4, 0.6, 0.4, 0.02);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 60, 0));
-        msg(player, "You vanish into smoke.");
+    /**
+     * Approximates "riptide anywhere" during Bloody Rain — vanilla gates
+     * real Riptide behind an actual wet/rain check deep in game code that
+     * isn't exposed to plugins, so this manually launches the same kind of
+     * dash instead of trying to bypass that check.
+     */
+    @org.bukkit.event.EventHandler
+    public void onBloodyRainRiptideAttempt(org.bukkit.event.player.PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        if (!bloodyRainActive.contains(player.getUniqueId())) return;
+        if (plugin.getWeaponManager().getWeaponType(player.getInventory().getItemInMainHand()) != WeaponType.SORROWESS) return;
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+                && event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+
+        long now = System.currentTimeMillis();
+        long last = lastBloodyRainDash.getOrDefault(player.getUniqueId(), 0L);
+        if (now - last < 500) return;
+        lastBloodyRainDash.put(player.getUniqueId(), now);
+
+        Vector dash = player.getLocation().getDirection().normalize().multiply(1.8);
+        player.setVelocity(dash);
+        player.getWorld().spawnParticle(Particle.SPLASH, player.getLocation(), 30, 0.3, 0.3, 0.3, 0.05);
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, 1f, 1f);
     }
 
+    /**
+     * Ability 1 (Hemorrhaged Mold). Fires a tagged WitherSkull that never
+     * does vanilla wither-skull things on impact — JudasPassives.java
+     * intercepts it via ProjectileHitEvent and replaces the effect
+     * entirely with: steal a heart + stun on a direct entity hit, and a
+     * big dark blast (blind + visual lightning on everything nearby)
+     * wherever it lands.
+     */
+    private void hemorrhagedMold(Player player) {
+        Location eye = player.getEyeLocation();
+        var skull = player.getWorld().spawn(eye, org.bukkit.entity.WitherSkull.class, s -> {
+            s.setShooter(player);
+            s.setVelocity(eye.getDirection().multiply(1.6));
+            s.setCharged(false);
+            s.getPersistentDataContainer().set(judasSkullKey, PersistentDataType.STRING, player.getUniqueId().toString());
+        });
+        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1f, 1.1f);
+        msg(player, "Hemorrhaged Mold streaks toward its mark.");
+    }
+
+    /**
+     * Ability 2. Fixed 3-heart sacrifice, Strength III for 15s, and the
+     * sacrificed hearts are handed back automatically 20 seconds later
+     * (regardless of whether the player has since healed some of it back
+     * naturally — this always tops them up by the sacrificed amount).
+     */
     private void thirtyPiecesOfSilver(Player player) {
-        double cost = Math.min(4, player.getHealth() - 1);
-        if (cost <= 0) {
+        double cost = 6; // 3 hearts
+        if (player.getHealth() <= cost) {
             msg(player, "Too weak to pay the price.");
             return;
         }
         player.setHealth(player.getHealth() - cost);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 60, 2));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 300, 2));
         LivingEntity target = getTargetedEntity(player, 4);
         if (target != null) {
             target.damage(10, player);
         }
         msg(player, "You pay in blood for power.");
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!player.isOnline()) return;
+                var attribute = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                double max = attribute != null ? attribute.getValue() : 20;
+                player.setHealth(Math.min(max, player.getHealth() + cost));
+                player.sendActionBar(Component.text("Your sacrifice is repaid.", NamedTextColor.DARK_RED));
+            }
+        }.runTaskLater(plugin, 400L); // 20 seconds
     }
 
     // ---------------- NULLIFIED (VoidBreaker) ----------------
@@ -264,8 +552,8 @@ public class WeaponAbilities {
         player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1f);
         msg(player, "Spiral Boom crackles to life!");
 
-        double damagePerPulse = plugin.getConfig().getDouble("voidbreaker.spiral-boom-damage-per-pulse", 3);
-        double areaRadius = 2.0; // approximates the requested "4x4" area
+        double areaRadius = 3.5; // approximates the requested "7x7" area
+        double areaDamagePerPulse = plugin.getConfig().getDouble("voidbreaker.spiral-boom-damage-per-pulse", 6);
 
         new BukkitRunnable() {
             int tick = 0; // counts in 2-tick steps, 50 steps = 100 ticks = 5s
@@ -290,9 +578,21 @@ public class WeaponAbilities {
 
                     if (tick % 5 == 0) {
                         epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1, Color.WHITE);
+
+                        // A REAL lightning bolt entity (not just the visual effect) —
+                        // vanilla lightning damage is capped to exactly 1 via
+                        // onSpiralBoomLightningDamage() below, keyed to this specific strike.
+                        double bx = (Math.random() - 0.5) * areaRadius * 2;
+                        double bz = (Math.random() - 0.5) * areaRadius * 2;
+                        Location boltSpot = epicenter.clone().add(bx, 0, bz);
+                        var strike = epicenter.getWorld().strikeLightning(boltSpot);
+                        if (strike != null) {
+                            spiralBoomStrikes.add(strike.getUniqueId());
+                        }
+
                         for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 3, areaRadius)) {
                             if (e instanceof LivingEntity le && !le.equals(player)) {
-                                le.damage(damagePerPulse, player);
+                                le.damage(areaDamagePerPulse, player);
                                 le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0));
                                 le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 2));
                             }
@@ -311,32 +611,69 @@ public class WeaponAbilities {
     }
 
     /**
-     * Breach-mode Ability 1. Dark AoE burst centered on the caster dealing
-     * heavy damage, and "nullifying" whatever every nearby player is
-     * holding — durability damage to weapons/tools, consuming non-golden
-     * food, or long-cooldown-locking a target's own VoidBreaker.
+     * Breach-mode Ability 1. Not a one-shot burst anymore — this opens a
+     * dark aura that follows the caster for 20 seconds, pulsing a flat
+     * 5-heart true-damage hit (armor is ignored entirely) to anything
+     * within an 8x8 area around them every 2 seconds, while "nullifying"
+     * whatever every nearby player is holding each pulse.
      */
     private void lightlessPhos(Player player) {
-        double range = 5; // approximates "10x10"
-        double damage = plugin.getConfig().getDouble("voidbreaker.lightless-phos-damage", 20);
+        double range = 4; // approximates "8x8"
+        double trueDamage = 10; // 5 hearts per pulse, ignoring armor entirely
 
-        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 0.8f);
-        for (int i = 0; i < 60; i++) {
-            double x = (Math.random() - 0.5) * range * 2;
-            double y = Math.random() * 3;
-            double z = (Math.random() - 0.5) * range * 2;
-            player.getWorld().spawnParticle(Particle.SCULK_SOUL, player.getLocation().add(x, y, z), 1, 0, 0, 0, 0);
-        }
         msg(player, "Lightless Ph\u014ds consumes the light around you.");
 
-        for (Entity e : player.getNearbyEntities(range, range, range)) {
-            if (e.equals(player) || !(e instanceof LivingEntity le)) continue;
-            le.damage(damage, player);
+        new BukkitRunnable() {
+            int pulse = 0; // one pulse every 40 ticks (2s) — 10 pulses across 20s
 
-            if (e instanceof Player target) {
-                nullifyHeldItem(target);
+            @Override
+            public void run() {
+                try {
+                    if (pulse >= 10 || !player.isOnline() || player.isDead()) {
+                        cancel();
+                        return;
+                    }
+                    Location center = player.getLocation();
+                    center.getWorld().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 0.8f);
+                    center.getWorld().playSound(center, Sound.ENTITY_WITHER_AMBIENT, 0.8f, 0.9f);
+
+                    for (int i = 0; i < 70; i++) {
+                        double x = (Math.random() - 0.5) * range * 2;
+                        double y = Math.random() * 3;
+                        double z = (Math.random() - 0.5) * range * 2;
+                        Location p = center.clone().add(x, y, z);
+                        switch (i % 6) {
+                            case 0 -> center.getWorld().spawnParticle(Particle.SCULK_SOUL, p, 1, 0, 0, 0, 0);
+                            case 1 -> center.getWorld().spawnParticle(Particle.SQUID_INK, p, 1, 0, 0, 0, 0);
+                            case 2 -> center.getWorld().spawnParticle(Particle.LARGE_SMOKE, p, 1, 0, 0, 0, 0);
+                            case 3 -> center.getWorld().spawnParticle(Particle.ASH, p, 1, 0, 0, 0, 0);
+                            case 4 -> center.getWorld().spawnParticle(Particle.SOUL, p, 1, 0, 0, 0, 0);
+                            default -> center.getWorld().spawnParticle(Particle.WITCH, p, 1, 0, 0, 0, 0);
+                        }
+                    }
+
+                    for (Entity e : player.getNearbyEntities(range, range, range)) {
+                        if (e.equals(player) || !(e instanceof LivingEntity le)) continue;
+
+                        // Register real kill-credit with a negligible normal hit, then
+                        // apply the rest directly to health so armor can't reduce it.
+                        double registerAmount = Math.min(0.5, trueDamage);
+                        le.damage(registerAmount, player);
+                        double remaining = trueDamage - registerAmount;
+                        le.setHealth(Math.max(0, le.getHealth() - remaining));
+
+                        if (e instanceof Player target) {
+                            nullifyHeldItem(target);
+                        }
+                    }
+                    pulse++;
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("Lightless Ph\u014ds error: " + ex);
+                    ex.printStackTrace();
+                    cancel();
+                }
             }
-        }
+        }.runTaskTimer(plugin, 0L, 40L);
     }
 
     private void nullifyHeldItem(Player target) {
@@ -402,9 +739,11 @@ public class WeaponAbilities {
         if (wasBreach) {
             item.removeEnchantment(Enchantment.BREACH);
             item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
+            item.addUnsafeEnchantment(Enchantment.WIND_BURST, 1);
             msg(player, "VoidBreaker shifts into Density mode.");
         } else {
             item.removeEnchantment(Enchantment.DENSITY);
+            item.removeEnchantment(Enchantment.WIND_BURST);
             item.addUnsafeEnchantment(Enchantment.BREACH, 6);
             msg(player, "VoidBreaker shifts into Breach mode.");
         }
@@ -432,6 +771,23 @@ public class WeaponAbilities {
         return target instanceof LivingEntity le ? le : null;
     }
 
+    /**
+     * A much more forgiving version of getTargetedEntity — uses a ray trace
+     * with a hitbox tolerance instead of a pixel-perfect line, so abilities
+     * don't fail just because the crosshair was slightly off. Falls back to
+     * the strict method if the ray trace finds nothing.
+     */
+    private LivingEntity resolveForgivingTarget(Player player, double range) {
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection();
+        RayTraceResult result = player.getWorld().rayTraceEntities(eye, direction, range, 0.6,
+                entity -> entity instanceof LivingEntity && !entity.equals(player));
+        if (result != null && result.getHitEntity() instanceof LivingEntity le) {
+            return le;
+        }
+        return getTargetedEntity(player, range);
+    }
+
     /** Entity under the crosshair if there is one, else the targeted block's location, else a point ahead of the player. */
     private Location resolveCrosshairLocation(Player player, double range) {
         LivingEntity entity = getTargetedEntity(player, range);
@@ -443,6 +799,15 @@ public class WeaponAbilities {
 
     private void msg(Player player, String text) {
         player.sendActionBar(Component.text(text, NamedTextColor.LIGHT_PURPLE));
+    }
+
+    /** Caps damage from Spiral Boom's real lightning bolts to exactly 1, regardless of vanilla's normal ~5. */
+    @org.bukkit.event.EventHandler
+    public void onSpiralBoomLightningDamage(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof org.bukkit.entity.LightningStrike strike
+                && spiralBoomStrikes.remove(strike.getUniqueId())) {
+            event.setDamage(1.0);
+        }
     }
 
     private void title(Player player, String text) {

@@ -37,12 +37,28 @@ public class DeedListener implements Listener {
         return plugin.getConfig();
     }
 
-    // ---- Evil: murder ----
+    // ---- Evil: murder (unless done with a legendary Church weapon — see below) ----
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
         if (killer == null || killer.equals(victim)) return;
+
+        if (plugin.getWeaponManager().getWeaponType(killer.getInventory().getItemInMainHand()) != null) {
+            // Killing with one of the 7 legendary weapons never costs alignment —
+            // instead it's flavored as judgment on the victim's own bitterness.
+            double victimScore = alignment.getScore(victim);
+            String message;
+            if (victimScore >= 30) {
+                message = "You redeemed those bitterness.";
+            } else if (victimScore >= -30) {
+                message = "You nullified those bitterness.";
+            } else {
+                message = "You consumed those bitterness.";
+            }
+            killer.sendMessage(Component.text(message, NamedTextColor.LIGHT_PURPLE));
+            return;
+        }
 
         double points = cfg().getDouble("evil-deeds.murder-player", -15);
         alignment.applyDeed(killer, points);

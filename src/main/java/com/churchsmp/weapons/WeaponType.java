@@ -12,13 +12,13 @@ public enum WeaponType {
     BLADE_OF_ARCHANGEL(
             "blade_of_archangel", "Blade of the Archangel", Material.NETHERITE_SWORD,
             Category.GOOD,
-            "Ability 1: Radiant Barrier (Resistance + Absorption)",
-            "Ability 2: Holy Nova (AoE damage to Evil, heal to Good)"
+            "Ability 1: Radiant Barrier (Resistance + Glowing, 4s, 20s cd)",
+            "Ability 2: Energized Beam (charge + true-dmg beam)"
     ),
     SWORD_OF_DAVID(
-            "sword_of_david", "Sword of David", Material.GOLDEN_SWORD,
+            "sword_of_david", "Luminescence Spear", Material.TRIDENT,
             Category.GOOD,
-            "Ability 1: Smite Beam (bonus dmg vs. Undead/Evil)",
+            "Ability 1: Unseen Pierce (4x teleport-lunge, 4.5 dmg total)",
             "Ability 2: Giant Slayer (guaranteed crit + Strength)"
     ),
     STAFF_OF_MOSES(
@@ -33,22 +33,22 @@ public enum WeaponType {
             "Ability 1: Lifesteal Strike",
             "Ability 2: Mark of Cain (DOT + reveal through walls)"
     ),
-    TRIDENT_OF_LEVIATHAN(
-            "trident_of_leviathan", "Trident of Leviathan", Material.TRIDENT,
+    SORROWESS(
+            "sorrowess", "Sorrowess", Material.TRIDENT,
             Category.EVIL,
-            "Ability 1: Whirlpool Pull",
-            "Ability 2: Leviathan's Roar (fear: blind + slow)"
+            "Ability 1: Grief Shards (5 floating daggers, 1 dmg each)",
+            "Ability 2: Bloody Rain (free riptide 30s, wither+darkness zone)"
     ),
     BLADE_OF_JUDAS(
-            "blade_of_judas", "Blade of Judas", Material.IRON_SWORD,
+            "blade_of_judas", "Judas", Material.NETHERITE_AXE,
             Category.EVIL,
-            "Ability 1: Backstab + Smoke Escape",
-            "Ability 2: Thirty Pieces of Silver (self-sac guaranteed crit)"
+            "Ability 1: Hemorrhaged Mold (wither skull, steal a heart, stun)",
+            "Ability 2: Thirty Pieces of Silver (3-heart sac, Strength III 15s)"
     ),
     VOIDBREAKER(
             "voidbreaker", "VoidBreaker", Material.MACE,
             Category.NULLIFIED,
-            "Ability 1 (Density mode): Spiral Boom (spiral lightning shock)",
+            "Ability 1 (Density mode): Spiral Boom | (Breach mode): Lightless Ph\u014ds",
             "Ability 2: Spaced Bound (toggle Density/Breach + dash)"
     );
 

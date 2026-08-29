@@ -58,7 +58,7 @@ public class WeaponRecipeManager {
                         'F', Material.WITHER_ROSE
                 ));
 
-        register(WeaponType.TRIDENT_OF_LEVIATHAN,
+        register(WeaponType.SORROWESS,
                 new String[]{" T ", "PTP", " T "},
                 Map(
                         'T', Material.TRIDENT,

@@ -54,6 +54,12 @@ public class WeaponManager {
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
+        if (type == WeaponType.BLADE_OF_JUDAS) {
+            lore.add(Component.text("Bloodlust, swallowed yours in trade of hardened wrath",
+                    NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, true));
+            lore.add(Component.text("in you making pure strength.",
+                    NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, true));
+        }
         lore.add(Component.text(type.getAbility1Desc(), NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(Component.text(type.getAbility2Desc(), NamedTextColor.LIGHT_PURPLE)
@@ -74,6 +80,11 @@ public class WeaponManager {
             item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
             item.addUnsafeEnchantment(Enchantment.FIRE_ASPECT, 2);
             item.addUnsafeEnchantment(Enchantment.WIND_BURST, 1);
+        }
+
+        if (type == WeaponType.SORROWESS) {
+            item.addUnsafeEnchantment(Enchantment.RIPTIDE, 4);
+            item.addUnsafeEnchantment(Enchantment.SHARPNESS, 7);
         }
 
         return item;

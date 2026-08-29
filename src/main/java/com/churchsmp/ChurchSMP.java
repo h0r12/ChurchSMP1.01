@@ -14,6 +14,7 @@ import com.churchsmp.util.ChurchRegionManager;
 import com.churchsmp.util.RegionWandListener;
 import com.churchsmp.weapons.CraftingGuardListener;
 import com.churchsmp.weapons.NullifiedZoneManager;
+import com.churchsmp.weapons.VoidBreakerMobility;
 import com.churchsmp.weapons.WeaponAbilities;
 import com.churchsmp.weapons.WeaponListener;
 import com.churchsmp.weapons.WeaponManager;
@@ -33,6 +34,7 @@ public final class ChurchSMP extends JavaPlugin {
     private RegionWandListener regionWandListener;
     private EffectListener effectListener;
     private WeaponPassiveEffects weaponPassiveEffects;
+    private VoidBreakerMobility voidBreakerMobility;
 
     @Override
     public void onEnable() {
@@ -43,6 +45,7 @@ public final class ChurchSMP extends JavaPlugin {
         this.alignmentManager = new AlignmentManager(this);
         this.weaponManager = new WeaponManager(this);
         this.weaponAbilities = new WeaponAbilities(this);
+        getServer().getPluginManager().registerEvents(weaponAbilities, this);
         this.nullifiedZoneManager = new NullifiedZoneManager();
         this.churchRegionManager = new ChurchRegionManager(this);
         this.shrineManager = new ShrineManager(this);
@@ -59,7 +62,15 @@ public final class ChurchSMP extends JavaPlugin {
         getServer().getPluginManager().registerEvents(effectListener, this);
         effectListener.startTicking();
         this.weaponPassiveEffects = new WeaponPassiveEffects(this);
+        getServer().getPluginManager().registerEvents(weaponPassiveEffects, this);
         weaponPassiveEffects.start();
+        this.voidBreakerMobility = new VoidBreakerMobility(this);
+        getServer().getPluginManager().registerEvents(voidBreakerMobility, this);
+        voidBreakerMobility.start();
+        getServer().getPluginManager().registerEvents(new com.churchsmp.weapons.JudasPassives(this), this);
+        var luminescencePassives = new com.churchsmp.weapons.LuminescenceSpearPassives(this);
+        getServer().getPluginManager().registerEvents(luminescencePassives, this);
+        luminescencePassives.start();
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();
