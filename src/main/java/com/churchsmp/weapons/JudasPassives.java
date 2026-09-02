@@ -60,17 +60,26 @@ public class JudasPassives implements Listener {
         }
     }
 
-    /** Passive 2: small chance per hit to inflict Wither+Darkness and strike visual lightning, on its own 30s cooldown. */
+    /**
+     * Passive 2. Every hit now visibly does something to the target (a
+     * brief stagger), on top of a much more frequent bigger proc — the
+     * old 15%-chance/30s-cooldown combo meant the big effect landed
+     * roughly once every 3+ minutes of active combat, which is
+     * indistinguishable from "does nothing."
+     */
     @EventHandler
     public void onAttack(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!isHoldingJudas(player)) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
+        // Guaranteed baseline: every single hit staggers the target.
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 10, 0));
+
         long now = System.currentTimeMillis();
         long last = procCooldown.getOrDefault(player.getUniqueId(), 0L);
-        if (now - last < 30_000L) return;
-        if (Math.random() >= 0.15) return;
+        if (now - last < 8_000L) return;
+        if (Math.random() >= 0.35) return;
 
         procCooldown.put(player.getUniqueId(), now);
         target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 0));
