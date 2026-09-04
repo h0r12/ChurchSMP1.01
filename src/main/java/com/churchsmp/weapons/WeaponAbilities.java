@@ -69,8 +69,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 if (ability == 1) unseenPierce(player); else giantSlayer(player);
                 break;
             case STAFF_OF_MOSES:
-                if (ability == 1) partingWave(player); else seaPath(player);
-                break;
+                if (ability == 1) {
+                    frostEdge(player);
+                    return 0; // cooldown is applied manually once the 17s active window ends
+                } else {
+                    entangleFreeze(player);
+                    return 40;
+                }
             case SCYTHE_OF_CAIN:
                 if (ability == 1) lifestealStrike(player); else markOfCain(player);
                 break;
@@ -83,7 +88,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 }
                 break;
             case BLADE_OF_JUDAS:
-                if (ability == 1) hemorrhagedMold(player); else thirtyPiecesOfSilver(player);
+                if (ability == 1) {
+                    hemorrhagedMold(player);
+                } else {
+                    thirtyPiecesOfSilver(player);
+                    return 50;
+                }
                 break;
             case VOIDBREAKER:
                 if (ability == 2) {
@@ -263,37 +273,150 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         msg(player, "Giant Slayer empowers your strike.");
     }
 
-    private void partingWave(Player player) {
-        Vector dir = player.getLocation().getDirection().setY(0).normalize();
-        double radius = 3;
-        for (Entity e : player.getNearbyEntities(radius, 2, radius)) {
-            if (e instanceof LivingEntity le && !e.equals(player)) {
-                le.setVelocity(dir.clone().multiply(1.4).setY(0.3));
-            }
+    // ---------------- Mayim (formerly Staff of Moses) ----------------
+
+    private final Set<UUID> frostEdgeActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Set<UUID> entangleCharging = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    /**
+     * Ability 1, Frost Edge. Toggles a 17s active window (Glowing + boss
+     * bar countdown): every attack you land during it chills the target
+     * with Slowness I and an ice-crack particle burst, and anyone who hits
+     * you back during the window gets punished with Weakness + Slowness
+     * ("sloth"). The 35s cooldown only starts counting once the window ends.
+     */
+    private void frostEdge(Player player) {
+        UUID id = player.getUniqueId();
+        if (frostEdgeActive.contains(id)) {
+            msg(player, "Frost Edge is already active.");
+            return;
         }
-        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation().add(dir.clone().multiply(2)), 30, 1, 0.3, 1, 0.05);
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_SPLASH_HIGH_SPEED, 1f, 1f);
-        msg(player, "The waters part before you.");
+        frostEdgeActive.add(id);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 17 * 20, 0));
+        player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1f, 0.6f);
+        CooldownBarDisplay.show(plugin, player, "Frost Edge", 17);
+        msg(player, "Frost Edge awakens in your blade.");
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                frostEdgeActive.remove(id);
+                if (player.isOnline()) msg(player, "Frost Edge fades.");
+                plugin.getWeaponManager().putOnCooldown(player, WeaponType.STAFF_OF_MOSES, 1, 35);
+            }
+        }.runTaskLater(plugin, 17 * 20L);
     }
 
-    private void seaPath(Player player) {
-        Vector dir = player.getLocation().getDirection().setY(0).normalize();
-        Location origin = player.getLocation();
-        for (int i = 1; i <= 6; i++) {
-            Block b = origin.clone().add(dir.clone().multiply(i)).getBlock();
-            if (b.getType().isAir()) {
-                org.bukkit.block.data.BlockData original = b.getBlockData();
-                b.setType(Material.WATER);
-                new BukkitRunnable() {
-                    @Override public void run() {
-                        if (b.getType() == Material.WATER) {
-                            b.setBlockData(original);
-                        }
-                    }
-                }.runTaskLater(plugin, 100L); // reverts after 5s
-            }
+    /** Every hit landed while Frost Edge is active chills the target. */
+    @org.bukkit.event.EventHandler
+    public void onFrostEdgeHit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !frostEdgeActive.contains(player.getUniqueId())) return;
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
+
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0));
+        target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1, 0),
+                25, 0.3, 0.4, 0.3, Material.ICE.createBlockData());
+    }
+
+    /** Anyone who hits a Frost-Edge-active player back gets chilled themselves. */
+    @org.bukkit.event.EventHandler
+    public void onFrostEdgeRetaliation(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player victim) || !frostEdgeActive.contains(victim.getUniqueId())) return;
+        if (!(event.getDamager() instanceof LivingEntity attacker) || attacker.equals(victim)) return;
+
+        attacker.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 80, 0));
+        attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 0));
+    }
+
+    /**
+     * Ability 2, Entangle Freeze. Charges a blue slash-shaped bolt in the
+     * air in front of you for 3s, then releases it: a direct hit on an
+     * entity stuns them for 3s (the same true stun as Judas's), while
+     * hitting a wall detonates a 5x5 blast of true damage, Slowness II,
+     * and a powder-snow-style freeze on everyone caught in it.
+     */
+    private void entangleFreeze(Player player) {
+        UUID id = player.getUniqueId();
+        if (entangleCharging.contains(id)) {
+            msg(player, "Entangle Freeze is already forming.");
+            return;
         }
-        msg(player, "A path opens through the waters.");
+        entangleCharging.add(id);
+        Vector dir = player.getEyeLocation().getDirection().normalize();
+        Location origin = player.getEyeLocation().add(dir.clone().multiply(1.2));
+        player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 0.7f);
+
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                if (!player.isOnline() || tick >= 60) {
+                    cancel();
+                    entangleCharging.remove(id);
+                    if (player.isOnline()) launchEntangleBolt(player, origin, dir);
+                    return;
+                }
+                Particle.DustOptions blue = new Particle.DustOptions(Color.fromRGB(50, 120, 255), 1.2f);
+                for (double s = -0.6; s <= 0.6; s += 0.3) {
+                    origin.getWorld().spawnParticle(Particle.DUST, origin.clone().add(0, s, 0), 1, 0, 0, 0, 0, blue);
+                }
+                tick += 2;
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    private void launchEntangleBolt(Player player, Location start, Vector dir) {
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1f, 1.4f);
+        new BukkitRunnable() {
+            Location point = start.clone();
+            int steps = 0;
+
+            @Override
+            public void run() {
+                steps++;
+                point.add(dir.clone().multiply(1.3));
+                Particle.DustOptions blue = new Particle.DustOptions(Color.fromRGB(50, 120, 255), 1f);
+                point.getWorld().spawnParticle(Particle.DUST, point, 4, 0.08, 0.08, 0.08, 0, blue);
+
+                if (!point.getBlock().getType().isAir() && !point.getBlock().isPassable()) {
+                    explodeEntangleFreeze(point);
+                    cancel();
+                    return;
+                }
+                for (Entity e : point.getWorld().getNearbyEntities(point, 0.8, 0.8, 0.8)) {
+                    if (e instanceof LivingEntity target && !e.equals(player)) {
+                        JudasPassives.stun(target, 60L, plugin);
+                        point.getWorld().spawnParticle(Particle.FLASH, point, 1);
+                        point.getWorld().playSound(point, Sound.ITEM_TRIDENT_HIT, 1f, 1f);
+                        msg(player, "Entangle Freeze pins " + target.getName() + " in place.");
+                        cancel();
+                        return;
+                    }
+                }
+                if (steps > 30) cancel(); // ~20 blocks, ran out of range
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void explodeEntangleFreeze(Location center) {
+        center.getWorld().spawnParticle(Particle.EXPLOSION, center, 1);
+        center.getWorld().spawnParticle(Particle.SNOWFLAKE, center, 100, 2.5, 2.5, 2.5, 0.05);
+        center.getWorld().playSound(center, Sound.BLOCK_GLASS_BREAK, 1f, 0.6f);
+        center.getWorld().playSound(center, Sound.ITEM_BUCKET_EMPTY_POWDER_SNOW, 1f, 1f);
+
+        double radius = 2.5; // approximates "5x5"
+        for (Entity e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity target)) continue;
+
+            double trueDamage = 10; // 5 hearts, ignoring armor entirely
+            double registerAmount = Math.min(0.5, trueDamage);
+            target.damage(registerAmount);
+            target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
+
+            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 1));
+            target.setFreezeTicks(target.getMaxFreezeTicks());
+        }
     }
 
     // ---------------- EVIL ----------------
@@ -518,6 +641,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             msg(player, "Too weak to pay the price.");
             return;
         }
+        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_AMBIENT, 1f, 1f);
         player.setHealth(player.getHealth() - cost);
         player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 300, 2));
         LivingEntity target = getTargetedEntity(player, 4);

@@ -22,10 +22,10 @@ public enum WeaponType {
             "Ability 2: Giant Slayer (guaranteed crit + Strength)"
     ),
     STAFF_OF_MOSES(
-            "staff_of_moses", "Staff of Moses", Material.WARPED_FUNGUS_ON_A_STICK,
+            "staff_of_moses", "Mayim", Material.NETHERITE_SWORD,
             Category.GOOD,
-            "Ability 1: Parting Wave (knockback line)",
-            "Ability 2: Sea Path (temporary water bridge)"
+            "Ability 1: Frost Edge (chilling attacks, 17s, 35s cd after)",
+            "Ability 2: Entangle Freeze (3s charge, stun or AoE freeze)"
     ),
     SCYTHE_OF_CAIN(
             "scythe_of_cain", "Scythe of Cain", Material.NETHERITE_HOE,

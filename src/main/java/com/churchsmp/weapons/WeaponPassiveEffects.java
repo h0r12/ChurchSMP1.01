@@ -76,7 +76,11 @@ public class WeaponPassiveEffects implements Listener {
         switch (type) {
             case BLADE_OF_ARCHANGEL -> archangelTrail(player);
             case SWORD_OF_DAVID -> davidPulseRing(player);
-            case STAFF_OF_MOSES -> mosesSpiral(player);
+            case STAFF_OF_MOSES -> {
+                mayimAura(player);
+                mayimWaterMight(player);
+                mayimIcyPath(player);
+            }
             case SCYTHE_OF_CAIN -> cainSwirl(player);
             case SORROWESS -> {
                 sorrowessRainCloud(player);
@@ -106,13 +110,45 @@ public class WeaponPassiveEffects implements Listener {
         }
     }
 
-    /** A slow rotating spiral climbing around the player. */
-    private void mosesSpiral(Player player) {
-        double angle = globalTick * 0.3;
-        double height = ((globalTick % 30) / 30.0) * 2.0;
-        double radius = 0.8;
-        Vector offset = new Vector(radius * Math.cos(angle), height, radius * Math.sin(angle));
-        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation().add(offset), 1, 0, 0, 0, 0);
+    /** Bubbles orbiting the feet, plus a light water-splash drift around the whole body. */
+    private void mayimAura(Player player) {
+        double angle = globalTick * 0.35;
+        double radius = 0.6;
+        Vector offset = new Vector(radius * Math.cos(angle), 0.1, radius * Math.sin(angle));
+        player.getWorld().spawnParticle(Particle.BUBBLE_POP, player.getLocation().add(offset), 1, 0, 0, 0, 0);
+        player.getWorld().spawnParticle(Particle.SPLASH,
+                player.getLocation().add(0, 1, 0), 2, 0.4, 0.5, 0.4, 0.01);
+    }
+
+    /** Passive 1, Water Mighty: Strength I on dry land, Strength III while in water. */
+    private void mayimWaterMight(Player player) {
+        int amplifier = player.isInWater() ? 2 : 0;
+        PotionEffect current = player.getPotionEffect(PotionEffectType.STRENGTH);
+        if (current == null || current.getAmplifier() != amplifier || current.getDuration() < 30) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 40, amplifier, false, false, false));
+        }
+    }
+
+    /** Tracks each player's carried horizontal momentum for the Icy Path passive. */
+    private final Map<UUID, Vector> icyMomentum = new HashMap<>();
+
+    /** Passive 3, Icy Path: holding the sword makes you slide like you're on blue ice. */
+    private void mayimIcyPath(Player player) {
+        if (!player.isOnGround()) return;
+        Vector velocity = player.getVelocity();
+        Vector horizontal = new Vector(velocity.getX(), 0, velocity.getZ());
+        Vector carried = icyMomentum.getOrDefault(player.getUniqueId(), new Vector(0, 0, 0));
+
+        Vector blended = horizontal.length() > 0.02
+                ? horizontal.clone().add(carried.clone().multiply(0.55))
+                : carried.clone().multiply(0.9); // still sliding even after you let go of the stick
+
+        if (blended.length() > 0.5) blended.normalize().multiply(0.5); // don't let it run away
+
+        icyMomentum.put(player.getUniqueId(), blended);
+        if (blended.length() > 0.03) {
+            player.setVelocity(new Vector(blended.getX(), velocity.getY(), blended.getZ()));
+        }
     }
 
     private void cainSwirl(Player player) {
@@ -217,15 +253,48 @@ public class WeaponPassiveEffects implements Listener {
         }
     }
 
-    /** Dark looped spiral, matching the VoidBreaker concept art. */
-    private void voidbreakerSpiral(Player player) {
-        double angle = globalTick * 0.45;
-        double radius = 0.6;
-        Vector offset = new Vector(radius * Math.cos(angle), 1.1 + Math.sin(globalTick * 0.1) * 0.2, radius * Math.sin(angle));
-        player.getWorld().spawnParticle(Particle.SQUID_INK, player.getLocation().add(offset), 1, 0, 0, 0, 0);
-        if (globalTick % 10 == 0) {
-            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1f);
-            player.getWorld().spawnParticle(Particle.DUST, player.getLocation().add(0, 1.1, 0), 1, 0, 0, 0, 0, dust);
+    /** Passive 2, Rust: a chance on each hit to corrode a random piece of the target's armor and mend one of yours. */
+    @EventHandler
+    public void onMayimAttack(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player)) return;
+        if (weaponManager.getWeaponType(player.getInventory().getItemInMainHand()) != WeaponType.STAFF_OF_MOSES) return;
+        if (!(event.getEntity() instanceof org.bukkit.entity.LivingEntity target)) return;
+        if (Math.random() >= 0.2) return; // "there's some chance"
+
+        ItemStack[] targetArmor = target.getEquipment() != null ? target.getEquipment().getArmorContents() : null;
+        if (targetArmor == null) return;
+        java.util.List<ItemStack> damageable = new java.util.ArrayList<>();
+        for (ItemStack piece : targetArmor) {
+            if (piece != null && piece.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable dmg
+                    && dmg.getDamage() < piece.getType().getMaxDurability() - 1) {
+                damageable.add(piece);
+            }
         }
+        if (!damageable.isEmpty()) {
+            ItemStack piece = damageable.get((int) (Math.random() * damageable.size()));
+            damageDurability(piece, 25);
+        }
+
+        ItemStack[] ownArmor = player.getInventory().getArmorContents();
+        java.util.List<ItemStack> repairable = new java.util.ArrayList<>();
+        for (ItemStack piece : ownArmor) {
+            if (piece != null && piece.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable dmg && dmg.getDamage() > 0) {
+                repairable.add(piece);
+            }
+        }
+        if (!repairable.isEmpty()) {
+            ItemStack piece = repairable.get((int) (Math.random() * repairable.size()));
+            damageDurability(piece, -25);
+        }
+
+        Particle.DustOptions rust = new Particle.DustOptions(Color.fromRGB(140, 80, 30), 1f);
+        target.getWorld().spawnParticle(Particle.DUST, target.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0, rust);
+    }
+
+    private void damageDurability(ItemStack item, int amount) {
+        if (!(item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable meta)) return;
+        int newDamage = Math.max(0, Math.min(item.getType().getMaxDurability() - 1, meta.getDamage() + amount));
+        meta.setDamage(newDamage);
+        item.setItemMeta((org.bukkit.inventory.meta.ItemMeta) meta);
     }
 }

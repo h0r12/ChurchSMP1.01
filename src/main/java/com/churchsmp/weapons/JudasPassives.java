@@ -19,6 +19,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -61,11 +63,11 @@ public class JudasPassives implements Listener {
     }
 
     /**
-     * Passive 2. Every hit now visibly does something to the target (a
-     * brief stagger), on top of a much more frequent bigger proc — the
-     * old 15%-chance/30s-cooldown combo meant the big effect landed
-     * roughly once every 3+ minutes of active combat, which is
-     * indistinguishable from "does nothing."
+     * Every Judas attack pops the vanilla "hit heart" particle
+     * (damage_indicator) plus a crit sparkle, purely cosmetic.
+     * Passive 2 is layered on top: a small chance per hit to afflict
+     * Wither + Darkness for 5s and strike a (visual) lightning bolt,
+     * gated by a 30s cooldown so it can't proc back-to-back.
      */
     @EventHandler
     public void onAttack(EntityDamageByEntityEvent event) {
@@ -73,19 +75,48 @@ public class JudasPassives implements Listener {
         if (!isHoldingJudas(player)) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        // Guaranteed baseline: every single hit staggers the target.
-        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 10, 0));
+        target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR,
+                target.getLocation().add(0, 1, 0), 6, 0.3, 0.3, 0.3, 0);
+        target.getWorld().spawnParticle(Particle.CRIT,
+                target.getLocation().add(0, 1, 0), 6, 0.3, 0.3, 0.3, 0.1);
 
         long now = System.currentTimeMillis();
         long last = procCooldown.getOrDefault(player.getUniqueId(), 0L);
-        if (now - last < 8_000L) return;
-        if (Math.random() >= 0.35) return;
+        if (now - last < 30_000L) return;
+        if (Math.random() >= 0.15) return; // small chance
 
         procCooldown.put(player.getUniqueId(), now);
         target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 0));
         target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 100, 0));
         target.getWorld().strikeLightningEffect(target.getLocation());
         player.sendActionBar(Component.text("Betrayal strikes true.", NamedTextColor.DARK_RED));
+    }
+
+    /**
+     * True stun: repeatedly pins the entity to the spot it was in when the
+     * stun began (zeroing velocity and cancelling fall distance each tick)
+     * rather than relying on a Slowness amplifier, which can still be
+     * shoved around by knockback or drift while airborne.
+     */
+    static void stun(LivingEntity entity, long durationTicks, ChurchSMP plugin) {
+        Location anchor = entity.getLocation();
+        new BukkitRunnable() {
+            long remaining = durationTicks;
+
+            @Override
+            public void run() {
+                if (!entity.isValid() || remaining <= 0) {
+                    cancel();
+                    return;
+                }
+                Location current = entity.getLocation();
+                entity.teleport(new Location(anchor.getWorld(), anchor.getX(), anchor.getY(), anchor.getZ(),
+                        current.getYaw(), current.getPitch()));
+                entity.setVelocity(new Vector(0, 0, 0));
+                entity.setFallDistance(0);
+                remaining--;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     /**
@@ -107,15 +138,17 @@ public class JudasPassives implements Listener {
         Location impact = skull.getLocation();
 
         if (event.getHitEntity() instanceof LivingEntity target && shooter != null) {
-            target.damage(2, shooter);
+            target.damage(2, shooter); // steal one heart
             shooter.setHealth(Math.min(shooter.getHealth() + 2, shooter.getAttribute(
                     org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()));
-            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 250));
+            stun(target, 50L, plugin); // 2.5s, can't move even in the air
         }
 
         impact.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, impact, 1);
+        impact.getWorld().spawnParticle(Particle.SQUID_INK, impact, 120, 2.5, 1.5, 2.5, 0.08);
         impact.getWorld().spawnParticle(Particle.LARGE_SMOKE, impact, 80, 2, 1, 2, 0.05);
         impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1f, 0.7f);
+        impact.getWorld().playSound(impact, Sound.ENTITY_WITHER_HURT, 1f, 0.6f);
 
         double radius = 3; // approximates "6x6"
         for (Entity e : impact.getWorld().getNearbyEntities(impact, radius, radius, radius)) {
