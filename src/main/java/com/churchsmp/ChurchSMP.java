@@ -71,6 +71,9 @@ public final class ChurchSMP extends JavaPlugin {
         var luminescencePassives = new com.churchsmp.weapons.LuminescenceSpearPassives(this);
         getServer().getPluginManager().registerEvents(luminescencePassives, this);
         luminescencePassives.start();
+        var excaliburPassives = new com.churchsmp.weapons.ExcaliburPassives(this);
+        getServer().getPluginManager().registerEvents(excaliburPassives, this);
+        excaliburPassives.start();
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();

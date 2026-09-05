@@ -63,8 +63,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     public int execute(WeaponType type, int ability, Player player) {
         switch (type) {
             case BLADE_OF_ARCHANGEL:
-                if (ability == 1) radiantBarrier(player); else energizedBeam(player);
-                break;
+                if (ability == 1) {
+                    acceleratedNova(player);
+                    return 40;
+                } else {
+                    altarsPin(player);
+                    return 120;
+                }
             case SWORD_OF_DAVID:
                 if (ability == 1) unseenPierce(player); else giantSlayer(player);
                 break;
@@ -112,28 +117,19 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         return plugin.getWeaponManager().getConfiguredCooldown(ability);
     }
 
-    // ---------------- GOOD ----------------
-
-    private void radiantBarrier(Player player) {
-        player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 80, 1));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0));
-        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1, 0), 40, 0.6, 1, 0.6, 0.02);
-        player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 0.6f, 1.4f);
-        msg(player, "The Archangel shields you.");
-    }
+    // ---------------- Excalibur (formerly Blade of the Archangel) ----------------
 
     /**
-     * Energized Beam (formerly Holy Nova). Same charge-up boss-bar telegraph
-     * as before, but the release is now a targeted true-damage beam rather
-     * than a self-centered nova — 5 hearts through armor, with a bonus
-     * against Evil-tier/Undead targets, and heavy particle work along the
-     * whole beam path.
+     * Ability 1, Accelerated Nova. A 4s charge (boss bar + swirling
+     * particles), then releases a radial true-damage burst around the
+     * player: 5 hearts to everything nearby, bumped to 7.5 against Evil-tier
+     * players and undead, with a heavy outward-shooting particle nova.
      */
-    private void energizedBeam(Player player) {
-        int chargeTicks = 40; // 2 seconds
+    private void acceleratedNova(Player player) {
+        int chargeTicks = 80; // 4 seconds
         org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
-                player.getName() + " is charging Energized Beam...",
-                org.bukkit.boss.BarColor.YELLOW, org.bukkit.boss.BarStyle.SOLID);
+                player.getName() + " is charging Accelerated Nova...",
+                org.bukkit.boss.BarColor.WHITE, org.bukkit.boss.BarStyle.SOLID);
         bar.setProgress(0);
         for (Entity e : player.getNearbyEntities(15, 15, 15)) {
             if (e instanceof Player nearby) bar.addPlayer(nearby);
@@ -148,15 +144,16 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 try {
                     tick++;
                     bar.setProgress(Math.min(1.0, (double) tick / chargeTicks));
-                    player.getWorld().spawnParticle(Particle.END_ROD,
-                            player.getLocation().add(0, 1, 0), 4, 0.4, 0.6, 0.4, 0.01);
+                    double angle = tick * 0.6;
+                    Vector ring = new Vector(Math.cos(angle), 0, Math.sin(angle)).multiply(1.1);
+                    player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(ring).add(0, 1, 0), 2, 0, 0, 0, 0);
                     if (tick >= chargeTicks) {
                         bar.removeAll();
-                        fireBeam(player);
+                        releaseNova(player);
                         cancel();
                     }
                 } catch (Exception ex) {
-                    plugin.getLogger().warning("Energized Beam charge error: " + ex);
+                    plugin.getLogger().warning("Accelerated Nova charge error: " + ex);
                     ex.printStackTrace();
                     bar.removeAll();
                     cancel();
@@ -165,45 +162,102 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void fireBeam(Player player) {
-        double trueDamage = 10; // 5 hearts, ignoring armor entirely
-        Location eye = player.getEyeLocation();
-        LivingEntity target = resolveForgivingTarget(player, 25);
+    private void releaseNova(Player player) {
+        Location center = player.getLocation().add(0, 1, 0);
+        player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1f, 1.2f);
+        player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.6f);
 
-        Location endPoint = target != null
-                ? target.getLocation().add(0, target.getHeight() / 2, 0)
-                : eye.clone().add(eye.getDirection().multiply(25));
+        // MANY MANY particles shooting outward in a full ring burst, in expanding waves.
+        new BukkitRunnable() {
+            int wave = 0;
 
-        Vector direction = endPoint.toVector().subtract(eye.toVector());
-        double distance = direction.length();
-        direction.normalize();
-
-        for (double d = 0; d < distance; d += 0.4) {
-            Location point = eye.clone().add(direction.clone().multiply(d));
-            player.getWorld().spawnParticle(Particle.END_ROD, point, 3, 0.05, 0.05, 0.05, 0.01);
-            player.getWorld().spawnParticle(Particle.FLASH, point, 0);
-            if ((int) (d * 10) % 5 == 0) {
-                player.getWorld().spawnParticle(Particle.WITCH, point, 2, 0.1, 0.1, 0.1, 0);
+            @Override
+            public void run() {
+                double radius = 0.6 + wave * 0.9;
+                int points = 40;
+                for (int i = 0; i < points; i++) {
+                    double angle = (2 * Math.PI / points) * i;
+                    Vector offset = new Vector(radius * Math.cos(angle), Math.sin(wave * 0.8) * 0.3, radius * Math.sin(angle));
+                    center.getWorld().spawnParticle(Particle.END_ROD, center.clone().add(offset), 1, 0, 0, 0, 0.02);
+                    center.getWorld().spawnParticle(Particle.FLASH, center.clone().add(offset), 0);
+                }
+                wave++;
+                if (wave >= 5) cancel();
             }
-        }
-        player.getWorld().spawnParticle(Particle.EXPLOSION, endPoint, 1);
-        player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.4f);
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.8f, 1.6f);
+        }.runTaskTimer(plugin, 0L, 2L);
 
-        if (target != null) {
+        double radius = 5;
+        double baseDamage = 10; // 5 hearts, ignoring armor entirely
+        for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
+            if (!(e instanceof LivingEntity target) || target.equals(player)) continue;
+
             boolean bonus = (target instanceof Player p && alignmentManager.getTier(p).isEvil()) || isUndead(target);
-            double damage = bonus ? trueDamage * 1.5 : trueDamage;
+            double damage = bonus ? 15 : baseDamage; // bonus = 7.5 hearts through armor
 
             double registerAmount = Math.min(0.5, damage);
             target.damage(registerAmount, player);
             target.setHealth(Math.max(0, target.getHealth() - (damage - registerAmount)));
-
             target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1, Color.WHITE);
-            msg(player, "Energized Beam pierces " + target.getName() + "!");
-        } else {
-            msg(player, "Energized Beam fires into the void.");
+        }
+        msg(player, "Accelerated Nova erupts around you.");
+    }
+
+    /**
+     * Ability 2, Altar's Pin. A vortex particle forms at your feet for 5s,
+     * dragging nearby entities toward you, then a giant sword crashes down
+     * and smashes: 7.5 hearts through armor to everything caught nearby.
+     */
+    private void altarsPin(Player player) {
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1f, 0.8f);
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                if (!player.isOnline() || tick >= 100) { // 5 seconds
+                    if (player.isOnline()) smashSword(player);
+                    cancel();
+                    return;
+                }
+                Location feet = player.getLocation();
+                for (int i = 0; i < 12; i++) {
+                    double angle = (tick * 0.3) + (2 * Math.PI / 12) * i;
+                    Vector offset = new Vector(Math.cos(angle) * 1.4, 0.1, Math.sin(angle) * 1.4);
+                    feet.getWorld().spawnParticle(Particle.PORTAL, feet.clone().add(offset), 1, 0, 0, 0, 0);
+                }
+                for (Entity e : player.getNearbyEntities(6, 4, 6)) {
+                    if (e instanceof LivingEntity target && !target.equals(player)) {
+                        Vector pull = player.getLocation().toVector().subtract(target.getLocation().toVector());
+                        pull.setY(Math.min(0.15, pull.getY()));
+                        if (pull.length() > 0.3) pull.normalize().multiply(0.25);
+                        target.setVelocity(target.getVelocity().add(pull));
+                    }
+                }
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+        msg(player, "Altar's Pin draws everything toward you.");
+    }
+
+    private void smashSword(Player player) {
+        Location center = player.getLocation();
+        center.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, center, 1);
+        center.getWorld().spawnParticle(Particle.CRIT, center.clone().add(0, 1, 0), 80, 1.5, 1, 1.5, 0.3);
+        center.getWorld().spawnParticle(Particle.END_ROD, center.clone().add(0, 3, 0), 60, 0.3, 1.5, 0.3, 0.05);
+        center.getWorld().playSound(center, Sound.ITEM_TRIDENT_THUNDER, 1f, 0.6f);
+        center.getWorld().playSound(center, Sound.ENTITY_IRON_GOLEM_ATTACK, 1f, 0.7f);
+
+        double radius = 4;
+        double trueDamage = 15; // 7.5 hearts, ignoring armor entirely
+        for (Entity e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity target) || target.equals(player)) continue;
+            double registerAmount = Math.min(0.5, trueDamage);
+            target.damage(registerAmount, player);
+            target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
         }
     }
+
+    // ---------------- GOOD ----------------
 
     private void smiteBeam(Player player) {
         LivingEntity target = getTargetedEntity(player, 20);

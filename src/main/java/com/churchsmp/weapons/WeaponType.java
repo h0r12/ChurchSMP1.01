@@ -10,10 +10,10 @@ import org.bukkit.Material;
 public enum WeaponType {
 
     BLADE_OF_ARCHANGEL(
-            "blade_of_archangel", "Blade of the Archangel", Material.NETHERITE_SWORD,
+            "blade_of_archangel", "Excalibur", Material.NETHERITE_SWORD,
             Category.GOOD,
-            "Ability 1: Radiant Barrier (Resistance + Glowing, 4s, 20s cd)",
-            "Ability 2: Energized Beam (charge + true-dmg beam)"
+            "Ability 1: Accelerated Nova (4s charge, true-dmg burst, 40s cd)",
+            "Ability 2: Altar's Pin (5s pull, sword smash, 120s cd)"
     ),
     SWORD_OF_DAVID(
             "sword_of_david", "Luminescence Spear", Material.TRIDENT,
