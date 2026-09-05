@@ -253,6 +253,18 @@ public class WeaponPassiveEffects implements Listener {
         }
     }
 
+    /** Dark looped spiral, matching the VoidBreaker concept art. */
+    private void voidbreakerSpiral(Player player) {
+        double angle = globalTick * 0.45;
+        double radius = 0.6;
+        Vector offset = new Vector(radius * Math.cos(angle), 1.1 + Math.sin(globalTick * 0.1) * 0.2, radius * Math.sin(angle));
+        player.getWorld().spawnParticle(Particle.SQUID_INK, player.getLocation().add(offset), 1, 0, 0, 0, 0);
+        if (globalTick % 10 == 0) {
+            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1f);
+            player.getWorld().spawnParticle(Particle.DUST, player.getLocation().add(0, 1.1, 0), 1, 0, 0, 0, 0, dust);
+        }
+    }
+
     /** Passive 2, Rust: a chance on each hit to corrode a random piece of the target's armor and mend one of yours. */
     @EventHandler
     public void onMayimAttack(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
