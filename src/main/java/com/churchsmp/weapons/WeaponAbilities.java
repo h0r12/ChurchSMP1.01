@@ -27,6 +27,7 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -65,10 +66,10 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             case BLADE_OF_ARCHANGEL:
                 if (ability == 1) {
                     acceleratedNova(player);
-                    return 40;
+                    return 45;
                 } else {
                     altarsPin(player);
-                    return 120;
+                    return 80;
                 }
             case SWORD_OF_DAVID:
                 if (ability == 1) unseenPierce(player); else giantSlayer(player);
@@ -76,10 +77,10 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             case STAFF_OF_MOSES:
                 if (ability == 1) {
                     frostEdge(player);
-                    return 0; // cooldown is applied manually once the 17s active window ends
+                    return 0; // cooldown is applied manually once the 20s active window ends (or ends early)
                 } else {
                     entangleFreeze(player);
-                    return 40;
+                    return 45;
                 }
             case SCYTHE_OF_CAIN:
                 if (ability == 1) lifestealStrike(player); else markOfCain(player);
@@ -127,6 +128,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
      */
     private void acceleratedNova(Player player) {
         int chargeTicks = 80; // 4 seconds
+        player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, chargeTicks + 5, 1));
         org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
                 player.getName() + " is charging Accelerated Nova...",
                 org.bukkit.boss.BarColor.WHITE, org.bukkit.boss.BarStyle.SOLID);
@@ -248,7 +250,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         center.getWorld().playSound(center, Sound.ENTITY_IRON_GOLEM_ATTACK, 1f, 0.7f);
 
         double radius = 4;
-        double trueDamage = 15; // 7.5 hearts, ignoring armor entirely
+        double trueDamage = 14; // 7 hearts, ignoring armor entirely
         for (Entity e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
             if (!(e instanceof LivingEntity target) || target.equals(player)) continue;
             double registerAmount = Math.min(0.5, trueDamage);
@@ -330,14 +332,17 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     // ---------------- Mayim (formerly Staff of Moses) ----------------
 
     private final Set<UUID> frostEdgeActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Map<UUID, Integer> frostEdgeHits = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<UUID, org.bukkit.scheduler.BukkitTask> frostEdgeTasks = new java.util.concurrent.ConcurrentHashMap<>();
     private final Set<UUID> entangleCharging = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     /**
-     * Ability 1, Frost Edge. Toggles a 17s active window (Glowing + boss
+     * Ability 1, Frost Edge. Toggles a 20s active window (Glowing + boss
      * bar countdown): every attack you land during it chills the target
-     * with Slowness I and an ice-crack particle burst, and anyone who hits
-     * you back during the window gets punished with Weakness + Slowness
-     * ("sloth"). The 35s cooldown only starts counting once the window ends.
+     * with Slowness that gets stronger with each successive hit. Getting
+     * hit back yourself — even by a projectile — cuts the window short
+     * immediately. Either way, the 30s cooldown only starts once the
+     * window ends (naturally or early).
      */
     private void frostEdge(Player player) {
         UUID id = player.getUniqueId();
@@ -346,48 +351,59 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             return;
         }
         frostEdgeActive.add(id);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 17 * 20, 0));
+        frostEdgeHits.put(id, 0);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20 * 20, 0));
         player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1f, 0.6f);
-        CooldownBarDisplay.show(plugin, player, "Frost Edge", 17);
+        CooldownBarDisplay.show(plugin, player, "Frost Edge", 20);
         msg(player, "Frost Edge awakens in your blade.");
 
-        new BukkitRunnable() {
+        org.bukkit.scheduler.BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {
-                frostEdgeActive.remove(id);
-                if (player.isOnline()) msg(player, "Frost Edge fades.");
-                plugin.getWeaponManager().putOnCooldown(player, WeaponType.STAFF_OF_MOSES, 1, 35);
+                endFrostEdge(player, id);
             }
-        }.runTaskLater(plugin, 17 * 20L);
+        }.runTaskLater(plugin, 20 * 20L);
+        frostEdgeTasks.put(id, task);
     }
 
-    /** Every hit landed while Frost Edge is active chills the target. */
+    private void endFrostEdge(Player player, UUID id) {
+        if (!frostEdgeActive.remove(id)) return;
+        frostEdgeHits.remove(id);
+        org.bukkit.scheduler.BukkitTask task = frostEdgeTasks.remove(id);
+        if (task != null) task.cancel();
+        if (player.isOnline()) msg(player, "Frost Edge fades.");
+        plugin.getWeaponManager().putOnCooldown(player, WeaponType.STAFF_OF_MOSES, 1, 30);
+    }
+
+    /** Every hit landed while Frost Edge is active chills the target harder than the last. */
     @org.bukkit.event.EventHandler
     public void onFrostEdgeHit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player) || !frostEdgeActive.contains(player.getUniqueId())) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0));
+        int hits = frostEdgeHits.merge(player.getUniqueId(), 1, Integer::sum);
+        int amplifier = Math.min(hits - 1, 3); // escalates, capped at Slowness IV
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, amplifier));
         target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1, 0),
                 25, 0.3, 0.4, 0.3, Material.ICE.createBlockData());
     }
 
-    /** Anyone who hits a Frost-Edge-active player back gets chilled themselves. */
+    /** Getting hit back at all (melee or projectile) while Frost Edge is active ends the streak early. */
     @org.bukkit.event.EventHandler
     public void onFrostEdgeRetaliation(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim) || !frostEdgeActive.contains(victim.getUniqueId())) return;
-        if (!(event.getDamager() instanceof LivingEntity attacker) || attacker.equals(victim)) return;
+        if (event.getDamager().equals(victim)) return;
 
-        attacker.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 80, 0));
-        attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 0));
+        endFrostEdge(victim, victim.getUniqueId());
+        msg(victim, "Frost Edge shatters early.");
     }
 
     /**
      * Ability 2, Entangle Freeze. Charges a blue slash-shaped bolt in the
-     * air in front of you for 3s, then releases it: a direct hit on an
-     * entity stuns them for 3s (the same true stun as Judas's), while
-     * hitting a wall detonates a 5x5 blast of true damage, Slowness II,
-     * and a powder-snow-style freeze on everyone caught in it.
+     * air in front of you for 1s, then releases it: a direct hit on an
+     * entity freezes and stuns them for 1.5s, while hitting a wall instead
+     * detonates a 5x5 blast of Slowness II (plus the true damage and
+     * powder-snow-style freeze from before, since nothing said to drop those).
      */
     private void entangleFreeze(Player player) {
         UUID id = player.getUniqueId();
@@ -405,7 +421,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
 
             @Override
             public void run() {
-                if (!player.isOnline() || tick >= 60) {
+                if (!player.isOnline() || tick >= 20) {
                     cancel();
                     entangleCharging.remove(id);
                     if (player.isOnline()) launchEntangleBolt(player, origin, dir);
@@ -440,7 +456,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 }
                 for (Entity e : point.getWorld().getNearbyEntities(point, 0.8, 0.8, 0.8)) {
                     if (e instanceof LivingEntity target && !e.equals(player)) {
-                        JudasPassives.stun(target, 60L, plugin);
+                        JudasPassives.stun(target, 30L, plugin);
                         point.getWorld().spawnParticle(Particle.FLASH, point, 1);
                         point.getWorld().playSound(point, Sound.ITEM_TRIDENT_HIT, 1f, 1f);
                         msg(player, "Entangle Freeze pins " + target.getName() + " in place.");

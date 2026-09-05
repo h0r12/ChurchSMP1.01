@@ -12,8 +12,8 @@ public enum WeaponType {
     BLADE_OF_ARCHANGEL(
             "blade_of_archangel", "Excalibur", Material.NETHERITE_SWORD,
             Category.GOOD,
-            "Ability 1: Accelerated Nova (4s charge, true-dmg burst, 40s cd)",
-            "Ability 2: Altar's Pin (5s pull, sword smash, 120s cd)"
+            "Ability 1: Accelerated Nova (4s charge, true-dmg burst, 45s cd)",
+            "Ability 2: Altar's Pin (5s pull, sword smash, 80s cd)"
     ),
     SWORD_OF_DAVID(
             "sword_of_david", "Luminescence Spear", Material.TRIDENT,
@@ -24,8 +24,8 @@ public enum WeaponType {
     STAFF_OF_MOSES(
             "staff_of_moses", "Mayim", Material.NETHERITE_SWORD,
             Category.GOOD,
-            "Ability 1: Frost Edge (chilling attacks, 17s, 35s cd after)",
-            "Ability 2: Entangle Freeze (3s charge, stun or AoE freeze)"
+            "Ability 1: Frost Edge (escalating chill, 20s, 30s cd after)",
+            "Ability 2: Entangle Freeze (1s charge, stun or AoE freeze)"
     ),
     SCYTHE_OF_CAIN(
             "scythe_of_cain", "Scythe of Cain", Material.NETHERITE_HOE,
