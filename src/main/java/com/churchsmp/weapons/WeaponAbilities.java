@@ -12,6 +12,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
@@ -43,6 +44,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private final ChurchSMP plugin;
     private final AlignmentManager alignmentManager;
     private final org.bukkit.NamespacedKey judasSkullKey;
+    private final org.bukkit.NamespacedKey thirtyPiecesModifierKey;
     private final Set<UUID> spiralBoomStrikes = new java.util.HashSet<>();
     private final Set<UUID> bloodyRainActive = new java.util.HashSet<>();
     private final java.util.Map<UUID, Long> lastBloodyRainDash = new java.util.HashMap<>();
@@ -54,6 +56,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         this.plugin = plugin;
         this.alignmentManager = plugin.getAlignmentManager();
         this.judasSkullKey = new org.bukkit.NamespacedKey(plugin, "judas_skull");
+        this.thirtyPiecesModifierKey = new org.bukkit.NamespacedKey(plugin, "thirty_pieces_sacrifice");
     }
 
     public org.bukkit.NamespacedKey getJudasSkullKey() {
@@ -104,15 +107,15 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             case VOIDBREAKER:
                 if (ability == 2) {
                     spacedBound(player);
-                    return 5;
+                    return 3;
                 }
                 ItemStack held = player.getInventory().getItemInMainHand();
                 if (held.containsEnchantment(Enchantment.BREACH)) {
                     lightlessPhos(player);
-                    return 60;
+                    return 200;
                 } else {
                     spiralBoom(player);
-                    return 15;
+                    return 30;
                 }
         }
         return plugin.getWeaponManager().getConfiguredCooldown(ability);
@@ -728,10 +731,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     }
 
     /**
-     * Ability 2. Fixed 3-heart sacrifice, Strength III for 15s, and the
-     * sacrificed hearts are handed back automatically 20 seconds later
-     * (regardless of whether the player has since healed some of it back
-     * naturally — this always tops them up by the sacrificed amount).
+     * Ability 2. Fixed 3-heart sacrifice — but now against max health, not
+     * just current health, so you're genuinely capped lower (not just
+     * bruised) for the duration — plus Strength III for 15s. Both your
+     * missing hearts and your max health are restored together 20 seconds
+     * later, regardless of whether you've healed some of it back naturally
+     * in the meantime.
      */
     private void thirtyPiecesOfSilver(Player player) {
         double cost = 6; // 3 hearts
@@ -740,11 +745,16 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             return;
         }
         player.playSound(player.getLocation(), Sound.ENTITY_WITHER_AMBIENT, 1f, 1f);
-        player.setHealth(player.getHealth() - cost);
         player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 300, 2));
-        LivingEntity target = getTargetedEntity(player, 4);
-        if (target != null) {
-            target.damage(10, player);
+
+        var maxHealthAttr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        AttributeModifier sacrifice = new AttributeModifier(thirtyPiecesModifierKey,
+                -cost, AttributeModifier.Operation.ADD_NUMBER);
+        if (maxHealthAttr != null) {
+            maxHealthAttr.addModifier(sacrifice);
+            player.setHealth(Math.max(1, Math.min(player.getHealth(), maxHealthAttr.getValue())));
+        } else {
+            player.setHealth(player.getHealth() - cost);
         }
         msg(player, "You pay in blood for power.");
 
@@ -753,6 +763,9 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             public void run() {
                 if (!player.isOnline()) return;
                 var attribute = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                if (attribute != null) {
+                    attribute.removeModifier(sacrifice);
+                }
                 double max = attribute != null ? attribute.getValue() : 20;
                 player.setHealth(Math.min(max, player.getHealth() + cost));
                 player.sendActionBar(Component.text("Your sacrifice is repaid.", NamedTextColor.DARK_RED));
@@ -763,28 +776,28 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     // ---------------- NULLIFIED (VoidBreaker) ----------------
 
     /**
-     * Density-mode Ability 1. Draws a custom particle "lightning spiral" at
-     * whatever the player is looking at (entity or block), pulsing damage
-     * and a Blindness+Slowness III debuff to anything in a ~4x4 area there
-     * over 5 seconds. This is fully custom particle work — no vanilla
-     * LightningBolt entity is summoned.
+     * Density-mode Ability 1, Spiral. Draws a custom particle "lightning
+     * spiral" at whatever the player is looking at (entity or block),
+     * looping for 3s over a 5x5 area — anything caught in it gets a real
+     * powder-snow-style freeze plus a real lightning bolt overhead, rather
+     * than a damage/debuff pulse. No vanilla LightningBolt damage leaks
+     * through beyond the capped visual strike.
      */
     private void spiralBoom(Player player) {
         Location epicenter = resolveCrosshairLocation(player, 20);
         player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1.2f);
         player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1f);
-        msg(player, "Spiral Boom crackles to life!");
+        msg(player, "Spiral crackles to life!");
 
-        double areaRadius = 3.5; // approximates the requested "7x7" area
-        double areaDamagePerPulse = plugin.getConfig().getDouble("voidbreaker.spiral-boom-damage-per-pulse", 6);
+        double areaRadius = 2.5; // approximates the requested "5x5"
 
         new BukkitRunnable() {
-            int tick = 0; // counts in 2-tick steps, 50 steps = 100 ticks = 5s
+            int tick = 0; // counts in 2-tick steps, 30 steps = 60 ticks = 3s
 
             @Override
             public void run() {
                 try {
-                    if (tick >= 50 || epicenter.getWorld() == null
+                    if (tick >= 30 || epicenter.getWorld() == null
                             || !epicenter.getWorld().isChunkLoaded(epicenter.getBlockX() >> 4, epicenter.getBlockZ() >> 4)) {
                         cancel();
                         return;
@@ -798,6 +811,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     // END_ROD trail on top so the spiral is obvious at a glance.
                     epicenter.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 6, 0.05, 0.05, 0.05, 0.02);
                     epicenter.getWorld().spawnParticle(Particle.END_ROD, point, 2, 0.02, 0.02, 0.02, 0.01);
+                    epicenter.getWorld().spawnParticle(Particle.SNOWFLAKE, point, 3, 0.05, 0.05, 0.05, 0.01);
 
                     if (tick % 5 == 0) {
                         epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1, Color.WHITE);
@@ -815,9 +829,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
 
                         for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 3, areaRadius)) {
                             if (e instanceof LivingEntity le && !le.equals(player)) {
-                                le.damage(areaDamagePerPulse, player);
-                                le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0));
-                                le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 50, 2));
+                                le.setFreezeTicks(le.getMaxFreezeTicks());
                             }
                         }
                     }
@@ -825,7 +837,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 } catch (Exception ex) {
                     // A silently-dying repeating task looks exactly like "it did
                     // nothing" — log it loudly instead so it shows up in console.
-                    plugin.getLogger().warning("Spiral Boom animation error: " + ex);
+                    plugin.getLogger().warning("Spiral animation error: " + ex);
                     ex.printStackTrace();
                     cancel();
                 }
@@ -834,15 +846,16 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     }
 
     /**
-     * Breach-mode Ability 1. Not a one-shot burst anymore — this opens a
-     * dark aura that follows the caster for 20 seconds, pulsing a flat
-     * 5-heart true-damage hit (armor is ignored entirely) to anything
-     * within an 8x8 area around them every 2 seconds, while "nullifying"
-     * whatever every nearby player is holding each pulse.
+     * Breach-mode Ability 1, Phōs. Opens a dark aura that follows the
+     * caster for 20 seconds: no damage, but everything within a 6x6 area
+     * around them gets their held item "nullified" every 2 seconds — a
+     * legendary weapon gets locked on cooldown, other tools/weapons/armor
+     * lose durability, and edible items get eaten away. Your own
+     * VoidBreaker is already locked out for the full 200s cooldown this
+     * ability returns, covering "voidbreaker stuck in cooldown" on your end.
      */
     private void lightlessPhos(Player player) {
-        double range = 4; // approximates "8x8"
-        double trueDamage = 10; // 5 hearts per pulse, ignoring armor entirely
+        double range = 3; // approximates "6x6"
 
         msg(player, "Lightless Ph\u014ds consumes the light around you.");
 
@@ -874,17 +887,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                             default -> center.getWorld().spawnParticle(Particle.WITCH, p, 1, 0, 0, 0, 0);
                         }
                     }
+                    // A particle trail at the caster's own feet so it's clear the
+                    // aura is following them specifically, not just a fixed zone.
+                    center.getWorld().spawnParticle(Particle.SCULK_SOUL, center.clone().add(0, 0.1, 0), 6, 0.4, 0.05, 0.4, 0.01);
 
                     for (Entity e : player.getNearbyEntities(range, range, range)) {
                         if (e.equals(player) || !(e instanceof LivingEntity le)) continue;
-
-                        // Register real kill-credit with a negligible normal hit, then
-                        // apply the rest directly to health so armor can't reduce it.
-                        double registerAmount = Math.min(0.5, trueDamage);
-                        le.damage(registerAmount, player);
-                        double remaining = trueDamage - registerAmount;
-                        le.setHealth(Math.max(0, le.getHealth() - remaining));
-
                         if (e instanceof Player target) {
                             nullifyHeldItem(target);
                         }
@@ -949,11 +957,11 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     }
 
     /**
-     * Ability 2. Toggles VoidBreaker between Density mode (default) and
-     * Breach mode by swapping the real vanilla enchantments on the item —
-     * this lets the game engine handle the actual mace smash-attack math,
-     * rather than the plugin re-implementing it. Also gives a short
-     * forward dash for a bit of mobility. No cooldown.
+     * Ability 2, Bound. Toggles VoidBreaker between Density mode (default)
+     * and Breach mode by swapping the real vanilla enchantments on the
+     * item — this lets the game engine handle the actual mace smash-attack
+     * math, rather than the plugin re-implementing it. Also gives a short
+     * forward dash for a bit of mobility. 3s cooldown.
      */
     private void spacedBound(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();

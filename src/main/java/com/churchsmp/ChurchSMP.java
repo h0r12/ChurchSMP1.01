@@ -76,6 +76,9 @@ public final class ChurchSMP extends JavaPlugin {
         var excaliburPassives = new com.churchsmp.weapons.ExcaliburPassives(this);
         getServer().getPluginManager().registerEvents(excaliburPassives, this);
         excaliburPassives.start();
+        var voidbreakerPassives = new com.churchsmp.weapons.VoidbreakerPassives(this);
+        getServer().getPluginManager().registerEvents(voidbreakerPassives, this);
+        voidbreakerPassives.start();
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();

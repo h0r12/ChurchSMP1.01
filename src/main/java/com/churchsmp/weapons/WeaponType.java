@@ -48,8 +48,8 @@ public enum WeaponType {
     VOIDBREAKER(
             "voidbreaker", "VoidBreaker", Material.MACE,
             Category.NULLIFIED,
-            "Ability 1 (Density mode): Spiral Boom | (Breach mode): Lightless Ph\u014ds",
-            "Ability 2: Spaced Bound (toggle Density/Breach + dash)"
+            "Ability 1 (Density): Spiral (freeze+lightning, 3s, 30s cd) | (Breach): Ph\u014ds (item drain, 200s cd)",
+            "Ability 2: Bound (toggle Density/Breach + dash, 3s cd)"
     );
 
     public enum Category { GOOD, EVIL, NULLIFIED }
