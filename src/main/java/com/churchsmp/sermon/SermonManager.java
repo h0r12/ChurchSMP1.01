@@ -27,6 +27,7 @@ public class SermonManager {
     private double radius;
     private Set<UUID> currentAttendees;
     private BukkitTask task;
+    private final java.util.Map<UUID, Long> preacherCooldown = new java.util.HashMap<>();
 
     public SermonManager(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -36,8 +37,23 @@ public class SermonManager {
         return active;
     }
 
+    /** Seconds until this player can start another sermon, or 0 if they're free to now. */
+    public long getRemainingCooldownSeconds(Player preacher) {
+        Long readyAt = preacherCooldown.get(preacher.getUniqueId());
+        if (readyAt == null) return 0;
+        return Math.max(0, (readyAt - System.currentTimeMillis()) / 1000);
+    }
+
+    public void clearCooldown(Player preacher) {
+        preacherCooldown.remove(preacher.getUniqueId());
+    }
+
     public boolean start(Player preacher, int durationSeconds, double radius) {
         if (active) return false;
+        if (getRemainingCooldownSeconds(preacher) > 0) return false;
+
+        int cooldownSeconds = plugin.getConfig().getInt("sermon.cooldown-seconds", 300);
+        preacherCooldown.put(preacher.getUniqueId(), System.currentTimeMillis() + cooldownSeconds * 1000L);
 
         this.active = true;
         this.location = preacher.getLocation();

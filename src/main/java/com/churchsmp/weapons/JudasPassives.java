@@ -13,7 +13,7 @@ import org.bukkit.entity.WitherSkull;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityPotionEffectEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
@@ -28,14 +28,15 @@ import java.util.UUID;
 
 public class JudasPassives implements Listener {
 
-    private static final PotionEffectType[] BLOCKED_EFFECTS = {
-            PotionEffectType.WITHER, PotionEffectType.POISON, PotionEffectType.DARKNESS,
-            PotionEffectType.BLINDNESS, PotionEffectType.REGENERATION
+    private static final PotionEffectType[] JUDAS_GIFT_POOL = {
+            PotionEffectType.NAUSEA, PotionEffectType.WEAKNESS, PotionEffectType.SLOWNESS,
+            PotionEffectType.MINING_FATIGUE, PotionEffectType.HUNGER, PotionEffectType.BLINDNESS
     };
 
     private final ChurchSMP plugin;
     private final WeaponManager weaponManager;
-    private final Map<UUID, Long> procCooldown = new HashMap<>();
+    private final Map<UUID, Long> biteCooldown = new HashMap<>();
+    private final Map<UUID, Long> lastGiftCheck = new HashMap<>();
 
     public JudasPassives(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -47,27 +48,58 @@ public class JudasPassives implements Listener {
         return weaponManager.getWeaponType(held) == WeaponType.BLADE_OF_JUDAS;
     }
 
-    /** Passive 1: immune to Wither, Poison, Darkness, Blindness — and Regeneration can't land either. */
+    /** Passive 1, Bloodfeast: while holding the weapon, you cannot regenerate at all — natural or potion-based. */
     @EventHandler
-    public void onPotionEffect(EntityPotionEffectEvent event) {
+    public void onRegen(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        if (event.getNewEffect() == null) return;
         if (!isHoldingJudas(player)) return;
-
-        for (PotionEffectType blocked : BLOCKED_EFFECTS) {
-            if (event.getNewEffect().getType().equals(blocked)) {
-                event.setCancelled(true);
-                return;
-            }
+        if (event.getRegainReason() == EntityRegainHealthEvent.RegainReason.SATIATED
+                || event.getRegainReason() == EntityRegainHealthEvent.RegainReason.MAGIC
+                || event.getRegainReason() == EntityRegainHealthEvent.RegainReason.REGEN) {
+            event.setCancelled(true);
         }
+    }
+
+    /**
+     * Passive 2, Unfree, is time-based rather than event-based, so it runs
+     * its own repeating scan rather than hooking into an attack/damage event.
+     */
+    public void start() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player player : plugin.getServer().getOnlinePlayers()) {
+                    tickUnfree(player);
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L); // check every second
+    }
+
+    /**
+     * Passive 2, Unfree: while holding the weapon, there's a periodic
+     * small chance of receiving a random debuff ("Judas's gift") — checked
+     * roughly every 10s per player, ~20% chance each check. Neither the
+     * interval nor the odds were pinned down in the spec, so these are a
+     * reasonable default rather than an exact number.
+     */
+    public void tickUnfree(Player player) {
+        if (!isHoldingJudas(player)) return;
+        long now = System.currentTimeMillis();
+        long last = lastGiftCheck.getOrDefault(player.getUniqueId(), 0L);
+        if (now - last < 10_000L) return;
+        lastGiftCheck.put(player.getUniqueId(), now);
+        if (Math.random() >= 0.2) return;
+
+        PotionEffectType gift = JUDAS_GIFT_POOL[(int) (Math.random() * JUDAS_GIFT_POOL.length)];
+        player.addPotionEffect(new PotionEffect(gift, 100, 0)); // 5s
+        player.sendActionBar(Component.text("Judas leaves you a gift...", NamedTextColor.DARK_GRAY));
     }
 
     /**
      * Every Judas attack pops the vanilla "hit heart" particle
      * (damage_indicator) plus a crit sparkle, purely cosmetic.
-     * Passive 2 is layered on top: a small chance per hit to afflict
-     * Wither + Darkness for 5s and strike a (visual) lightning bolt,
-     * gated by a 30s cooldown so it can't proc back-to-back.
+     * Passive 3, Bite, is layered on top: a 5% chance per hit to inflict
+     * Wither + Nausea + Blindness, gated by a 90s cooldown after it fires.
      */
     @EventHandler
     public void onAttack(EntityDamageByEntityEvent event) {
@@ -81,15 +113,15 @@ public class JudasPassives implements Listener {
                 target.getLocation().add(0, 1, 0), 6, 0.3, 0.3, 0.3, 0.1);
 
         long now = System.currentTimeMillis();
-        long last = procCooldown.getOrDefault(player.getUniqueId(), 0L);
-        if (now - last < 30_000L) return;
-        if (Math.random() >= 0.15) return; // small chance
+        long last = biteCooldown.getOrDefault(player.getUniqueId(), 0L);
+        if (now - last < 90_000L) return;
+        if (Math.random() >= 0.05) return; // 5% chance to hit
 
-        procCooldown.put(player.getUniqueId(), now);
+        biteCooldown.put(player.getUniqueId(), now);
         target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 0));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 100, 0));
-        target.getWorld().strikeLightningEffect(target.getLocation());
-        player.sendActionBar(Component.text("Betrayal strikes true.", NamedTextColor.DARK_RED));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
+        player.sendActionBar(Component.text("Bite sinks in.", NamedTextColor.DARK_RED));
     }
 
     /**
@@ -121,9 +153,10 @@ public class JudasPassives implements Listener {
 
     /**
      * Hemorrhaged Mold's wither skull never behaves like a normal one —
-     * this intercepts the impact entirely and replaces it with: steal a
-     * heart + stun on a direct entity hit, then a dark blast wherever it
-     * lands (blind + visual lightning on everything within ~6 blocks).
+     * this intercepts the impact entirely. A direct hit on an entity stuns
+     * them for 1.5s and rewards the shooter with Strength III for 5s; a
+     * miss (hits a block instead) strikes lightning and applies Slowness
+     * II to anything caught in a small 3x3 area around the impact.
      */
     @EventHandler
     public void onProjectileHit(ProjectileHitEvent event) {
@@ -137,24 +170,20 @@ public class JudasPassives implements Listener {
         Player shooter = plugin.getServer().getPlayer(UUID.fromString(shooterId));
         Location impact = skull.getLocation();
 
-        if (event.getHitEntity() instanceof LivingEntity target && shooter != null) {
-            target.damage(2, shooter); // steal one heart
-            shooter.setHealth(Math.min(shooter.getHealth() + 2, shooter.getAttribute(
-                    org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()));
-            stun(target, 50L, plugin); // 2.5s, can't move even in the air
-        }
-
         impact.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, impact, 1);
-        impact.getWorld().spawnParticle(Particle.SQUID_INK, impact, 120, 2.5, 1.5, 2.5, 0.08);
-        impact.getWorld().spawnParticle(Particle.LARGE_SMOKE, impact, 80, 2, 1, 2, 0.05);
-        impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1f, 0.7f);
+        impact.getWorld().spawnParticle(Particle.SQUID_INK, impact, 60, 1.5, 1, 1.5, 0.06);
         impact.getWorld().playSound(impact, Sound.ENTITY_WITHER_HURT, 1f, 0.6f);
 
-        double radius = 3; // approximates "6x6"
-        for (Entity e : impact.getWorld().getNearbyEntities(impact, radius, radius, radius)) {
-            if (e instanceof LivingEntity le) {
-                le.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 0));
-                le.getWorld().strikeLightningEffect(le.getLocation());
+        if (event.getHitEntity() instanceof LivingEntity target && shooter != null) {
+            stun(target, 30L, plugin); // 1.5s, can't move even in the air
+            shooter.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 100, 2)); // 5s, Strength III
+        } else {
+            double radius = 1.5; // approximates "3x3"
+            impact.getWorld().strikeLightningEffect(impact);
+            for (Entity e : impact.getWorld().getNearbyEntities(impact, radius, radius, radius)) {
+                if (e instanceof LivingEntity le) {
+                    le.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 1)); // 4s, Slowness II
+                }
             }
         }
 

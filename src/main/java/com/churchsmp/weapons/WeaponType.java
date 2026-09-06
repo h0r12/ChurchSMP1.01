@@ -42,7 +42,7 @@ public enum WeaponType {
     BLADE_OF_JUDAS(
             "blade_of_judas", "Judas", Material.NETHERITE_AXE,
             Category.EVIL,
-            "Ability 1: Hemorrhaged Mold (wither skull, steal a heart, stun)",
+            "Ability 1: Hemorrhaged Mold (3 wither-skull charges, stun/lightning)",
             "Ability 2: Thirty Pieces of Silver (3-heart sac, Strength III 15s)"
     ),
     VOIDBREAKER(

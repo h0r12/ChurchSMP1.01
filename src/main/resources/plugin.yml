@@ -16,7 +16,7 @@ commands:
     permission: churchsmp.donate
   churchadmin:
     description: Admin commands for alignment, weapons, regions, and shrines.
-    usage: /churchadmin <give|set|region|shrine> ...
+    usage: /churchadmin <give|set|resetcooldown|region|shrine> ...
     permission: churchsmp.admin
   sermon:
     description: Start or cancel a sermon event.

@@ -14,8 +14,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 /**
+ * /churchadmin                                          (shows this help list)
  * /churchadmin give <player> <weaponId>
  * /churchadmin set <player> <score>
+ * /churchadmin resetcooldown <player> <weaponId|sermon|all>
  * /churchadmin region wand                    (gives the region-selection wand)
  * /churchadmin region create                  (saves a region from the wand's two corners)
  * /churchadmin shrine add <altar|offering|confession>   (registers the block you're looking at)
@@ -30,19 +32,75 @@ public class ChurchAdminCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) {
-            sender.sendMessage(Component.text("Usage: /churchadmin <give|set|region|shrine> ...", NamedTextColor.RED));
+        if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
+            sendHelp(sender);
             return true;
         }
 
         switch (args[0].toLowerCase()) {
             case "give" -> handleGive(sender, args);
             case "set" -> handleSet(sender, args);
+            case "resetcooldown" -> handleResetCooldown(sender, args);
             case "region" -> handleRegion(sender, args);
             case "shrine" -> handleShrine(sender, args);
-            default -> sender.sendMessage(Component.text("Unknown subcommand.", NamedTextColor.RED));
+            default -> {
+                sender.sendMessage(Component.text("Unknown subcommand. Run /churchadmin for a full list.", NamedTextColor.RED));
+            }
         }
         return true;
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(Component.text("===== ChurchSMP Admin =====", NamedTextColor.GOLD));
+        sendHelpLine(sender, "/churchadmin give <player> <weaponId>", "Gives a legendary weapon.");
+        sendHelpLine(sender, "/churchadmin set <player> <score>", "Sets a player's alignment score.");
+        sendHelpLine(sender, "/churchadmin resetcooldown <player> <weaponId|sermon|all>", "Clears cooldowns.");
+        sendHelpLine(sender, "/churchadmin region wand", "Gives the region-selection wand.");
+        sendHelpLine(sender, "/churchadmin region create", "Saves a region from the wand's two corners.");
+        sendHelpLine(sender, "/churchadmin shrine add <altar|offering|confession>", "Registers the block you're looking at.");
+
+        StringBuilder ids = new StringBuilder();
+        for (WeaponType t : WeaponType.values()) ids.append(t.getId()).append(" ");
+        sender.sendMessage(Component.text("Weapon IDs: " + ids, NamedTextColor.GRAY));
+    }
+
+    private void sendHelpLine(CommandSender sender, String usage, String description) {
+        sender.sendMessage(Component.text(usage, NamedTextColor.YELLOW)
+                .append(Component.text(" — " + description, NamedTextColor.WHITE)));
+    }
+
+    private void handleResetCooldown(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(Component.text("Usage: /churchadmin resetcooldown <player> <weaponId|sermon|all>", NamedTextColor.RED));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+            return;
+        }
+
+        String what = args[2].toLowerCase();
+        if (what.equals("all")) {
+            plugin.getWeaponManager().clearAllCooldowns(target);
+            plugin.getSermonManager().clearCooldown(target);
+            sender.sendMessage(Component.text("Cleared all weapon and sermon cooldowns for " + target.getName(), NamedTextColor.GREEN));
+            return;
+        }
+        if (what.equals("sermon")) {
+            plugin.getSermonManager().clearCooldown(target);
+            sender.sendMessage(Component.text("Cleared " + target.getName() + "'s sermon cooldown.", NamedTextColor.GREEN));
+            return;
+        }
+        WeaponType type = WeaponType.fromId(what);
+        if (type == null) {
+            StringBuilder ids = new StringBuilder();
+            for (WeaponType t : WeaponType.values()) ids.append(t.getId()).append(" ");
+            sender.sendMessage(Component.text("Unknown target. Use a weapon ID, 'sermon', or 'all'. Valid IDs: " + ids, NamedTextColor.RED));
+            return;
+        }
+        plugin.getWeaponManager().clearCooldown(target, type);
+        sender.sendMessage(Component.text("Cleared " + target.getName() + "'s " + type.getDisplayName() + " cooldowns.", NamedTextColor.GREEN));
     }
 
     private void handleRegion(CommandSender sender, String[] args) {

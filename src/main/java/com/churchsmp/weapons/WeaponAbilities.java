@@ -96,11 +96,11 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             case BLADE_OF_JUDAS:
                 if (ability == 1) {
                     hemorrhagedMold(player);
+                    return 0; // charge-based; cooldown is handled manually per shot/reload
                 } else {
                     thirtyPiecesOfSilver(player);
                     return 50;
                 }
-                break;
             case VOIDBREAKER:
                 if (ability == 2) {
                     spacedBound(player);
@@ -679,15 +679,33 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, 1f, 1f);
     }
 
+    private final Map<UUID, Integer> judasCharges = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<UUID, Long> judasLastShot = new java.util.concurrent.ConcurrentHashMap<>();
+
     /**
-     * Ability 1 (Hemorrhaged Mold). Fires a tagged WitherSkull that never
-     * does vanilla wither-skull things on impact — JudasPassives.java
-     * intercepts it via ProjectileHitEvent and replaces the effect
-     * entirely with: steal a heart + stun on a direct entity hit, and a
-     * big dark blast (blind + visual lightning on everything nearby)
-     * wherever it lands.
+     * Ability 1 (Hemorrhaged Mold), reworked into a 3-charge system. Each
+     * activation fires one WitherSkull (tagged so JudasPassives.java can
+     * intercept its vanilla behavior on impact) as long as a charge is
+     * available and the per-shot 8s cooldown has passed. Once all 3
+     * charges are spent, it takes 60s before you get all 3 back.
      */
     private void hemorrhagedMold(Player player) {
+        UUID id = player.getUniqueId();
+        int charges = judasCharges.getOrDefault(id, 3);
+        if (charges <= 0) {
+            msg(player, "No wither skulls left — recharging.");
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long lastShot = judasLastShot.getOrDefault(id, 0L);
+        if (now - lastShot < 8_000L) {
+            msg(player, "Hemorrhaged Mold is still recharging that shot.");
+            return;
+        }
+        judasLastShot.put(id, now);
+        charges--;
+        judasCharges.put(id, charges);
+
         Location eye = player.getEyeLocation();
         var skull = player.getWorld().spawn(eye, org.bukkit.entity.WitherSkull.class, s -> {
             s.setShooter(player);
@@ -696,7 +714,17 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             s.getPersistentDataContainer().set(judasSkullKey, PersistentDataType.STRING, player.getUniqueId().toString());
         });
         player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1f, 1.1f);
-        msg(player, "Hemorrhaged Mold streaks toward its mark.");
+        msg(player, "Hemorrhaged Mold streaks toward its mark. (" + charges + "/3 left)");
+
+        if (charges == 0) {
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    judasCharges.put(id, 3);
+                    if (player.isOnline()) msg(player, "Hemorrhaged Mold fully recharges.");
+                }
+            }.runTaskLater(plugin, 60 * 20L);
+        }
     }
 
     /**

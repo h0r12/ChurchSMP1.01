@@ -122,6 +122,19 @@ public class WeaponManager {
                 .put(ability, System.currentTimeMillis() + seconds * 1000L);
     }
 
+    /** Clears both ability cooldowns for one weapon on one player. */
+    public void clearCooldown(Player player, WeaponType type) {
+        Map<String, Map<Integer, Long>> playerCooldowns = cooldowns.get(player.getUniqueId());
+        if (playerCooldowns != null) {
+            playerCooldowns.remove(type.getId());
+        }
+    }
+
+    /** Clears every weapon's cooldowns for one player. */
+    public void clearAllCooldowns(Player player) {
+        cooldowns.remove(player.getUniqueId());
+    }
+
     public int getConfiguredCooldown(int ability) {
         String path = ability == 1 ? "weapons.cooldown-seconds.ability-1"
                                     : "weapons.cooldown-seconds.ability-2";

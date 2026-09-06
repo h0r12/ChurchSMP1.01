@@ -44,6 +44,11 @@ public class SermonCommand implements CommandExecutor {
                 sender.sendMessage(Component.text("A sermon is already in progress.", NamedTextColor.RED));
                 return true;
             }
+            long remaining = sermons.getRemainingCooldownSeconds(preacher);
+            if (remaining > 0) {
+                sender.sendMessage(Component.text("You must wait " + remaining + "s before starting another sermon.", NamedTextColor.RED));
+                return true;
+            }
             int duration = args.length > 1 ? parseIntSafe(args[1], 60) : 60;
             double radius = args.length > 2 ? parseDoubleSafe(args[2], 20) : 20;
             sermons.start(preacher, duration, radius);

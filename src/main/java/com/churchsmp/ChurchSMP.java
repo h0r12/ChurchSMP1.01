@@ -67,7 +67,9 @@ public final class ChurchSMP extends JavaPlugin {
         this.voidBreakerMobility = new VoidBreakerMobility(this);
         getServer().getPluginManager().registerEvents(voidBreakerMobility, this);
         voidBreakerMobility.start();
-        getServer().getPluginManager().registerEvents(new com.churchsmp.weapons.JudasPassives(this), this);
+        var judasPassives = new com.churchsmp.weapons.JudasPassives(this);
+        getServer().getPluginManager().registerEvents(judasPassives, this);
+        judasPassives.start();
         var luminescencePassives = new com.churchsmp.weapons.LuminescenceSpearPassives(this);
         getServer().getPluginManager().registerEvents(luminescencePassives, this);
         luminescencePassives.start();
