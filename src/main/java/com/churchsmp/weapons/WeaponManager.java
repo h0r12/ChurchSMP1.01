@@ -54,18 +54,29 @@ public class WeaponManager {
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
-        if (type == WeaponType.BLADE_OF_JUDAS) {
-            lore.add(Component.text("Bloodlust, swallowed yours in trade of hardened wrath",
-                    NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, true));
-            lore.add(Component.text("in you making pure strength.",
-                    NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, true));
+        lore.add(Component.text(type.getSubtitle(), NamedTextColor.DARK_GRAY)
+                .decoration(TextDecoration.ITALIC, true));
+        lore.add(Component.empty());
+
+        if (type.getPassives().length > 0) {
+            lore.add(Component.text("Passives", NamedTextColor.GREEN)
+                    .decoration(TextDecoration.BOLD, true).decoration(TextDecoration.ITALIC, false));
+            for (String passive : type.getPassives()) {
+                lore.add(Component.text("\u25B8 " + passive, NamedTextColor.GREEN)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
+            lore.add(Component.empty());
         }
+
         lore.add(Component.text(type.getAbility1Desc(), NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(Component.text(type.getAbility2Desc(), NamedTextColor.LIGHT_PURPLE)
                 .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.empty());
         lore.add(Component.text("Requires: " + type.getCategory().name() + " alignment",
                 NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("Run /church guide while holding it for details.",
+                NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, true));
         meta.lore(lore);
 
         meta.getPersistentDataContainer().set(weaponKey, PersistentDataType.STRING, type.getId());

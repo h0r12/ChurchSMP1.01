@@ -76,9 +76,6 @@ public final class ChurchSMP extends JavaPlugin {
         var excaliburPassives = new com.churchsmp.weapons.ExcaliburPassives(this);
         getServer().getPluginManager().registerEvents(excaliburPassives, this);
         excaliburPassives.start();
-        var voidbreakerPassives = new com.churchsmp.weapons.VoidbreakerPassives(this);
-        getServer().getPluginManager().registerEvents(voidbreakerPassives, this);
-        voidbreakerPassives.start();
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();
@@ -88,6 +85,7 @@ public final class ChurchSMP extends JavaPlugin {
         getCommand("donate").setExecutor(new DonateCommand(this));
         getCommand("churchadmin").setExecutor(new ChurchAdminCommand(this));
         getCommand("sermon").setExecutor(new SermonCommand(this));
+        getCommand("church").setExecutor(new com.churchsmp.commands.ChurchCommand(this));
 
         // Daily alignment decay — approximated as a real-time interval here;
         // hook this to a proper in-game day counter if your server changes day length.

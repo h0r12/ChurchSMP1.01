@@ -46,8 +46,6 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private final org.bukkit.NamespacedKey judasSkullKey;
     private final org.bukkit.NamespacedKey thirtyPiecesModifierKey;
     private final Set<UUID> spiralBoomStrikes = new java.util.HashSet<>();
-    private final Set<UUID> bloodyRainActive = new java.util.HashSet<>();
-    private final java.util.Map<UUID, Long> lastBloodyRainDash = new java.util.HashMap<>();
 
     private static final Set<Material> GOLDEN_FOODS = EnumSet.of(
             Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.GOLDEN_CARROT);
@@ -57,6 +55,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         this.alignmentManager = plugin.getAlignmentManager();
         this.judasSkullKey = new org.bukkit.NamespacedKey(plugin, "judas_skull");
         this.thirtyPiecesModifierKey = new org.bukkit.NamespacedKey(plugin, "thirty_pieces_sacrifice");
+        this.gloomArmorKey = new org.bukkit.NamespacedKey(plugin, "gloom_depressed");
     }
 
     public org.bukkit.NamespacedKey getJudasSkullKey() {
@@ -75,7 +74,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     return 80;
                 }
             case SWORD_OF_DAVID:
-                if (ability == 1) unseenPierce(player); else giantSlayer(player);
+                if (ability == 1) unseenPierce(player); else glare(player);
                 break;
             case STAFF_OF_MOSES:
                 if (ability == 1) {
@@ -92,8 +91,8 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 if (ability == 1) {
                     griefShards(player);
                 } else {
-                    leviathanRoar(player);
-                    return 0; // cooldown is applied manually once the 30s buff ends
+                    gloom(player);
+                    return 0; // cooldown is applied manually once the 10s window ends
                 }
                 break;
             case BLADE_OF_JUDAS:
@@ -133,7 +132,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         int chargeTicks = 80; // 4 seconds
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, chargeTicks + 5, 1));
         org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
-                player.getName() + " is charging Accelerated Nova...",
+                player.getName() + " is Accelerating the nova...",
                 org.bukkit.boss.BarColor.WHITE, org.bukkit.boss.BarStyle.SOLID);
         bar.setProgress(0);
         for (Entity e : player.getNearbyEntities(15, 15, 15)) {
@@ -204,7 +203,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             target.setHealth(Math.max(0, target.getHealth() - (damage - registerAmount)));
             target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1, Color.WHITE);
         }
-        msg(player, "Accelerated Nova erupts around you.");
+        msg(player, "The light breaks out from the handle");
     }
 
     /**
@@ -241,7 +240,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 tick++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
-        msg(player, "Altar's Pin draws everything toward you.");
+        msg(player, "The Excalibur is rising.");
     }
 
     private void smashSword(Player player) {
@@ -320,16 +319,23 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             }
         }.runTaskTimer(plugin, 3L, 3L); // fast pace — 4 hits in under a second
 
-        msg(player, "Unseen Pierce begins!");
+        msg(player, "Piercing");
     }
 
-    private void giantSlayer(Player player) {
-        player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 100, 1));
-        LivingEntity target = getTargetedEntity(player, 4);
-        if (target != null) {
-            target.damage(player.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE).getValue() * 2, player);
+    /** Ability 2, Glare. Toggles the trident's real vanilla enchant between Loyalty VI and Riptide VI. */
+    private void glare(Player player) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        boolean hasRiptide = item.containsEnchantment(Enchantment.RIPTIDE);
+
+        if (hasRiptide) {
+            item.removeEnchantment(Enchantment.RIPTIDE);
+            item.addUnsafeEnchantment(Enchantment.LOYALTY, 6);
+        } else {
+            item.removeEnchantment(Enchantment.LOYALTY);
+            item.addUnsafeEnchantment(Enchantment.RIPTIDE, 6);
         }
-        msg(player, "Giant Slayer empowers your strike.");
+        player.getInventory().setItemInMainHand(item);
+        msg(player, "The Water Might Shifts.");
     }
 
     // ---------------- Mayim (formerly Staff of Moses) ----------------
@@ -358,7 +364,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20 * 20, 0));
         player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1f, 0.6f);
         CooldownBarDisplay.show(plugin, player, "Frost Edge", 20);
-        msg(player, "Frost Edge awakens in your blade.");
+        msg(player, "The edge glows.");
 
         org.bukkit.scheduler.BukkitTask task = new BukkitRunnable() {
             @Override
@@ -374,7 +380,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         frostEdgeHits.remove(id);
         org.bukkit.scheduler.BukkitTask task = frostEdgeTasks.remove(id);
         if (task != null) task.cancel();
-        if (player.isOnline()) msg(player, "Frost Edge fades.");
+        if (player.isOnline()) msg(player, "Your blade return to normal state.");
         plugin.getWeaponManager().putOnCooldown(player, WeaponType.STAFF_OF_MOSES, 1, 30);
     }
 
@@ -398,7 +404,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         if (event.getDamager().equals(victim)) return;
 
         endFrostEdge(victim, victim.getUniqueId());
-        msg(victim, "Frost Edge shatters early.");
+        msg(victim, "Frost shattered early.");
     }
 
     /**
@@ -411,7 +417,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private void entangleFreeze(Player player) {
         UUID id = player.getUniqueId();
         if (entangleCharging.contains(id)) {
-            msg(player, "Entangle Freeze is already forming.");
+            msg(player, "it is already forming.");
             return;
         }
         entangleCharging.add(id);
@@ -462,7 +468,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                         JudasPassives.stun(target, 30L, plugin);
                         point.getWorld().spawnParticle(Particle.FLASH, point, 1);
                         point.getWorld().playSound(point, Sound.ITEM_TRIDENT_HIT, 1f, 1f);
-                        msg(player, "Entangle Freeze pins " + target.getName() + " in place.");
+                        msg(player, "Mayim pins " + target.getName() + " in the place.");
                         cancel();
                         return;
                     }
@@ -551,6 +557,21 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
      * caster, then fires them one after another at whatever's under the
      * crosshair, each dealing 1 damage (5 total if all connect).
      */
+    private static final Material[] WHITE_ITEM_POOL = {
+            Material.BONE, Material.WHITE_DYE, Material.PAPER, Material.FEATHER, Material.STRING
+    };
+
+    /**
+     * Ability 1, Grief Shards. 5 random white items fly at whatever you're
+     * looking at; when the volley lands it deals 2.5 hearts of true damage
+     * total, then inflicts Bleedout — a DOT that strikes every 3 ticks for
+     * 1 normal (armor-affected) damage and stuns for 0.5s on every single
+     * strike. Since the strike interval (0.15s) is shorter than the stun
+     * (0.5s), the stuns chain back-to-back — the target is effectively
+     * locked in place for the whole duration. No Bleedout duration was
+     * specified, so this defaults to 4 seconds (~26 strikes); tell me if
+     * you want it longer/shorter.
+     */
     private void griefShards(Player player) {
         LivingEntity target = resolveForgivingTarget(player, 20);
         if (target == null) {
@@ -558,12 +579,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             return;
         }
 
-        // Floating daggers ring briefly around the caster before launching.
+        // Floating white items ring briefly around the caster before launching.
         for (int i = 0; i < 5; i++) {
             double angle = (2 * Math.PI / 5) * i;
             Location point = player.getLocation().add(Math.cos(angle) * 0.9, 1.2, Math.sin(angle) * 0.9);
-            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(200, 0, 0), 1.3f);
-            player.getWorld().spawnParticle(Particle.DUST, point, 3, 0.03, 0.03, 0.03, 0, dust);
+            ItemStack ring = new ItemStack(WHITE_ITEM_POOL[i % WHITE_ITEM_POOL.length]);
+            player.getWorld().spawnParticle(Particle.ITEM, point, 3, 0.03, 0.03, 0.03, 0, ring);
         }
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, 0.8f, 0.7f);
 
@@ -583,14 +604,21 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     double distance = direction.length();
                     direction.normalize();
 
-                    Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(200, 0, 0), 1f);
+                    ItemStack shardItem = new ItemStack(WHITE_ITEM_POOL[shard % WHITE_ITEM_POOL.length]);
                     for (double d = 0; d < distance; d += 0.5) {
                         Location trailPoint = from.clone().add(direction.clone().multiply(d));
-                        player.getWorld().spawnParticle(Particle.DUST, trailPoint, 1, 0, 0, 0, 0, dust);
+                        player.getWorld().spawnParticle(Particle.ITEM, trailPoint, 1, 0, 0, 0, 0, shardItem);
                     }
-                    target.damage(1, player);
                     player.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT, 1f, 0.6f);
                     shard++;
+
+                    if (shard >= 5) {
+                        double trueDamage = 5; // 2.5 hearts, ignoring armor entirely
+                        double registerAmount = Math.min(0.5, trueDamage);
+                        target.damage(registerAmount, player);
+                        target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
+                        startBleedout(player, target);
+                    }
                 } catch (Exception ex) {
                     plugin.getLogger().warning("Grief Shards error: " + ex);
                     ex.printStackTrace();
@@ -599,87 +627,100 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             }
         }.runTaskTimer(plugin, 4L, 4L);
 
-        msg(player, "Grief Shards fly at " + target.getName() + "!");
+        msg(player, "Shards floats toward " + target.getName() + ".");
     }
 
-    /**
-     * Ability 2 (Bloody Rain). A 30-second state: cherry-leaf "rain" falls
-     * in a 5x5 area around the caster (following them), anything that
-     * enters that area gets Wither+Darkness, and — as close as the public
-     * API allows to true vanilla Riptide-anywhere — right-clicking with
-     * Sorrowess during this window manually launches a riptide-style dash
-     * regardless of whether you're actually wet. Cooldown (60s) only
-     * starts once the 30 seconds run out, not on activation.
-     */
-    private void leviathanRoar(Player player) {
-        UUID id = player.getUniqueId();
-        if (bloodyRainActive.contains(id)) {
-            msg(player, "Bloody Rain is already falling.");
-            return;
-        }
-        bloodyRainActive.add(id);
-        msg(player, "Bloody Rain begins to fall.");
-        player.playSound(player.getLocation(), Sound.ENTITY_PHANTOM_AMBIENT, 0.7f, 0.6f);
-
+    private void startBleedout(Player player, LivingEntity target) {
         new BukkitRunnable() {
-            int tick = 0; // advances by 4 each run (every 4 ticks)
+            int elapsedTicks = 0;
 
             @Override
             public void run() {
-                try {
-                    if (tick >= 600 || !player.isOnline()) {
-                        bloodyRainActive.remove(id);
-                        cancel();
-                        plugin.getWeaponManager().putOnCooldown(player, WeaponType.SORROWESS, 2, 60);
-                        if (player.isOnline()) msg(player, "Bloody Rain fades.");
-                        return;
-                    }
-                    Location center = player.getLocation();
-                    for (int i = 0; i < 4; i++) {
-                        double x = (Math.random() - 0.5) * 5;
-                        double z = (Math.random() - 0.5) * 5;
-                        center.getWorld().spawnParticle(Particle.CHERRY_LEAVES, center.clone().add(x, 2.5, z), 1, 0, 0, 0, 0);
-                    }
-                    for (Entity e : player.getNearbyEntities(2.5, 2.5, 2.5)) {
-                        if (e instanceof LivingEntity le && !le.equals(player)) {
-                            le.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 40, 0));
-                            le.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 40, 0));
-                        }
-                    }
-                    tick += 4;
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Bloody Rain error: " + ex);
-                    ex.printStackTrace();
-                    bloodyRainActive.remove(id);
+                if (elapsedTicks >= 80 || target.isDead() || !target.isValid()) { // 4 seconds
                     cancel();
+                    return;
                 }
+                target.damage(1, player); // normal damage, armor applies
+                JudasPassives.stun(target, 10L, plugin); // 0.5s, chains into the next strike
+                target.getWorld().spawnParticle(Particle.DUST,
+                        target.getLocation().add(0, 1, 0), 6, 0.2, 0.3, 0.2, 0,
+                        new Particle.DustOptions(Color.fromRGB(140, 0, 0), 1f));
+                elapsedTicks += 3;
             }
-        }.runTaskTimer(plugin, 0L, 4L);
+        }.runTaskTimer(plugin, 3L, 3L);
     }
 
+    private final org.bukkit.NamespacedKey gloomArmorKey;
+    private final Set<UUID> gloomActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Map<UUID, org.bukkit.scheduler.BukkitTask> depressedRemovalTasks = new java.util.concurrent.ConcurrentHashMap<>();
+
     /**
-     * Approximates "riptide anywhere" during Bloody Rain — vanilla gates
-     * real Riptide behind an actual wet/rain check deep in game code that
-     * isn't exposed to plugins, so this manually launches the same kind of
-     * dash instead of trying to bypass that check.
+     * Ability 2, Gloom (replaces Bloody Rain). A 10s active window: your
+     * crits deal reduced immediate damage (the crit bonus itself is
+     * stripped back out, leaving roughly a normal hit) but inflict
+     * "Depressed" on the target — their armor value drops 20% for 10s.
+     * Being hit again while already Depressed just refreshes the 10s
+     * timer rather than stacking. No active-window length was specified
+     * in the brief itself, only the debuff's own 10s — I mirrored that
+     * for the window too; flag it if you wanted something different.
+     * 60s cooldown starts once the window ends.
      */
+    private void gloom(Player player) {
+        UUID id = player.getUniqueId();
+        if (gloomActive.contains(id)) {
+            msg(player, "Gloom already looms over you.");
+            return;
+        }
+        gloomActive.add(id);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
+        msg(player, "Gloom settles over your blade.");
+        player.playSound(player.getLocation(), Sound.AMBIENT_CAVE, 0.8f, 0.6f);
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                gloomActive.remove(id);
+                if (player.isOnline()) msg(player, "Gloom lifts.");
+                plugin.getWeaponManager().putOnCooldown(player, WeaponType.SORROWESS, 2, 60);
+            }
+        }.runTaskLater(plugin, 200L); // 10 seconds
+    }
+
+    /** While Gloom is active, crits get their bonus damage stripped and inflict Depressed instead. */
     @org.bukkit.event.EventHandler
-    public void onBloodyRainRiptideAttempt(org.bukkit.event.player.PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        if (!bloodyRainActive.contains(player.getUniqueId())) return;
-        if (plugin.getWeaponManager().getWeaponType(player.getInventory().getItemInMainHand()) != WeaponType.SORROWESS) return;
-        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
-                && event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+    public void onGloomCrit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !gloomActive.contains(player.getUniqueId())) return;
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        long now = System.currentTimeMillis();
-        long last = lastBloodyRainDash.getOrDefault(player.getUniqueId(), 0L);
-        if (now - last < 500) return;
-        lastBloodyRainDash.put(player.getUniqueId(), now);
+        double critBonus = event.getDamage(org.bukkit.event.entity.EntityDamageEvent.DamageModifier.CRITICAL);
+        if (critBonus <= 0) return; // not a crit — Gloom only touches crits
 
-        Vector dash = player.getLocation().getDirection().normalize().multiply(1.8);
-        player.setVelocity(dash);
-        player.getWorld().spawnParticle(Particle.SPLASH, player.getLocation(), 30, 0.3, 0.3, 0.3, 0.05);
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, 1f, 1f);
+        event.setDamage(org.bukkit.event.entity.EntityDamageEvent.DamageModifier.CRITICAL, 0);
+        applyDepressed(player, target);
+    }
+
+    private void applyDepressed(Player player, LivingEntity target) {
+        var armorAttr = target.getAttribute(org.bukkit.attribute.Attribute.ARMOR);
+        if (armorAttr == null) return;
+        UUID targetId = target.getUniqueId();
+
+        org.bukkit.scheduler.BukkitTask existing = depressedRemovalTasks.get(targetId);
+        if (existing != null) {
+            existing.cancel(); // already Depressed — just refresh the timer below
+        } else {
+            armorAttr.addModifier(new AttributeModifier(gloomArmorKey, -0.2, AttributeModifier.Operation.ADD_SCALAR));
+            target.getWorld().spawnParticle(Particle.SQUID_INK, target.getLocation().add(0, 1, 0), 20, 0.3, 0.4, 0.3, 0.02);
+            player.sendActionBar(Component.text(target.getName() + " sinks into Depression.", NamedTextColor.DARK_GRAY));
+        }
+
+        depressedRemovalTasks.put(targetId, new BukkitRunnable() {
+            @Override
+            public void run() {
+                var attr = target.getAttribute(org.bukkit.attribute.Attribute.ARMOR);
+                if (attr != null) attr.removeModifier(gloomArmorKey);
+                depressedRemovalTasks.remove(targetId);
+            }
+        }.runTaskLater(plugin, 200L)); // 10 seconds
     }
 
     private final Map<UUID, Integer> judasCharges = new java.util.concurrent.ConcurrentHashMap<>();
@@ -696,13 +737,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         UUID id = player.getUniqueId();
         int charges = judasCharges.getOrDefault(id, 3);
         if (charges <= 0) {
-            msg(player, "No wither skulls left — recharging.");
+            msg(player, "No more sins were avaible.");
             return;
         }
         long now = System.currentTimeMillis();
         long lastShot = judasLastShot.getOrDefault(id, 0L);
         if (now - lastShot < 8_000L) {
-            msg(player, "Hemorrhaged Mold is still recharging that shot.");
+            msg(player, "your sin were reseting.");
             return;
         }
         judasLastShot.put(id, now);
@@ -717,14 +758,14 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             s.getPersistentDataContainer().set(judasSkullKey, PersistentDataType.STRING, player.getUniqueId().toString());
         });
         player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1f, 1.1f);
-        msg(player, "Hemorrhaged Mold streaks toward its mark. (" + charges + "/3 left)");
+        msg(player, "toward its mark. (" + charges + "/3 left)");
 
         if (charges == 0) {
             new BukkitRunnable() {
                 @Override
                 public void run() {
                     judasCharges.put(id, 3);
-                    if (player.isOnline()) msg(player, "Hemorrhaged Mold fully recharges.");
+                    if (player.isOnline()) msg(player, "Sin Charged (3/3).");
                 }
             }.runTaskLater(plugin, 60 * 20L);
         }
@@ -756,7 +797,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         } else {
             player.setHealth(player.getHealth() - cost);
         }
-        msg(player, "You pay in blood for power.");
+        msg(player, "You feel withing Judas.");
 
         new BukkitRunnable() {
             @Override
@@ -768,7 +809,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 }
                 double max = attribute != null ? attribute.getValue() : 20;
                 player.setHealth(Math.min(max, player.getHealth() + cost));
-                player.sendActionBar(Component.text("Your sacrifice is repaid.", NamedTextColor.DARK_RED));
+                player.sendActionBar(Component.text("Your grip loosen.", NamedTextColor.DARK_RED));
             }
         }.runTaskLater(plugin, 400L); // 20 seconds
     }
@@ -787,7 +828,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         Location epicenter = resolveCrosshairLocation(player, 20);
         player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1.2f);
         player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1f);
-        msg(player, "Spiral crackles to life!");
+        msg(player, "And so the spiral spins");
 
         double areaRadius = 2.5; // approximates the requested "5x5"
 
@@ -857,7 +898,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private void lightlessPhos(Player player) {
         double range = 3; // approximates "6x6"
 
-        msg(player, "Lightless Ph\u014ds consumes the light around you.");
+        msg(player, "And so consumed all the light");
 
         new BukkitRunnable() {
             int pulse = 0; // one pulse every 40 ticks (2s) — 10 pulses across 20s
@@ -971,12 +1012,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             item.removeEnchantment(Enchantment.BREACH);
             item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
             item.addUnsafeEnchantment(Enchantment.WIND_BURST, 1);
-            msg(player, "VoidBreaker shifts into Density mode.");
+            msg(player, "The VoidBreaker Feels Heavy.");
         } else {
             item.removeEnchantment(Enchantment.DENSITY);
             item.removeEnchantment(Enchantment.WIND_BURST);
             item.addUnsafeEnchantment(Enchantment.BREACH, 6);
-            msg(player, "VoidBreaker shifts into Breach mode.");
+            msg(player, "The VoidBreaker Feels Light");
         }
         player.getInventory().setItemInMainHand(item);
 

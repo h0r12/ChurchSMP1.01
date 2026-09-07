@@ -22,6 +22,10 @@ commands:
     description: Start or cancel a sermon event.
     usage: /sermon <start|cancel>
     permission: churchsmp.sermon
+  church:
+    description: Look up what your held legendary weapon does.
+    usage: /church guide
+    permission: churchsmp.guide
 
 permissions:
   churchsmp.alignment:
@@ -29,6 +33,8 @@ permissions:
   churchsmp.donate:
     default: true
   churchsmp.sermon:
+    default: true
+  churchsmp.guide:
     default: true
   churchsmp.admin:
     default: op

@@ -5,10 +5,12 @@ import org.bukkit.GameMode;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.WindCharge;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -21,10 +23,11 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * VoidBreaker's own passive: double jump (survival players can't normally
- * fly, so we grant flight just so the "start flying" double-space input
- * fires, then immediately cancel the flight and turn it into a jump boost
- * instead) and full fall-damage immunity while it's held.
+ * VoidBreaker's three passives: Voidfeels (2x wind charge velocity),
+ * Cloud (double jump — survival players can't normally fly, so we grant
+ * flight just so the "start flying" double-space input fires, then
+ * immediately cancel the flight and turn it into a jump boost instead),
+ * and Fallbreak (full fall-damage immunity while it's held).
  */
 public class VoidBreakerMobility implements Listener {
 
@@ -85,6 +88,16 @@ public class VoidBreakerMobility implements Listener {
         player.setVelocity(boost);
         player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 25, 0.3, 0.1, 0.3, 0.03);
         player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 0.6f, 1.5f);
+    }
+
+    /** Passive 1, Voidfeels: wind charges thrown while holding VoidBreaker fly at 2x velocity. */
+    @EventHandler
+    public void onWindChargeLaunch(ProjectileLaunchEvent event) {
+        if (!(event.getEntity() instanceof WindCharge charge)) return;
+        if (!(charge.getShooter() instanceof Player player)) return;
+        if (!isHoldingVoidBreaker(player)) return;
+
+        charge.setVelocity(charge.getVelocity().multiply(2.0));
     }
 
     @EventHandler

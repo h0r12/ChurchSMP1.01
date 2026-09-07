@@ -121,7 +121,7 @@ public class JudasPassives implements Listener {
         target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 0));
         target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0));
         target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
-        player.sendActionBar(Component.text("Bite sinks in.", NamedTextColor.DARK_RED));
+        player.sendActionBar(Component.text("Judas Bited.", NamedTextColor.DARK_RED));
     }
 
     /**
