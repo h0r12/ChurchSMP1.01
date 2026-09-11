@@ -691,11 +691,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     public void onGloomCrit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player) || !gloomActive.contains(player.getUniqueId())) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
+        if (!event.isCritical()) return; // not a crit — Gloom only touches crits
 
-        double critBonus = event.getDamage(org.bukkit.event.entity.EntityDamageEvent.DamageModifier.CRITICAL);
-        if (critBonus <= 0) return; // not a crit — Gloom only touches crits
-
-        event.setDamage(org.bukkit.event.entity.EntityDamageEvent.DamageModifier.CRITICAL, 0);
+        // There's no public API to read/zero out just the critical portion
+        // of the damage anymore (DamageModifier.CRITICAL was removed) — the
+        // closest approximation is dividing back out vanilla's ~1.5x crit
+        // multiplier, landing close to what a normal hit would have dealt.
+        event.setDamage(event.getDamage() / 1.5);
         applyDepressed(player, target);
     }
 
