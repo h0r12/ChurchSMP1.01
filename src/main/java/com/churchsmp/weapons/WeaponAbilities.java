@@ -45,7 +45,6 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private final AlignmentManager alignmentManager;
     private final org.bukkit.NamespacedKey judasSkullKey;
     private final org.bukkit.NamespacedKey thirtyPiecesModifierKey;
-    private final Set<UUID> spiralBoomStrikes = new java.util.HashSet<>();
 
     private static final Set<Material> GOLDEN_FOODS = EnumSet.of(
             Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.GOLDEN_CARROT);
@@ -109,12 +108,12 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     return 3;
                 }
                 ItemStack held = player.getInventory().getItemInMainHand();
-                if (held.containsEnchantment(Enchantment.BREACH)) {
-                    lightlessPhos(player);
-                    return 200;
+                if (held.containsEnchantment(Enchantment.WIND_BURST)) {
+                    fractured(player);
+                    return 75;
                 } else {
-                    spiralBoom(player);
-                    return 30;
+                    infection(player);
+                    return 130;
                 }
         }
         return plugin.getWeaponManager().getConfiguredCooldown(ability);
@@ -819,136 +818,55 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     // ---------------- NULLIFIED (VoidBreaker) ----------------
 
     /**
-     * Density-mode Ability 1, Spiral. Draws a custom particle "lightning
-     * spiral" at whatever the player is looking at (entity or block),
-     * looping for 3s over a 5x5 area — anything caught in it gets a real
-     * powder-snow-style freeze plus a real lightning bolt overhead, rather
-     * than a damage/debuff pulse. No vanilla LightningBolt damage leaks
-     * through beyond the capped visual strike.
+     * Ability 1 (Density mode), Fractured. Arms the next Crumble-eligible
+     * slam to trigger its empowered effect immediately, regardless of the
+     * current Sin count. That slam'''s requirement for the following
+     * natural cycle doubles, and if its Aftershock has nothing else to
+     * hit, the full mace-damage rebound comes back at you (not halved).
+     * The actual empowerment logic lives in VoidBreakerMobility since
+     * that'''s where Crumble'''s state already lives. 75s cooldown.
      */
-    private void spiralBoom(Player player) {
-        Location epicenter = resolveCrosshairLocation(player, 20);
-        player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1.2f);
-        player.playSound(epicenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1f);
-        msg(player, "And so the spiral spins");
-
-        double areaRadius = 2.5; // approximates the requested "5x5"
-
-        new BukkitRunnable() {
-            int tick = 0; // counts in 2-tick steps, 30 steps = 60 ticks = 3s
-
-            @Override
-            public void run() {
-                try {
-                    if (tick >= 30 || epicenter.getWorld() == null
-                            || !epicenter.getWorld().isChunkLoaded(epicenter.getBlockX() >> 4, epicenter.getBlockZ() >> 4)) {
-                        cancel();
-                        return;
-                    }
-                    double angle = tick * 0.7;
-                    double radius = 1.3;
-                    double height = ((tick % 20) / 20.0) * 2.5;
-                    Location point = epicenter.clone().add(radius * Math.cos(angle), height, radius * Math.sin(angle));
-
-                    // ELECTRIC_SPARK alone is tiny and easy to miss — layer a bright
-                    // END_ROD trail on top so the spiral is obvious at a glance.
-                    epicenter.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 6, 0.05, 0.05, 0.05, 0.02);
-                    epicenter.getWorld().spawnParticle(Particle.END_ROD, point, 2, 0.02, 0.02, 0.02, 0.01);
-                    epicenter.getWorld().spawnParticle(Particle.SNOWFLAKE, point, 3, 0.05, 0.05, 0.05, 0.01);
-
-                    if (tick % 5 == 0) {
-                        epicenter.getWorld().spawnParticle(Particle.FLASH, epicenter.clone().add(0, 1, 0), 1, Color.WHITE);
-
-                        // A REAL lightning bolt entity (not just the visual effect) —
-                        // vanilla lightning damage is capped to exactly 1 via
-                        // onSpiralBoomLightningDamage() below, keyed to this specific strike.
-                        double bx = (Math.random() - 0.5) * areaRadius * 2;
-                        double bz = (Math.random() - 0.5) * areaRadius * 2;
-                        Location boltSpot = epicenter.clone().add(bx, 0, bz);
-                        var strike = epicenter.getWorld().strikeLightning(boltSpot);
-                        if (strike != null) {
-                            spiralBoomStrikes.add(strike.getUniqueId());
-                        }
-
-                        for (Entity e : epicenter.getWorld().getNearbyEntities(epicenter, areaRadius, 3, areaRadius)) {
-                            if (e instanceof LivingEntity le && !le.equals(player)) {
-                                le.setFreezeTicks(le.getMaxFreezeTicks());
-                            }
-                        }
-                    }
-                    tick++;
-                } catch (Exception ex) {
-                    // A silently-dying repeating task looks exactly like "it did
-                    // nothing" — log it loudly instead so it shows up in console.
-                    plugin.getLogger().warning("Spiral animation error: " + ex);
-                    ex.printStackTrace();
-                    cancel();
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 2L);
+    private void fractured(Player player) {
+        plugin.getVoidBreakerMobility().armFractured(player);
+        player.getWorld().spawnParticle(Particle.CRIT, player.getLocation().add(0, 1, 0), 30, 0.4, 0.6, 0.4, 0.1);
+        player.playSound(player.getLocation(), Sound.BLOCK_ANCIENT_DEBRIS_BREAK, 1f, 0.7f);
+        msg(player, "Your next Crumble fractures reality.");
     }
 
     /**
-     * Breach-mode Ability 1, Phōs. Opens a dark aura that follows the
-     * caster for 20 seconds: no damage, but everything within a 6x6 area
-     * around them gets their held item "nullified" every 2 seconds — a
-     * legendary weapon gets locked on cooldown, other tools/weapons/armor
-     * lose durability, and edible items get eaten away. Your own
-     * VoidBreaker is already locked out for the full 200s cooldown this
-     * ability returns, covering "voidbreaker stuck in cooldown" on your end.
+     * Ability 1 (Breach mode), Infection. Throws VoidBreaker at whatever
+     * you'''re looking at, marking the first thing it hits with Fallen.
+     * Fallen spreads to anyone who attacks a Fallen entity while it'''s
+     * still active. You don'''t get the mace back until Fallen has fully
+     * run its course on every infected entity (tracked in
+     * VoidBreakerMobility). 130s cooldown.
      */
-    private void lightlessPhos(Player player) {
-        double range = 3; // approximates "6x6"
+    private void infection(Player player) {
+        LivingEntity target = resolveForgivingTarget(player, 20);
+        if (target == null) {
+            msg(player, "No target in sight.");
+            return;
+        }
 
-        msg(player, "And so consumed all the light");
+        ItemStack thrown = player.getInventory().getItemInMainHand().clone();
+        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
 
-        new BukkitRunnable() {
-            int pulse = 0; // one pulse every 40 ticks (2s) — 10 pulses across 20s
+        Location from = player.getEyeLocation();
+        Location to = target.getLocation().add(0, target.getHeight() / 2, 0);
+        Vector direction = to.toVector().subtract(from.toVector());
+        double distance = direction.length();
+        direction.normalize();
 
-            @Override
-            public void run() {
-                try {
-                    if (pulse >= 10 || !player.isOnline() || player.isDead()) {
-                        cancel();
-                        return;
-                    }
-                    Location center = player.getLocation();
-                    center.getWorld().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 0.8f);
-                    center.getWorld().playSound(center, Sound.ENTITY_WITHER_AMBIENT, 0.8f, 0.9f);
+        for (double d = 0; d < distance; d += 0.5) {
+            Location point = from.clone().add(direction.clone().multiply(d));
+            player.getWorld().spawnParticle(Particle.SCULK_SOUL, point, 2, 0.05, 0.05, 0.05, 0.01);
+        }
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1f, 0.6f);
 
-                    for (int i = 0; i < 70; i++) {
-                        double x = (Math.random() - 0.5) * range * 2;
-                        double y = Math.random() * 3;
-                        double z = (Math.random() - 0.5) * range * 2;
-                        Location p = center.clone().add(x, y, z);
-                        switch (i % 6) {
-                            case 0 -> center.getWorld().spawnParticle(Particle.SCULK_SOUL, p, 1, 0, 0, 0, 0);
-                            case 1 -> center.getWorld().spawnParticle(Particle.SQUID_INK, p, 1, 0, 0, 0, 0);
-                            case 2 -> center.getWorld().spawnParticle(Particle.LARGE_SMOKE, p, 1, 0, 0, 0, 0);
-                            case 3 -> center.getWorld().spawnParticle(Particle.ASH, p, 1, 0, 0, 0, 0);
-                            case 4 -> center.getWorld().spawnParticle(Particle.SOUL, p, 1, 0, 0, 0, 0);
-                            default -> center.getWorld().spawnParticle(Particle.WITCH, p, 1, 0, 0, 0, 0);
-                        }
-                    }
-                    // A particle trail at the caster's own feet so it's clear the
-                    // aura is following them specifically, not just a fixed zone.
-                    center.getWorld().spawnParticle(Particle.SCULK_SOUL, center.clone().add(0, 0.1, 0), 6, 0.4, 0.05, 0.4, 0.01);
-
-                    for (Entity e : player.getNearbyEntities(range, range, range)) {
-                        if (e.equals(player) || !(e instanceof LivingEntity le)) continue;
-                        if (e instanceof Player target) {
-                            nullifyHeldItem(target);
-                        }
-                    }
-                    pulse++;
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Lightless Ph\u014ds error: " + ex);
-                    ex.printStackTrace();
-                    cancel();
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 40L);
+        plugin.getVoidBreakerMobility().startInfection(player, target, thrown);
+        msg(player, "Infection takes hold.");
     }
+
 
     private void nullifyHeldItem(Player target) {
         ItemStack held = target.getInventory().getItemInMainHand();
@@ -1073,15 +991,6 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
 
     private void msg(Player player, String text) {
         player.sendActionBar(Component.text(text, NamedTextColor.LIGHT_PURPLE));
-    }
-
-    /** Caps damage from Spiral Boom's real lightning bolts to exactly 1, regardless of vanilla's normal ~5. */
-    @org.bukkit.event.EventHandler
-    public void onSpiralBoomLightningDamage(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof org.bukkit.entity.LightningStrike strike
-                && spiralBoomStrikes.remove(strike.getUniqueId())) {
-            event.setDamage(1.0);
-        }
     }
 
     private void title(Player player, String text) {

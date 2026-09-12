@@ -70,15 +70,15 @@ public enum WeaponType {
             "Ability 2: Thirty Pieces of Silver (3-heart sac, Strength III 15s)"
     ),
     VOIDBREAKER(
-            "voidbreaker", "VoidBreaker", "The dark collide hammer.", Material.MACE,
+            "voidbreaker", "VoidBreaker", "The Abandoned Unknowing.", Material.MACE,
             Category.NULLIFIED,
             new String[]{
-                    "Voidfeels: wind charges you throw fly at 2x velocity.",
-                    "Cloud: a double jump, 5s cd.",
-                    "Fallbreak: you take no fall damage."
+                    "Voidfeels: double jump, 5s cd.",
+                    "Crumble: a 10+ block slam builds Sin (1/7-7/7); the 8th hit doubles your damage with an Aftershock.",
+                    "Rifted: sneak + double jump launches you toward your crosshair, 30s cd (halved by each slam)."
             },
-            "Ability 1 (Density): Spiral (freeze+lightning, 3s, 30s cd) | (Breach): Ph\u014ds (item drain, 200s cd)",
-            "Ability 2: Bound (toggle Density/Breach + dash, 3s cd)"
+            "Ability 1 (Density): Fractured (empowered Crumble, 75s cd) | (Breach): Infection (thrown Fallen mark, 130s cd)",
+            "Ability 2: Bound (toggle Density VI+Wind Burst / Breach VI, 3s cd)"
     );
 
     public enum Category { GOOD, EVIL, NULLIFIED }

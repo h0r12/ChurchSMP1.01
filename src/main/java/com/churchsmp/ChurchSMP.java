@@ -110,5 +110,6 @@ public final class ChurchSMP extends JavaPlugin {
     public ChurchRegionManager getChurchRegionManager() { return churchRegionManager; }
     public ShrineManager getShrineManager() { return shrineManager; }
     public SermonManager getSermonManager() { return sermonManager; }
+    public VoidBreakerMobility getVoidBreakerMobility() { return voidBreakerMobility; }
     public RegionWandListener getRegionWandListener() { return regionWandListener; }
 }
