@@ -74,7 +74,7 @@ public enum WeaponType {
             Category.NULLIFIED,
             new String[]{
                     "Voidfeels: double jump, 5s cd.",
-                    "Crumble: a 10+ block slam builds Sin (1/7-7/7); the 8th hit doubles your damage with an Aftershock.",
+                    "Crumble: a 10+ block slam counts down from 7(+Fractured uses); hitting 0 doubles your damage against nearby opponents only.",
                     "Rifted: sneak + double jump launches you toward your crosshair, 30s cd (halved by each slam)."
             },
             "Ability 1 (Density): Fractured (empowered Crumble, 75s cd) | (Breach): Infection (thrown Fallen mark, 130s cd)",

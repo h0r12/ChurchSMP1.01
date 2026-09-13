@@ -170,20 +170,32 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1f, 1.2f);
         player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.6f);
 
-        // MANY MANY particles shooting outward in a full ring burst, in expanding waves.
+        // A braided burst: 3 interleaved strands (gray/gold/white) twisting
+        // around each other as they expand outward, rather than one flat
+        // single-color ring per wave.
+        Particle.DustOptions grayDust = new Particle.DustOptions(Color.fromRGB(140, 140, 140), 1f);
+        Particle.DustOptions goldDust = new Particle.DustOptions(Color.fromRGB(255, 200, 60), 1f);
+        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1f);
+        Particle.DustOptions[] strandColors = {grayDust, goldDust, whiteDust};
+
         new BukkitRunnable() {
             int wave = 0;
 
             @Override
             public void run() {
                 double radius = 0.6 + wave * 0.9;
-                int points = 40;
-                for (int i = 0; i < points; i++) {
-                    double angle = (2 * Math.PI / points) * i;
-                    Vector offset = new Vector(radius * Math.cos(angle), Math.sin(wave * 0.8) * 0.3, radius * Math.sin(angle));
-                    center.getWorld().spawnParticle(Particle.END_ROD, center.clone().add(offset), 1, 0, 0, 0, 0.02);
-                    center.getWorld().spawnParticle(Particle.FLASH, center.clone().add(offset), 0);
+                double twist = wave * 0.6; // each wave's strands rotate a bit further, giving the braided look
+                int pointsPerStrand = 16;
+
+                for (int strand = 0; strand < 3; strand++) {
+                    double strandOffset = (2 * Math.PI / 3) * strand + twist;
+                    for (int i = 0; i < pointsPerStrand; i++) {
+                        double angle = strandOffset + (2 * Math.PI / pointsPerStrand) * i;
+                        Vector offset = new Vector(radius * Math.cos(angle), Math.sin(wave * 0.8) * 0.3, radius * Math.sin(angle));
+                        center.getWorld().spawnParticle(Particle.DUST, center.clone().add(offset), 1, 0, 0, 0, 0, strandColors[strand]);
+                    }
                 }
+                center.getWorld().spawnParticle(Particle.FLASH, center.clone().add(0, Math.sin(wave * 0.8) * 0.3, 0), 0);
                 wave++;
                 if (wave >= 5) cancel();
             }
@@ -223,10 +235,30 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     return;
                 }
                 Location feet = player.getLocation();
-                for (int i = 0; i < 12; i++) {
-                    double angle = (tick * 0.3) + (2 * Math.PI / 12) * i;
-                    Vector offset = new Vector(Math.cos(angle) * 1.4, 0.1, Math.sin(angle) * 1.4);
-                    feet.getWorld().spawnParticle(Particle.PORTAL, feet.clone().add(offset), 1, 0, 0, 0, 0);
+                double progress = tick / 100.0; // 0 -> 1 across the 5s window
+                double radius = 0.8 + progress * 1.7; // grows outward over time, matching the sketch's 3 stages
+
+                // Color shifts yellow -> orange -> red as the ring grows.
+                int r = (int) (255 - progress * 35);
+                int g = (int) (220 - progress * 180);
+                int b = (int) (80 - progress * 60);
+                Particle.DustOptions ringColor = new Particle.DustOptions(Color.fromRGB(
+                        Math.max(0, r), Math.max(0, g), Math.max(0, b)), 1.2f);
+
+                for (int i = 0; i < 16; i++) {
+                    double angle = (tick * 0.3) + (2 * Math.PI / 16) * i;
+                    Vector offset = new Vector(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius);
+                    feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(offset), 1, 0, 0, 0, 0, ringColor);
+                }
+
+                // A few particles kick outward and down off the ring's edge every so often, like the sketch's arrows.
+                if (tick % 8 == 0) {
+                    for (int i = 0; i < 4; i++) {
+                        double angle = Math.random() * 2 * Math.PI;
+                        Vector edge = new Vector(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius);
+                        Vector kicked = edge.clone().add(edge.clone().normalize().multiply(0.6)).setY(edge.getY() - 0.4);
+                        feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(kicked), 1, 0, 0, 0, 0, ringColor);
+                    }
                 }
                 for (Entity e : player.getNearbyEntities(6, 4, 6)) {
                     if (e instanceof LivingEntity target && !target.equals(player)) {
@@ -820,24 +852,33 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     /**
      * Ability 1 (Density mode), Fractured. Arms the next Crumble-eligible
      * slam to trigger its empowered effect immediately, regardless of the
-     * current Sin count. That slam'''s requirement for the following
+     * current Sin count. That slam's requirement for the following
      * natural cycle doubles, and if its Aftershock has nothing else to
      * hit, the full mace-damage rebound comes back at you (not halved).
      * The actual empowerment logic lives in VoidBreakerMobility since
-     * that'''s where Crumble'''s state already lives. 75s cooldown.
+     * that's where Crumble's state already lives. 75s cooldown.
+     */
+    /**
+     * Ability 1 (Density mode), Fractured. Permanently adds +1 to
+     * Crumble's total requirement (base 7, so after using this twice
+     * it's 9) — a deliberate trade: Crumble's empowered hit takes longer
+     * to build toward, in exchange for... whatever future scaling reward
+     * you want to hang off a higher total later. The actual counter lives
+     * in VoidBreakerMobility since that's where Crumble's state already
+     * lives. 75s cooldown.
      */
     private void fractured(Player player) {
         plugin.getVoidBreakerMobility().armFractured(player);
         player.getWorld().spawnParticle(Particle.CRIT, player.getLocation().add(0, 1, 0), 30, 0.4, 0.6, 0.4, 0.1);
         player.playSound(player.getLocation(), Sound.BLOCK_ANCIENT_DEBRIS_BREAK, 1f, 0.7f);
-        msg(player, "Your next Crumble fractures reality.");
+        msg(player, "Crumble fractures further.");
     }
 
     /**
      * Ability 1 (Breach mode), Infection. Throws VoidBreaker at whatever
-     * you'''re looking at, marking the first thing it hits with Fallen.
-     * Fallen spreads to anyone who attacks a Fallen entity while it'''s
-     * still active. You don'''t get the mace back until Fallen has fully
+     * you're looking at, marking the first thing it hits with Fallen.
+     * Fallen spreads to anyone who attacks a Fallen entity while it's
+     * still active. You don't get the mace back until Fallen has fully
      * run its course on every infected entity (tracked in
      * VoidBreakerMobility). 130s cooldown.
      */

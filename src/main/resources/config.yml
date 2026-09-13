@@ -62,10 +62,8 @@ weapons:
     ability-2: 90
   require-exact-tier-for-nullified: true
   deactivate-on-tier-mismatch: true
-
-voidbreaker:
-  spiral-boom-damage-per-pulse: 3
-  lightless-phos-damage: 20
+  keybind-mouse-enabled: true
+  keybind-offhand-enabled: true
 
 confession:
   points-per-item: 2

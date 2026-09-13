@@ -64,6 +64,8 @@ public class WeaponListener implements Listener {
 
     @EventHandler
     public void onSwapHands(PlayerSwapHandItemsEvent event) {
+        if (!plugin.getConfig().getBoolean("weapons.keybind-offhand-enabled", true)) return;
+
         Player player = event.getPlayer();
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         WeaponType type = weaponManager.getWeaponType(mainHand);
@@ -80,6 +82,7 @@ public class WeaponListener implements Listener {
 
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
+        if (!plugin.getConfig().getBoolean("weapons.keybind-mouse-enabled", true)) return;
         if (event.getHand() != EquipmentSlot.HAND) return; // ignore the paired off-hand firing of this event
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
 

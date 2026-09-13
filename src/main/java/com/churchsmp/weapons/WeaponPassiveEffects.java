@@ -91,9 +91,26 @@ public class WeaponPassiveEffects implements Listener {
         }
     }
 
+    /**
+     * Excalibur's aura — the "auraful particle sword" from your sketch:
+     * two interleaved rings (red and gold) spiraling around the blade,
+     * offset 180° from each other so they read as a double helix rather
+     * than a single flat ring.
+     */
     private void archangelTrail(Player player) {
-        player.getWorld().spawnParticle(Particle.END_ROD,
-                player.getLocation().add(0, 1.3, 0), 2, 0.3, 0.2, 0.3, 0.01);
+        double angle = globalTick * 0.35;
+        double radius = 0.5;
+        double height = 1.0 + Math.sin(globalTick * 0.15) * 0.3;
+
+        Location center = player.getLocation().add(0, height, 0);
+        Location goldPoint = center.clone().add(radius * Math.cos(angle), 0, radius * Math.sin(angle));
+        Location redPoint = center.clone().add(radius * Math.cos(angle + Math.PI), 0, radius * Math.sin(angle + Math.PI));
+
+        Particle.DustOptions gold = new Particle.DustOptions(Color.fromRGB(255, 200, 60), 1f);
+        Particle.DustOptions red = new Particle.DustOptions(Color.fromRGB(200, 30, 30), 1f);
+        player.getWorld().spawnParticle(Particle.DUST, goldPoint, 1, 0, 0, 0, 0, gold);
+        player.getWorld().spawnParticle(Particle.DUST, redPoint, 1, 0, 0, 0, 0, red);
+        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1.3, 0), 1, 0.15, 0.15, 0.15, 0.005);
     }
 
     /** Expands outward from the player and resets every 2 seconds (40 ticks). */

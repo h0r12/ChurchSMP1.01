@@ -41,6 +41,7 @@ public class ChurchAdminCommand implements CommandExecutor {
             case "give" -> handleGive(sender, args);
             case "set" -> handleSet(sender, args);
             case "resetcooldown" -> handleResetCooldown(sender, args);
+            case "keybind" -> handleKeybind(sender, args);
             case "region" -> handleRegion(sender, args);
             case "shrine" -> handleShrine(sender, args);
             default -> {
@@ -55,6 +56,7 @@ public class ChurchAdminCommand implements CommandExecutor {
         sendHelpLine(sender, "/churchadmin give <player> <weaponId>", "Gives a legendary weapon.");
         sendHelpLine(sender, "/churchadmin set <player> <score>", "Sets a player's alignment score.");
         sendHelpLine(sender, "/churchadmin resetcooldown <player> <weaponId|sermon|all>", "Clears cooldowns.");
+        sendHelpLine(sender, "/churchadmin keybind <mouse|offhand> <on|off>", "Toggles that activation input server-wide.");
         sendHelpLine(sender, "/churchadmin region wand", "Gives the region-selection wand.");
         sendHelpLine(sender, "/churchadmin region create", "Saves a region from the wand's two corners.");
         sendHelpLine(sender, "/churchadmin shrine add <altar|offering|confession>", "Registers the block you're looking at.");
@@ -101,6 +103,27 @@ public class ChurchAdminCommand implements CommandExecutor {
         }
         plugin.getWeaponManager().clearCooldown(target, type);
         sender.sendMessage(Component.text("Cleared " + target.getName() + "'s " + type.getDisplayName() + " cooldowns.", NamedTextColor.GREEN));
+    }
+
+    private void handleKeybind(CommandSender sender, String[] args) {
+        if (args.length < 3 || !args[2].equalsIgnoreCase("on") && !args[2].equalsIgnoreCase("off")) {
+            sender.sendMessage(Component.text("Usage: /churchadmin keybind <mouse|offhand> <on|off>", NamedTextColor.RED));
+            return;
+        }
+        boolean enabled = args[2].equalsIgnoreCase("on");
+        String path = switch (args[1].toLowerCase()) {
+            case "mouse" -> "weapons.keybind-mouse-enabled";
+            case "offhand" -> "weapons.keybind-offhand-enabled";
+            default -> null;
+        };
+        if (path == null) {
+            sender.sendMessage(Component.text("Usage: /churchadmin keybind <mouse|offhand> <on|off>", NamedTextColor.RED));
+            return;
+        }
+        plugin.getConfig().set(path, enabled);
+        plugin.saveConfig();
+        sender.sendMessage(Component.text(args[1].toLowerCase() + " activation is now " + (enabled ? "ON" : "OFF") + " server-wide.",
+                NamedTextColor.GREEN));
     }
 
     private void handleRegion(CommandSender sender, String[] args) {

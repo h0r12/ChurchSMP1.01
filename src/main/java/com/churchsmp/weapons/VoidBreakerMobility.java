@@ -44,9 +44,8 @@ public class VoidBreakerMobility implements Listener {
     private final Map<UUID, Long> riftedReadyAt = new HashMap<>();
 
     // ---- Crumble ----
-    private final Map<UUID, Integer> sinCount = new HashMap<>();
-    private final Map<UUID, Integer> sinRequirement = new HashMap<>(); // default 7, doubled once by Fractured
-    private final Set<UUID> fracturedArmed = new HashSet<>();
+    private final Map<UUID, Integer> sinRemaining = new HashMap<>(); // counts down; starts at 7 + fractureStacksUsed
+    private final Map<UUID, Integer> fractureStacksUsed = new HashMap<>(); // permanent +1 per Fractured use
 
     // ---- Fallen tracking (for Infection) ----
     private final org.bukkit.NamespacedKey fallenArmorKey;
@@ -133,6 +132,12 @@ public class VoidBreakerMobility implements Listener {
      * all combat-hit logic funnels through one place). A "slam" is a mace
      * hit landed while the player has fallen 10+ blocks and hasn't
      * touched ground since — real vanilla mace-smash conditions.
+     *
+     * Counting model: sinRemaining starts at 7 plus 1 for every time
+     * Fractured has been used (persists — Fractured is a permanent
+     * investment, not a one-off), and just counts down by 1 per
+     * qualifying slam rather than showing as a X/Y fraction. Hitting 0
+     * triggers the empowered hit.
      */
     void onPossibleSlam(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
         if (player.getFallDistance() < 10 || player.isOnGround()) return;
@@ -145,61 +150,91 @@ public class VoidBreakerMobility implements Listener {
             riftedReadyAt.put(id, now + (readyAt - now) / 2);
         }
 
-        int required = sinRequirement.getOrDefault(id, 7);
-        int current = sinCount.getOrDefault(id, 0);
-        boolean forcedByFractured = fracturedArmed.remove(id);
+        int fractureStacks = fractureStacksUsed.getOrDefault(id, 0);
+        int total = 7 + fractureStacks;
+        int remaining = sinRemaining.getOrDefault(id, total);
 
-        if (!forcedByFractured && current < required - 1) {
-            sinCount.put(id, current + 1);
+        if (remaining > 1) {
+            sinRemaining.put(id, remaining - 1);
             player.sendActionBar(net.kyori.adventure.text.Component.text(
-                    "Sin absorbed (" + (current + 1) + "/" + required + ")",
-                    net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE));
+                    String.valueOf(remaining - 1), net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE));
             return;
         }
 
         // The empowering hit: double damage (the direct hit already dealt
         // its normal mace damage — this adds one more full instance as an
-        // Aftershock), then reset. If Fractured forced this early, the
-        // "miss" case below deals full mace damage back at you instead of
-        // half, and the requirement doubles for the next natural cycle.
-        sinCount.put(id, 0);
-        sinRequirement.put(id, forcedByFractured ? required * 2 : 7);
+        // Aftershock against nearby opponents only). Crumble never hurts
+        // the caster — if there's nobody else around, the Aftershock
+        // simply has nothing to hit.
+        sinRemaining.put(id, total);
 
         double maceDamage = event.getDamage();
         Location impact = target.getLocation();
         impact.getWorld().spawnParticle(Particle.EXPLOSION, impact.add(0, 1, 0), 1);
         impact.getWorld().playSound(impact, Sound.ITEM_MACE_SMASH_GROUND_HEAVY, 1f, 0.8f);
 
-        java.util.List<LivingEntity> nearby = new java.util.ArrayList<>();
-        for (Entity e : target.getNearbyEntities(3, 3, 3)) {
-            if (e instanceof LivingEntity le && !le.equals(player) && !le.equals(target)) nearby.add(le);
+        // Rock/debris crumbling and flying up off the target, matching the name.
+        for (int i = 0; i < 40; i++) {
+            double x = (Math.random() - 0.5) * 1.5;
+            double z = (Math.random() - 0.5) * 1.5;
+            Location debrisSpot = target.getLocation().add(x, Math.random() * 0.5, z);
+            target.getWorld().spawnParticle(Particle.BLOCK, debrisSpot, 1, 0.1, 0.3, 0.1, 0.15,
+                    org.bukkit.Material.COBBLESTONE.createBlockData());
         }
 
-        if (!nearby.isEmpty()) {
-            for (LivingEntity le : nearby) {
+        // A ring of alternating black/white/gray pips orbits whoever got
+        // hit for 3s, visualizing the Sin that was just cashed in.
+        orbitPipRing(target);
+
+        for (Entity e : target.getNearbyEntities(3, 3, 3)) {
+            if (e instanceof LivingEntity le && !le.equals(player) && !le.equals(target)) {
                 le.damage(maceDamage, player);
             }
-        } else {
-            // Aftershock had nothing else to hit — it rebounds on the caster.
-            double rebound = forcedByFractured ? maceDamage : maceDamage / 2.0;
-            player.damage(rebound);
-            player.getWorld().spawnParticle(Particle.EXPLOSION, player.getLocation().add(0, 1, 0), 1);
         }
 
         player.sendActionBar(net.kyori.adventure.text.Component.text(
                 "Crumble unleashed!", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
     }
 
-    /** Taking damage of any kind resets the Sin counter. */
+    private void orbitPipRing(LivingEntity target) {
+        org.bukkit.Color[] pipColors = {
+                org.bukkit.Color.BLACK, org.bukkit.Color.WHITE, org.bukkit.Color.fromRGB(140, 140, 140)
+        };
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                if (tick >= 60 || !target.isValid() || target.isDead()) { // 3 seconds
+                    cancel();
+                    return;
+                }
+                int pips = 7;
+                for (int i = 0; i < pips; i++) {
+                    double angle = tick * 0.25 + (2 * Math.PI / pips) * i;
+                    Location point = target.getLocation().add(
+                            0.9 * Math.cos(angle), 0.15, 0.9 * Math.sin(angle));
+                    Particle.DustOptions dust = new Particle.DustOptions(pipColors[i % pipColors.length], 1f);
+                    target.getWorld().spawnParticle(Particle.DUST, point, 1, 0, 0, 0, 0, dust);
+                }
+                tick += 2;
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    /** Taking damage of any kind resets the Sin counter back to its current full total. */
     @EventHandler
     public void onAnyDamageResetsCrumble(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        sinCount.put(player.getUniqueId(), 0);
+        UUID id = player.getUniqueId();
+        sinRemaining.put(id, 7 + fractureStacksUsed.getOrDefault(id, 0));
     }
 
-    /** Called by Fractured (ability 1, Density mode) to arm the next slam as an empowered one. */
+    /** Called by Fractured (ability 1, Density mode): permanently adds +1 to Crumble's total requirement. */
     void armFractured(Player player) {
-        fracturedArmed.add(player.getUniqueId());
+        UUID id = player.getUniqueId();
+        int stacks = fractureStacksUsed.merge(id, 1, Integer::sum);
+        sinRemaining.put(id, 7 + stacks);
     }
 
     // ============================================================
