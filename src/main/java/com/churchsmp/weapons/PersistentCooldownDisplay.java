@@ -4,31 +4,31 @@ import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 /**
- * Shows a persistent two-line display while a player holds any legendary
- * weapon: a top bar with each ability's remaining cooldown pipe-separated
- * ("67s | 123s | 420s"), and a bottom bar with the weapon's name. VoidBreaker
- * shows three numbers (its Ability 1 splits into two separate cooldown
- * buckets depending on Density/Breach mode); every other weapon shows two.
- * Both bars disappear the moment the weapon leaves their hand.
+ * Shows each ability's current status as plain action-bar text ("Ready! |
+ * Ready!", or "12s | Ready!" while on cooldown) whenever a player holds a
+ * legendary weapon — action bar renders just above the hotbar/health bar,
+ * not as a boss bar. VoidBreaker shows three entries (its Ability 1 splits
+ * into two separate cooldown buckets depending on Density/Breach mode);
+ * every other weapon shows two.
+ *
+ * Note this shares the action bar with every other transient message this
+ * plugin sends (Bite procs, Gloom's "sinks into Depression", etc.) — those
+ * will still flash over this display for the instant they're sent, since
+ * only one action-bar message can be visible at a time, but this resumes
+ * on the very next tick. An active-ability's own countdown (Frost Edge's
+ * 20s window, Accelerated Nova's charge, etc.) still uses a real boss bar
+ * via CooldownBarDisplay — this only replaces the idle "is it ready yet"
+ * status that used to be a second, always-on boss bar.
  */
 public class PersistentCooldownDisplay {
 
     private final ChurchSMP plugin;
     private final WeaponManager weaponManager;
-    private final Map<UUID, BossBar> cooldownBars = new HashMap<>();
-    private final Map<UUID, BossBar> nameBars = new HashMap<>();
 
     public PersistentCooldownDisplay(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -49,43 +49,15 @@ public class PersistentCooldownDisplay {
     private void tick(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
         WeaponType type = weaponManager.getWeaponType(held);
-
-        if (type == null) {
-            remove(player);
-            return;
-        }
+        if (type == null) return; // nothing to show, and nothing to actively clear either — it'll just not refresh
 
         int[] buckets = type == WeaponType.VOIDBREAKER ? new int[]{1, 3, 2} : new int[]{1, 2};
         StringBuilder line = new StringBuilder();
         for (int i = 0; i < buckets.length; i++) {
             long remaining = weaponManager.getRemainingCooldownSeconds(player, type, buckets[i]);
-            line.append(remaining > 0 ? remaining + "s" : "Ready");
+            line.append(remaining > 0 ? remaining + "s" : "Ready!");
             if (i < buckets.length - 1) line.append(" | ");
         }
-
-        UUID id = player.getUniqueId();
-        BossBar cooldownBar = cooldownBars.computeIfAbsent(id, k -> {
-            BossBar bar = Bukkit.createBossBar(line.toString(), BarColor.PURPLE, BarStyle.SOLID);
-            bar.addPlayer(player);
-            return bar;
-        });
-        cooldownBar.setTitle(line.toString());
-
-        BossBar nameBar = nameBars.computeIfAbsent(id, k -> {
-            BossBar bar = Bukkit.createBossBar(type.getDisplayName(), BarColor.WHITE, BarStyle.SOLID);
-            bar.addPlayer(player);
-            return bar;
-        });
-        if (!nameBar.getTitle().equals(type.getDisplayName())) {
-            nameBar.setTitle(type.getDisplayName());
-        }
-    }
-
-    private void remove(Player player) {
-        UUID id = player.getUniqueId();
-        BossBar cooldownBar = cooldownBars.remove(id);
-        if (cooldownBar != null) cooldownBar.removeAll();
-        BossBar nameBar = nameBars.remove(id);
-        if (nameBar != null) nameBar.removeAll();
+        player.sendActionBar(Component.text(line.toString(), NamedTextColor.AQUA));
     }
 }

@@ -2,7 +2,6 @@ package com.churchsmp.weapons;
 
 import com.churchsmp.ChurchSMP;
 import org.bukkit.Bukkit;
-import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
@@ -16,10 +15,10 @@ import org.bukkit.scheduler.BukkitRunnable;
  */
 public class CooldownBarDisplay {
 
-    public static void show(ChurchSMP plugin, Player player, String abilityLabel, int totalSeconds) {
+    public static void show(ChurchSMP plugin, Player player, WeaponType type, String abilityLabel, int totalSeconds) {
         if (totalSeconds <= 0) return;
 
-        BossBar bar = Bukkit.createBossBar(abilityLabel + " — " + totalSeconds + "s", BarColor.PURPLE, BarStyle.SOLID);
+        BossBar bar = Bukkit.createBossBar(abilityLabel + " — " + totalSeconds + "s", type.getBarColor(), BarStyle.SOLID);
         bar.addPlayer(player);
         bar.setProgress(1.0);
 

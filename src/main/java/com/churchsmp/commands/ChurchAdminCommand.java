@@ -184,7 +184,7 @@ public class ChurchAdminCommand implements CommandExecutor {
 
     private void handleGive(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(Component.text("Usage: /churchadmin give <player> <weaponId>", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Usage: /churchadmin give <player> <weaponId> [killCount]", NamedTextColor.RED));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -199,7 +199,16 @@ public class ChurchAdminCommand implements CommandExecutor {
             sender.sendMessage(Component.text("Unknown weapon. Valid IDs: " + ids, NamedTextColor.RED));
             return;
         }
-        target.getInventory().addItem(plugin.getWeaponManager().createWeapon(type));
+        var item = plugin.getWeaponManager().createWeapon(type);
+        if (type == WeaponType.SCYTHE_OF_CAIN && args.length > 3) {
+            try {
+                int killCount = Integer.parseInt(args[3]);
+                plugin.getGrimPassives().setKillCount(item, killCount);
+            } catch (NumberFormatException ex) {
+                sender.sendMessage(Component.text("killCount must be a whole number — giving with 0 kills instead.", NamedTextColor.YELLOW));
+            }
+        }
+        target.getInventory().addItem(item);
         sender.sendMessage(Component.text("Gave " + type.getDisplayName() + " to " + target.getName(), NamedTextColor.GREEN));
     }
 

@@ -3,6 +3,7 @@ package com.churchsmp.weapons;
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
@@ -40,17 +41,44 @@ public class WeaponManager {
         return weaponKey;
     }
 
+    /**
+     * Builds a bold, per-character gradient across N color stops (evenly
+     * spaced across the text), replicating what RGBirdflop's hex gradient
+     * tool produces — but as a real Adventure Component instead of a
+     * legacy &-code string, since that's what this plugin renders with
+     * everywhere else. If the stops array has exactly one entry per
+     * character, each character gets its stop directly (no interpolation
+     * needed) — that's how VoidBreaker and Excalibur, where the exact
+     * per-letter output was visible in the screenshot, are defined.
+     */
+    private Component gradientName(String text, int[] stopsHex) {
+        Component result = Component.empty();
+        int len = text.length();
+        for (int i = 0; i < len; i++) {
+            double t = len <= 1 ? 0 : (double) i / (len - 1);
+            double scaled = t * (stopsHex.length - 1);
+            int idx = Math.min((int) Math.floor(scaled), stopsHex.length - 2);
+            double localT = stopsHex.length <= 1 ? 0 : scaled - idx;
+
+            int a = stopsHex[Math.max(0, Math.min(idx, stopsHex.length - 1))];
+            int b = stopsHex[Math.max(0, Math.min(idx + 1, stopsHex.length - 1))];
+            int r = (int) (((a >> 16) & 0xFF) + (((b >> 16) & 0xFF) - ((a >> 16) & 0xFF)) * localT);
+            int g = (int) (((a >> 8) & 0xFF) + (((b >> 8) & 0xFF) - ((a >> 8) & 0xFF)) * localT);
+            int bl = (int) ((a & 0xFF) + ((b & 0xFF) - (a & 0xFF)) * localT);
+
+            char c = text.charAt(i);
+            Component letter = Component.text(String.valueOf(c), TextColor.color(r, g, bl));
+            if (c != ' ') letter = letter.decoration(TextDecoration.BOLD, true);
+            result = result.append(letter);
+        }
+        return result;
+    }
+
     public ItemStack createWeapon(WeaponType type) {
         ItemStack item = new ItemStack(type.getMaterial());
         ItemMeta meta = item.getItemMeta();
 
-        NamedTextColor nameColor = switch (type.getCategory()) {
-            case GOOD -> NamedTextColor.GOLD;
-            case EVIL -> NamedTextColor.DARK_RED;
-            case NULLIFIED -> NamedTextColor.GRAY;
-        };
-
-        meta.displayName(Component.text(type.getDisplayName(), nameColor)
+        meta.displayName(gradientName(type.getDisplayName(), type.getNameGradient())
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();

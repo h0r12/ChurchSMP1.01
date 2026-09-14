@@ -55,6 +55,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         this.judasSkullKey = new org.bukkit.NamespacedKey(plugin, "judas_skull");
         this.thirtyPiecesModifierKey = new org.bukkit.NamespacedKey(plugin, "thirty_pieces_sacrifice");
         this.gloomArmorKey = new org.bukkit.NamespacedKey(plugin, "gloom_depressed");
+        this.sunEclipseTridentKey = new org.bukkit.NamespacedKey(plugin, "sun_eclipse_trident");
     }
 
     public org.bukkit.NamespacedKey getJudasSkullKey() {
@@ -67,14 +68,19 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             case BLADE_OF_ARCHANGEL:
                 if (ability == 1) {
                     acceleratedNova(player);
-                    return 45;
+                    return 60;
                 } else {
                     altarsPin(player);
-                    return 80;
+                    return 105;
                 }
             case SWORD_OF_DAVID:
-                if (ability == 1) unseenPierce(player); else glare(player);
-                break;
+                if (ability == 1) {
+                    blink(player);
+                    return 0; // charge-based; handled manually like Hemorrhaged Mold
+                } else {
+                    sunEclipse(player);
+                    return 130;
+                }
             case STAFF_OF_MOSES:
                 if (ability == 1) {
                     frostEdge(player);
@@ -84,8 +90,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                     return 45;
                 }
             case SCYTHE_OF_CAIN:
-                if (ability == 1) lifestealStrike(player); else markOfCain(player);
-                break;
+                if (ability == 1) {
+                    hollowedOut(player);
+                    return 60;
+                } else {
+                    darkParticle(player);
+                    return 0; // manual — cooldown starts once the 25s active window ends
+                }
             case SORROWESS:
                 if (ability == 1) {
                     griefShards(player);
@@ -122,17 +133,18 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     // ---------------- Excalibur (formerly Blade of the Archangel) ----------------
 
     /**
-     * Ability 1, Accelerated Nova. A 4s charge (boss bar + swirling
-     * particles), then releases a radial true-damage burst around the
-     * player: 5 hearts to everything nearby, bumped to 7.5 against Evil-tier
-     * players and undead, with a heavy outward-shooting particle nova.
+     * Ability 1, Accelerated Nova. A 10s charge (boss bar + swirling
+     * particles, Resistance II throughout), then releases a directional
+     * line attack — like the Warden's actual Sonic Boom, not a radial
+     * burst — dealing 2.5 hearts of true damage to anything caught in a
+     * narrow tube extending 15 blocks in front of you.
      */
     private void acceleratedNova(Player player) {
-        int chargeTicks = 80; // 4 seconds
+        int chargeTicks = 200; // 10 seconds
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, chargeTicks + 5, 1));
         org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
                 player.getName() + " is Accelerating the nova...",
-                org.bukkit.boss.BarColor.WHITE, org.bukkit.boss.BarStyle.SOLID);
+                WeaponType.BLADE_OF_ARCHANGEL.getBarColor(), org.bukkit.boss.BarStyle.SOLID);
         bar.setProgress(0);
         for (Entity e : player.getNearbyEntities(15, 15, 15)) {
             if (e instanceof Player nearby) bar.addPlayer(nearby);
@@ -166,53 +178,42 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     }
 
     private void releaseNova(Player player) {
-        Location center = player.getLocation().add(0, 1, 0);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 1f);
         player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1f, 1.2f);
-        player.playSound(player.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, 1f, 1.6f);
 
-        // A braided burst: 3 interleaved strands (gray/gold/white) twisting
-        // around each other as they expand outward, rather than one flat
-        // single-color ring per wave.
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        double range = 15;
+        double tubeRadius = 1.2;
+
+        // A braided trail of gray/gold/white dust rides along the line, echoing
+        // the earlier ring-burst's look but stretched into a beam shape.
         Particle.DustOptions grayDust = new Particle.DustOptions(Color.fromRGB(140, 140, 140), 1f);
         Particle.DustOptions goldDust = new Particle.DustOptions(Color.fromRGB(255, 200, 60), 1f);
         Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1f);
         Particle.DustOptions[] strandColors = {grayDust, goldDust, whiteDust};
 
-        new BukkitRunnable() {
-            int wave = 0;
-
-            @Override
-            public void run() {
-                double radius = 0.6 + wave * 0.9;
-                double twist = wave * 0.6; // each wave's strands rotate a bit further, giving the braided look
-                int pointsPerStrand = 16;
-
-                for (int strand = 0; strand < 3; strand++) {
-                    double strandOffset = (2 * Math.PI / 3) * strand + twist;
-                    for (int i = 0; i < pointsPerStrand; i++) {
-                        double angle = strandOffset + (2 * Math.PI / pointsPerStrand) * i;
-                        Vector offset = new Vector(radius * Math.cos(angle), Math.sin(wave * 0.8) * 0.3, radius * Math.sin(angle));
-                        center.getWorld().spawnParticle(Particle.DUST, center.clone().add(offset), 1, 0, 0, 0, 0, strandColors[strand]);
-                    }
-                }
-                center.getWorld().spawnParticle(Particle.FLASH, center.clone().add(0, Math.sin(wave * 0.8) * 0.3, 0), 0);
-                wave++;
-                if (wave >= 5) cancel();
+        for (double d = 0; d < range; d += 0.4) {
+            Location point = eye.clone().add(direction.clone().multiply(d));
+            point.getWorld().spawnParticle(Particle.SONIC_BOOM, point, 0);
+            for (int strand = 0; strand < 3; strand++) {
+                double angle = d * 1.5 + (2 * Math.PI / 3) * strand;
+                Vector offset = new Vector(0.3 * Math.cos(angle), 0.3 * Math.sin(angle), 0);
+                point.getWorld().spawnParticle(Particle.DUST, point.clone().add(offset), 1, 0, 0, 0, 0, strandColors[strand]);
             }
-        }.runTaskTimer(plugin, 0L, 2L);
+        }
 
-        double radius = 5;
-        double baseDamage = 10; // 5 hearts, ignoring armor entirely
-        for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
-            if (!(e instanceof LivingEntity target) || target.equals(player)) continue;
-
-            boolean bonus = (target instanceof Player p && alignmentManager.getTier(p).isEvil()) || isUndead(target);
-            double damage = bonus ? 15 : baseDamage; // bonus = 7.5 hearts through armor
-
-            double registerAmount = Math.min(0.5, damage);
-            target.damage(registerAmount, player);
-            target.setHealth(Math.max(0, target.getHealth() - (damage - registerAmount)));
-            target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1, Color.WHITE);
+        double trueDamage = 5; // 2.5 hearts, ignoring armor entirely
+        Set<UUID> hit = new java.util.HashSet<>();
+        for (double d = 0; d < range; d += 0.5) {
+            Location point = eye.clone().add(direction.clone().multiply(d));
+            for (Entity e : point.getWorld().getNearbyEntities(point, tubeRadius, tubeRadius, tubeRadius)) {
+                if (!(e instanceof LivingEntity target) || target.equals(player) || !hit.add(target.getUniqueId())) continue;
+                double registerAmount = Math.min(0.5, trueDamage);
+                target.damage(registerAmount, player);
+                target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
+                target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1, Color.WHITE);
+            }
         }
         msg(player, "The light breaks out from the handle");
     }
@@ -274,6 +275,13 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         msg(player, "The Excalibur is rising.");
     }
 
+    /**
+     * The multi-stage smash: 3 true damage + launch upward, debris
+     * particles (visual only — no real blocks are touched, to avoid grief
+     * risk on an effect this described-by-feel), then ~0.75s later a hard
+     * slam back down, landing for 1 more true damage and a 3s stun.
+     * 10x10 area (radius 5).
+     */
     private void smashSword(Player player) {
         Location center = player.getLocation();
         center.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, center, 1);
@@ -282,14 +290,60 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         center.getWorld().playSound(center, Sound.ITEM_TRIDENT_THUNDER, 1f, 0.6f);
         center.getWorld().playSound(center, Sound.ENTITY_IRON_GOLEM_ATTACK, 1f, 0.7f);
 
-        double radius = 4;
-        double trueDamage = 14; // 7 hearts, ignoring armor entirely
+        double radius = 5; // 10x10
+        double firstHit = 6; // 3 hearts, ignoring armor entirely
+
+        // "Blocks lunge upward... more power near Excalibur" — a visual-only
+        // debris effect (no real block manipulation, to avoid grief/dupe
+        // risk on an effect this loosely described): nearby ground blocks
+        // get crack particles flung upward, stronger closer to the center.
+        for (int i = 0; i < 60; i++) {
+            double dx = (Math.random() - 0.5) * radius * 2;
+            double dz = (Math.random() - 0.5) * radius * 2;
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > radius) continue;
+            double strength = 1.0 - (dist / radius); // closer = stronger
+            Location groundSpot = center.clone().add(dx, 0, dz);
+            groundSpot.setY(groundSpot.getWorld().getHighestBlockYAt(groundSpot) + 0.2);
+            var blockData = groundSpot.clone().subtract(0, 1, 0).getBlock().getBlockData();
+            center.getWorld().spawnParticle(Particle.BLOCK, groundSpot, (int) (3 + strength * 6),
+                    0.2, 0.1, 0.2, 0.15 + strength * 0.35, blockData);
+        }
+
+        java.util.List<LivingEntity> caught = new java.util.ArrayList<>();
         for (Entity e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
             if (!(e instanceof LivingEntity target) || target.equals(player)) continue;
-            double registerAmount = Math.min(0.5, trueDamage);
+            double registerAmount = Math.min(0.5, firstHit);
             target.damage(registerAmount, player);
-            target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
+            target.setHealth(Math.max(0, target.getHealth() - (firstHit - registerAmount)));
+            target.setVelocity(target.getVelocity().setY(0.9)); // launched into the air
+            caught.add(target);
         }
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (LivingEntity target : caught) {
+                    if (!target.isValid() || target.isDead()) continue;
+                    target.setVelocity(target.getVelocity().setY(-1.4)); // slammed back down
+                }
+
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        double secondHit = 2; // 1 heart, ignoring armor entirely
+                        for (LivingEntity target : caught) {
+                            if (!target.isValid() || target.isDead()) continue;
+                            double registerAmount = Math.min(0.5, secondHit);
+                            target.damage(registerAmount, player);
+                            target.setHealth(Math.max(0, target.getHealth() - (secondHit - registerAmount)));
+                            JudasPassives.stun(target, 60L, plugin); // 3s
+                            target.getWorld().spawnParticle(Particle.CRIT, target.getLocation(), 15, 0.3, 0.1, 0.3, 0.1);
+                        }
+                    }
+                }.runTaskLater(plugin, 10L); // approximates landing after the slam-down velocity kicks in
+            }
+        }.runTaskLater(plugin, 15L); // ~0.75s of airtime before the slam-down
     }
 
     // ---------------- GOOD ----------------
@@ -308,65 +362,235 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     }
 
     /**
-     * Ability 1 (Unseen Pierce). Blinds the target, then teleports the
-     * caster behind them 4 times in fast succession, lunging for a small
-     * hit each time (totalling 4.5 damage) with a visual-only lightning
-     * bolt on every landing.
+    private final Map<UUID, Integer> blinkCharges = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastBlinkTime = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Set<UUID> cannotThrowProjectiles = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Set<UUID> sunEclipseArmed = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final org.bukkit.NamespacedKey sunEclipseTridentKey;
+
+    /**
+     * Ability 1, Blink. 3 charges (like Hemorrhaged Mold): each activation
+     * dashes you 6 blocks forward, stopping early if it hits a wall,
+     * leaving a wavy red/white lightning trail behind. Anything caught in
+     * the dash path takes 1 heart and can't throw projectiles for 5s. No
+     * per-dash or recharge timing was specified, so this uses a 2s gate
+     * between individual dashes and a 20s full recharge once all 3 are
+     * spent — flag it if you had different numbers in mind.
      */
-    private void unseenPierce(Player player) {
-        LivingEntity target = resolveForgivingTarget(player, 15);
-        if (target == null) {
-            msg(player, "No target in sight.");
+    private void blink(Player player) {
+        UUID id = player.getUniqueId();
+        int charges = blinkCharges.getOrDefault(id, 3);
+        if (charges <= 0) {
+            msg(player, "No Blink charges left.");
             return;
         }
-        target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 80, 0));
-        double[] hitDamages = {1.0, 1.0, 1.0, 1.5}; // sums to 4.5
+        long now = System.currentTimeMillis();
+        if (now - lastBlinkTime.getOrDefault(id, 0L) < 2_000L) {
+            msg(player, "Blink is still resetting.");
+            return;
+        }
+        lastBlinkTime.put(id, now);
+        blinkCharges.put(id, charges - 1);
 
+        Location start = player.getLocation();
+        Vector dir = start.getDirection().setY(0).normalize();
+        Location dest = start.clone();
+
+        for (int step = 1; step <= 6; step++) {
+            Location next = start.clone().add(dir.clone().multiply(step));
+            if (next.getBlock().getType().isSolid()) break;
+            dest = next;
+        }
+        dest.setDirection(start.getDirection());
+        player.teleport(dest);
+
+        // Wavy red/white lightning trail along the path traveled.
+        double distance = start.toVector().distance(dest.toVector());
+        for (double d = 0; d < distance; d += 0.3) {
+            Location point = start.clone().add(dir.clone().multiply(d));
+            point.add(0, Math.sin(d * 3) * 0.3, 0); // the "wavy" wobble from the sketch
+            Particle.DustOptions color = (((int) (d * 3)) % 2 == 0)
+                    ? new Particle.DustOptions(Color.RED, 1f)
+                    : new Particle.DustOptions(Color.WHITE, 1f);
+            player.getWorld().spawnParticle(Particle.DUST, point, 2, 0.05, 0.05, 0.05, 0, color);
+
+            for (Entity e : point.getWorld().getNearbyEntities(point, 1, 1, 1)) {
+                if (e instanceof LivingEntity le && !le.equals(player) && !cannotThrowProjectiles.contains(le.getUniqueId())) {
+                    le.damage(2, player); // 1 heart
+                    cannotThrowProjectiles.add(le.getUniqueId());
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            cannotThrowProjectiles.remove(le.getUniqueId());
+                        }
+                    }.runTaskLater(plugin, 100L); // 5s
+                }
+            }
+        }
+        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1.4f);
+        showBlinkCharges(player, blinkCharges.get(id));
+
+        if (blinkCharges.get(id) == 0) {
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    blinkCharges.put(id, 3);
+                    if (!player.isOnline()) return;
+                    msg(player, "Blink fully recharges.");
+                    animateBlinkRecharge(player);
+                }
+            }.runTaskLater(plugin, 20 * 20L);
+        }
+    }
+
+    /** Rings fill back in starting from the inner ring outward, per the sketch. */
+    private void animateBlinkRecharge(Player player) {
         new BukkitRunnable() {
-            int hit = 0;
+            int ring = 0;
 
             @Override
             public void run() {
-                try {
-                    if (hit >= 4 || target.isDead() || !target.isValid()) {
-                        cancel();
-                        return;
-                    }
-                    Vector behind = target.getLocation().getDirection().normalize().multiply(-1.3);
-                    Location dest = target.getLocation().add(behind);
-                    dest.setDirection(target.getLocation().toVector().subtract(dest.toVector()));
-                    player.teleport(dest);
-
-                    target.damage(hitDamages[hit], player);
-                    target.getWorld().strikeLightningEffect(target.getLocation());
-                    player.getWorld().spawnParticle(Particle.END_ROD, dest, 15, 0.2, 0.3, 0.2, 0.02);
-                    player.playSound(dest, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.3f);
-                    hit++;
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Unseen Pierce error: " + ex);
-                    ex.printStackTrace();
+                if (ring >= 3 || !player.isOnline()) {
                     cancel();
+                    return;
                 }
+                Location base = player.getLocation();
+                double radius = 0.5 + ring * 0.4;
+                Particle.DustOptions color = new Particle.DustOptions(Color.fromRGB(120, 200, 255), 1f);
+                for (int i = 0; i < 12; i++) {
+                    double angle = (2 * Math.PI / 12) * i;
+                    Location p = base.clone().add(radius * Math.cos(angle), 0.1, radius * Math.sin(angle));
+                    base.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, color);
+                }
+                ring++;
             }
-        }.runTaskTimer(plugin, 3L, 3L); // fast pace — 4 hits in under a second
-
-        msg(player, "Piercing");
+        }.runTaskTimer(plugin, 0L, 6L);
     }
 
-    /** Ability 2, Glare. Toggles the trident's real vanilla enchant between Loyalty VI and Riptide VI. */
-    private void glare(Player player) {
-        ItemStack item = player.getInventory().getItemInMainHand();
-        boolean hasRiptide = item.containsEnchantment(Enchantment.RIPTIDE);
-
-        if (hasRiptide) {
-            item.removeEnchantment(Enchantment.RIPTIDE);
-            item.addUnsafeEnchantment(Enchantment.LOYALTY, 6);
-        } else {
-            item.removeEnchantment(Enchantment.LOYALTY);
-            item.addUnsafeEnchantment(Enchantment.RIPTIDE, 6);
+    /**
+     * The "3/3" ring indicator from the sketch: one ring per remaining
+     * charge, innermost = the charge you just spent. When you're fully
+     * depleted, a burst plays and (once recharged) the rings refill
+     * starting from the inner ring outward.
+     */
+    private void showBlinkCharges(Player player, int chargesLeft) {
+        Location base = player.getLocation();
+        if (chargesLeft == 0) {
+            base.getWorld().spawnParticle(Particle.FLASH, base.clone().add(0, 1, 0), 1);
         }
-        player.getInventory().setItemInMainHand(item);
-        msg(player, "The Water Might Shifts.");
+        for (int ring = 0; ring < 3; ring++) {
+            boolean filled = ring < chargesLeft;
+            if (!filled) continue; // empty slots just aren't drawn — the "fading" IS the missing ring
+            double radius = 0.5 + ring * 0.4;
+            Particle.DustOptions color = new Particle.DustOptions(Color.fromRGB(120, 200, 255), 1f);
+            for (int i = 0; i < 12; i++) {
+                double angle = (2 * Math.PI / 12) * i;
+                Location p = base.clone().add(radius * Math.cos(angle), 0.1, radius * Math.sin(angle));
+                base.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, color);
+            }
+        }
+    }
+
+    /** Stops anyone caught in a Blink dash from throwing projectiles for the debuff's duration. */
+    @org.bukkit.event.EventHandler
+    public void onBlinkProjectileBlock(org.bukkit.event.entity.ProjectileLaunchEvent event) {
+        if (event.getEntity().getShooter() instanceof LivingEntity shooter
+                && cannotThrowProjectiles.contains(shooter.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Ability 2, SunEclipse. Arms your next trident throw to mark whatever
+     * it hits. 2s later — shown as 3 concentric rings under the target
+     * fading one at a time starting from the innermost — a beam strikes:
+     * 4 hearts of true damage, an expanding ground ring, a 2s stun and 4s
+     * Darkness on nearby entities. 130s cooldown.
+     */
+    private void sunEclipse(Player player) {
+        sunEclipseArmed.add(player.getUniqueId());
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1f, 0.6f);
+        msg(player, "Your next throw marks the eclipse.");
+    }
+
+    @org.bukkit.event.EventHandler
+    public void onSunEclipseThrow(org.bukkit.event.entity.ProjectileLaunchEvent event) {
+        if (!(event.getEntity() instanceof org.bukkit.entity.Trident trident)) return;
+        if (!(trident.getShooter() instanceof Player player) || !sunEclipseArmed.remove(player.getUniqueId())) return;
+        trident.getPersistentDataContainer().set(sunEclipseTridentKey, PersistentDataType.STRING, player.getUniqueId().toString());
+    }
+
+    @org.bukkit.event.EventHandler
+    public void onSunEclipseHit(org.bukkit.event.entity.ProjectileHitEvent event) {
+        if (!(event.getEntity() instanceof org.bukkit.entity.Trident trident)) return;
+        String throwerId = trident.getPersistentDataContainer().get(sunEclipseTridentKey, PersistentDataType.STRING);
+        if (throwerId == null) return;
+        if (!(event.getHitEntity() instanceof LivingEntity target)) return;
+
+        Player thrower = plugin.getServer().getPlayer(UUID.fromString(throwerId));
+        if (thrower == null) return;
+
+        new BukkitRunnable() {
+            int ring = 0; // 0 = inner, 1 = mid, 2 = outer; fades inner-first
+
+            @Override
+            public void run() {
+                if (ring >= 3 || target.isDead() || !target.isValid()) {
+                    if (ring >= 3) triggerEclipseBeam(thrower, target);
+                    cancel();
+                    return;
+                }
+                double radius = 0.6 + ring * 0.6;
+                Location base = target.getLocation();
+                for (int i = 0; i < 20; i++) {
+                    double angle = (2 * Math.PI / 20) * i;
+                    Location p = base.clone().add(radius * Math.cos(angle), 0.1, radius * Math.sin(angle));
+                    base.getWorld().spawnParticle(Particle.END_ROD, p, 1, 0, 0, 0, 0);
+                }
+                ring++;
+            }
+        }.runTaskTimer(plugin, 0L, 13L); // ~2s across 3 stages (13 ticks each)
+    }
+
+    private void triggerEclipseBeam(Player thrower, LivingEntity target) {
+        Location base = target.getLocation();
+
+        // The "sonic boom" spiral pillar from the sketch.
+        for (int h = 0; h < 20; h++) {
+            double angle = h * 0.9;
+            Location p = base.clone().add(0.7 * Math.cos(angle), h * 0.25, 0.7 * Math.sin(angle));
+            base.getWorld().spawnParticle(Particle.SONIC_BOOM, p, 0);
+            base.getWorld().spawnParticle(Particle.END_ROD, p, 1, 0.05, 0.05, 0.05, 0.01);
+        }
+        base.getWorld().playSound(base, Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 1.2f);
+
+        // Expanding ground ring.
+        new BukkitRunnable() {
+            int step = 0;
+
+            @Override
+            public void run() {
+                double radius = step * 0.6;
+                for (int i = 0; i < 24; i++) {
+                    double angle = (2 * Math.PI / 24) * i;
+                    base.getWorld().spawnParticle(Particle.CRIT, base.clone().add(radius * Math.cos(angle), 0.1, radius * Math.sin(angle)), 1);
+                }
+                step++;
+                if (step >= 6) cancel();
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+
+        double trueDamage = 8; // 4 hearts, ignoring armor entirely
+        double registerAmount = Math.min(0.5, trueDamage);
+        target.damage(registerAmount, thrower);
+        target.setHealth(Math.max(0, target.getHealth() - (trueDamage - registerAmount)));
+
+        for (Entity e : base.getWorld().getNearbyEntities(base, 3, 3, 3)) {
+            if (e instanceof LivingEntity le && !le.equals(thrower)) {
+                JudasPassives.stun(le, 40L, plugin); // 2s
+                le.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 80, 0)); // 4s
+            }
+        }
     }
 
     // ---------------- Mayim (formerly Staff of Moses) ----------------
@@ -394,7 +618,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         frostEdgeHits.put(id, 0);
         player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20 * 20, 0));
         player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1f, 0.6f);
-        CooldownBarDisplay.show(plugin, player, "Frost Edge", 20);
+        CooldownBarDisplay.show(plugin, player, WeaponType.STAFF_OF_MOSES, "Frost Edge", 20);
         msg(player, "The edge glows.");
 
         org.bukkit.scheduler.BukkitTask task = new BukkitRunnable() {
@@ -413,6 +637,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         if (task != null) task.cancel();
         if (player.isOnline()) msg(player, "Your blade return to normal state.");
         plugin.getWeaponManager().putOnCooldown(player, WeaponType.STAFF_OF_MOSES, 1, 30);
+        if (player.isOnline()) CooldownBarDisplay.show(plugin, player, WeaponType.STAFF_OF_MOSES, "Frost Edge (cooldown)", 30);
     }
 
     /** Every hit landed while Frost Edge is active chills the target harder than the last. */
@@ -531,57 +756,187 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
 
     // ---------------- EVIL ----------------
 
-    private void lifestealStrike(Player player) {
-        LivingEntity target = getTargetedEntity(player, 4);
-        if (target == null) {
-            msg(player, "No target in reach.");
-            return;
-        }
-        double dmg = 5;
-        target.damage(dmg, player);
-        player.setHealth(Math.min(player.getHealth() + dmg * 0.5, player.getMaxHealth()));
-        player.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, target.getLocation().add(0, 1, 0), 10);
-        msg(player, "You drain " + target.getName() + "'s life force.");
+    // ---------------- Grim (formerly Luminous Cain / Scythe of Cain) ----------------
+
+    private final Set<UUID> hollowedOutArmed = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Set<UUID> actionFailCursed = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Set<UUID> darkParticleActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Set<UUID> darkParticleFirstHitArmed = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final Map<UUID, Integer> darkParticleStacks = new java.util.concurrent.ConcurrentHashMap<>();
+    private final org.bukkit.NamespacedKey darkParticleHeartsKey = new org.bukkit.NamespacedKey(plugin, "dark_particle_hearts");
+
+    /**
+     * Ability 1, HollowedOut. Arms your next melee hit to apply Darkness +
+     * Slowness II plus a new 40% chance for the target's own attacks to
+     * simply fail, for 15s. While armed and waiting for that hit, pressing
+     * the drop key (Grim's normal "throw" input for Soultaking) is
+     * replaced by a charge-up Sonic Boom instead: charge up to 6s, then
+     * sneak to release early — the resulting stun is half of whatever
+     * charge time you actually used. This reuses the drop key rather than
+     * adding a new bind, since the ability description says throwing
+     * itself gets replaced during this window.
+     */
+    private void hollowedOut(Player player) {
+        hollowedOutArmed.add(player.getUniqueId());
+        player.getWorld().spawnParticle(Particle.SOUL, player.getLocation().add(0, 1, 0), 20, 0.3, 0.4, 0.3, 0.02);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 1f, 0.7f);
+        msg(player, "Your next strike hollows them out.");
     }
 
-    private void markOfCain(Player player) {
-        LivingEntity target = resolveForgivingTarget(player, 15);
-        if (target == null) {
-            msg(player, "No target in sight.");
-            return;
-        }
-        target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 140, 2));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 140, 0));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 60, 0));
+    @org.bukkit.event.EventHandler
+    public void onHollowedOutHit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !hollowedOutArmed.remove(player.getUniqueId())) return;
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        // Much more visual weight: a dark swirling mark on the target.
+        target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 300, 0)); // 15s
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 300, 1)); // 15s, Slowness II
+        UUID targetId = target.getUniqueId();
+        actionFailCursed.add(targetId);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                actionFailCursed.remove(targetId);
+            }
+        }.runTaskLater(plugin, 300L); // 15s
+        msg(player, "HollowedOut takes hold.");
+    }
+
+    /** 40% chance for a cursed target's own attacks to simply fail while HollowedOut's curse is active. */
+    @org.bukkit.event.EventHandler
+    public void onActionFailCheck(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof LivingEntity attacker) || !actionFailCursed.contains(attacker.getUniqueId())) return;
+        if (Math.random() < 0.4) {
+            event.setCancelled(true);
+            attacker.getWorld().spawnParticle(Particle.SMOKE, attacker.getLocation().add(0, 1, 0), 8, 0.2, 0.3, 0.2, 0.02);
+        }
+    }
+
+    /** While HollowedOut is armed, the drop key charges a Sonic Boom instead of Soultaking's normal throw. */
+    /** Called by GrimPassives to check whether the drop key should be intercepted for the Sonic Boom charge instead of Soultaking. */
+    boolean isHollowedOutArmed(Player player) {
+        return hollowedOutArmed.contains(player.getUniqueId());
+    }
+
+    void tryStartHollowedOutCharge(Player player) {
+        if (!hollowedOutArmed.contains(player.getUniqueId())) return;
+        org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
+                player.getName() + " is charging a Sonic Boom...", WeaponType.SCYTHE_OF_CAIN.getBarColor(), org.bukkit.boss.BarStyle.SOLID);
+        bar.addPlayer(player);
+
         new BukkitRunnable() {
             int tick = 0;
 
             @Override
             public void run() {
-                try {
-                    if (tick >= 40 || target.isDead() || !target.isValid()) {
-                        cancel();
-                        return;
-                    }
-                    double angle = tick * 0.6;
-                    Location point = target.getLocation().add(
-                            Math.cos(angle) * 0.6, 1 + Math.sin(tick * 0.2) * 0.3, Math.sin(angle) * 0.6);
-                    Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(90, 0, 0), 1.2f);
-                    target.getWorld().spawnParticle(Particle.DUST, point, 2, 0, 0, 0, 0, dust);
-                    tick++;
-                } catch (Exception ex) {
-                    plugin.getLogger().warning("Mark of Cain animation error: " + ex);
-                    ex.printStackTrace();
+                if (player.isSneaking() && tick > 10 || tick >= 120 || !player.isOnline()) {
+                    bar.removeAll();
+                    releaseHollowedOutSonicBoom(player, tick);
                     cancel();
+                    return;
+                }
+                bar.setProgress(Math.min(1.0, tick / 120.0));
+                player.getWorld().spawnParticle(Particle.SONIC_BOOM, player.getEyeLocation(), 0);
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void releaseHollowedOutSonicBoom(Player player, int chargeTicks) {
+        hollowedOutArmed.remove(player.getUniqueId());
+        double stunSeconds = (chargeTicks / 20.0) / 2.0;
+        LivingEntity target = resolveForgivingTarget(player, 20);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 1f);
+        if (target != null) {
+            JudasPassives.stun(target, (long) (stunSeconds * 20), plugin);
+            target.getWorld().spawnParticle(Particle.SONIC_BOOM, target.getLocation(), 0);
+        }
+        msg(player, "Sonic Boom releases! (" + String.format("%.1f", stunSeconds) + "s stun)");
+    }
+
+    /**
+     * Ability 2, Dark Particle. A 25s active window: your very next hit
+     * gets a Sharpness-X-style damage spike (+10 flat true damage, since
+     * "Sharpness X" itself doesn't map to a real enchant level you can
+     * apply for one hit), and every hit during the window grants +1 max
+     * heart, with each individual heart decaying back off 30s after it
+     * was earned. Getting hit yourself clears every currently-held bonus
+     * heart immediately (but doesn't end the window). Orbiting soul-sand
+     * particles play the whole time. 80s cooldown starts once the window ends.
+     */
+    private void darkParticle(Player player) {
+        UUID id = player.getUniqueId();
+        darkParticleActive.add(id);
+        darkParticleFirstHitArmed.add(id);
+        msg(player, "Dark Particle stirs around your blade.");
+        player.playSound(player.getLocation(), Sound.PARTICLE_SOUL_ESCAPE, 1f, 0.7f);
+
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                if (tick >= 500 || !player.isOnline()) { // 25 seconds
+                    darkParticleActive.remove(id);
+                    darkParticleFirstHitArmed.remove(id);
+                    if (player.isOnline()) {
+                        msg(player, "Dark Particle fades.");
+                        plugin.getWeaponManager().putOnCooldown(player, WeaponType.SCYTHE_OF_CAIN, 2, 80);
+                        CooldownBarDisplay.show(plugin, player, WeaponType.SCYTHE_OF_CAIN, "Dark Particle (cooldown)", 80);
+                    }
+                    cancel();
+                    return;
+                }
+                double angle = tick * 0.5;
+                Location p = player.getLocation().add(0.8 * Math.cos(angle), 1, 0.8 * Math.sin(angle));
+                player.getWorld().spawnParticle(Particle.BLOCK, p, 2, 0.05, 0.05, 0.05, 0,
+                        Material.SOUL_SAND.createBlockData());
+                tick += 4;
+            }
+        }.runTaskTimer(plugin, 0L, 4L);
+    }
+
+    @org.bukkit.event.EventHandler
+    public void onDarkParticleHit(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !darkParticleActive.contains(player.getUniqueId())) return;
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
+        UUID id = player.getUniqueId();
+
+        if (darkParticleFirstHitArmed.remove(id)) {
+            event.setDamage(event.getDamage() + 10); // the "Sharpness X" spike
+            target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 1);
+        }
+
+        int stacks = darkParticleStacks.merge(id, 1, Integer::sum);
+        var attr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (attr != null) {
+            attr.removeModifier(darkParticleHeartsKey);
+            attr.addModifier(new AttributeModifier(darkParticleHeartsKey, stacks * 2.0, AttributeModifier.Operation.ADD_NUMBER));
+        }
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                darkParticleStacks.computeIfPresent(id, (k, v) -> Math.max(0, v - 1));
+                var a = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                if (a == null) return;
+                a.removeModifier(darkParticleHeartsKey);
+                int remaining = darkParticleStacks.getOrDefault(id, 0);
+                if (remaining > 0) {
+                    a.addModifier(new AttributeModifier(darkParticleHeartsKey, remaining * 2.0, AttributeModifier.Operation.ADD_NUMBER));
                 }
             }
-        }.runTaskTimer(plugin, 0L, 2L);
-
-        player.playSound(target.getLocation(), Sound.ENTITY_WITHER_HURT, 0.7f, 0.6f);
-        msg(player, "The Mark of Cain is placed upon " + target.getName() + ".");
+        }.runTaskLater(plugin, 600L); // 30 seconds
     }
+
+    /** Getting hit while Dark Particle is active immediately clears every current heart stack. */
+    @org.bukkit.event.EventHandler
+    public void onDarkParticleRetaliation(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player victim) || !darkParticleActive.contains(victim.getUniqueId())) return;
+        UUID id = victim.getUniqueId();
+        darkParticleStacks.remove(id);
+        var attr = victim.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (attr != null) attr.removeModifier(darkParticleHeartsKey);
+    }
+
 
     /**
      * Ability 1 (Grief Shards). Summons 5 floating red daggers around the
@@ -713,6 +1068,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 gloomActive.remove(id);
                 if (player.isOnline()) msg(player, "Gloom lifts.");
                 plugin.getWeaponManager().putOnCooldown(player, WeaponType.SORROWESS, 2, 60);
+                if (player.isOnline()) CooldownBarDisplay.show(plugin, player, WeaponType.SORROWESS, "Gloom (cooldown)", 60);
             }
         }.runTaskLater(plugin, 200L); // 10 seconds
     }

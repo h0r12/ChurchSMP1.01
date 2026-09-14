@@ -35,6 +35,7 @@ public final class ChurchSMP extends JavaPlugin {
     private EffectListener effectListener;
     private WeaponPassiveEffects weaponPassiveEffects;
     private VoidBreakerMobility voidBreakerMobility;
+    private com.churchsmp.weapons.GrimPassives grimPassives;
 
     @Override
     public void onEnable() {
@@ -68,6 +69,10 @@ public final class ChurchSMP extends JavaPlugin {
         getServer().getPluginManager().registerEvents(voidBreakerMobility, this);
         voidBreakerMobility.start();
         new com.churchsmp.weapons.PersistentCooldownDisplay(this).start();
+        var grimPassives = new com.churchsmp.weapons.GrimPassives(this);
+        this.grimPassives = grimPassives;
+        getServer().getPluginManager().registerEvents(grimPassives, this);
+        grimPassives.start();
         var judasPassives = new com.churchsmp.weapons.JudasPassives(this);
         getServer().getPluginManager().registerEvents(judasPassives, this);
         judasPassives.start();
@@ -112,5 +117,6 @@ public final class ChurchSMP extends JavaPlugin {
     public ShrineManager getShrineManager() { return shrineManager; }
     public SermonManager getSermonManager() { return sermonManager; }
     public VoidBreakerMobility getVoidBreakerMobility() { return voidBreakerMobility; }
+    public com.churchsmp.weapons.GrimPassives getGrimPassives() { return grimPassives; }
     public RegionWandListener getRegionWandListener() { return regionWandListener; }
 }

@@ -150,7 +150,7 @@ public class WeaponListener implements Listener {
         int cooldownSeconds = abilities.execute(type, ability, player);
         if (cooldownSeconds > 0) {
             weaponManager.putOnCooldown(player, type, cooldownBucket, cooldownSeconds);
-            CooldownBarDisplay.show(plugin, player, type.getDisplayName(), cooldownSeconds);
+            CooldownBarDisplay.show(plugin, player, type, type.getDisplayName(), cooldownSeconds);
         }
     }
 
