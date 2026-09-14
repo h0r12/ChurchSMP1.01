@@ -56,6 +56,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         this.thirtyPiecesModifierKey = new org.bukkit.NamespacedKey(plugin, "thirty_pieces_sacrifice");
         this.gloomArmorKey = new org.bukkit.NamespacedKey(plugin, "gloom_depressed");
         this.sunEclipseTridentKey = new org.bukkit.NamespacedKey(plugin, "sun_eclipse_trident");
+        this.darkParticleHeartsKey = new org.bukkit.NamespacedKey(plugin, "dark_particle_hearts");
     }
 
     public org.bukkit.NamespacedKey getJudasSkullKey() {
@@ -762,7 +763,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
     private final Set<UUID> darkParticleActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
     private final Set<UUID> darkParticleFirstHitArmed = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
     private final Map<UUID, Integer> darkParticleStacks = new java.util.concurrent.ConcurrentHashMap<>();
-    private final org.bukkit.NamespacedKey darkParticleHeartsKey = new org.bukkit.NamespacedKey(plugin, "dark_particle_hearts");
+    private final org.bukkit.NamespacedKey darkParticleHeartsKey;
 
     /**
      * Ability 1, HollowedOut. Arms your next melee hit to apply Darkness +
