@@ -61,8 +61,11 @@ public class VoidBreakerMobility implements Listener {
 
     public void start() {
         new BukkitRunnable() {
+            int globalTick = 0;
+
             @Override
             public void run() {
+                globalTick += 10;
                 for (Player player : plugin.getServer().getOnlinePlayers()) {
                     boolean holding = isHoldingVoidBreaker(player);
                     boolean eligible = player.getGameMode() == GameMode.SURVIVAL
@@ -75,9 +78,33 @@ public class VoidBreakerMobility implements Listener {
                         player.setAllowFlight(false);
                         player.setFlying(false);
                     }
+
+                    if (holding && isCrumbleReady(player)) {
+                        showCrumbleReadyIndicator(player, globalTick);
+                    }
                 }
             }
         }.runTaskTimer(plugin, 20L, 10L);
+    }
+
+    /** True once the next qualifying slam will be the empowered hit. */
+    private boolean isCrumbleReady(Player player) {
+        UUID id = player.getUniqueId();
+        int total = 7 + fractureStacksUsed.getOrDefault(id, 0);
+        return sinRemaining.getOrDefault(id, total) <= 1;
+    }
+
+    /** A small ball orbits the player's feet with a short trail while Crumble is charged and ready. */
+    private void showCrumbleReadyIndicator(Player player, int tick) {
+        double angle = tick * 0.15;
+        double radius = 0.6;
+        Location base = player.getLocation();
+        for (int i = 0; i < 3; i++) { // a short trailing tail behind the ball
+            double trailAngle = angle - i * 0.3;
+            Location p = base.clone().add(radius * Math.cos(trailAngle), 0.1, radius * Math.sin(trailAngle));
+            player.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0,
+                    new Particle.DustOptions(org.bukkit.Color.fromRGB(140, 0, 200), i == 0 ? 1.2f : 0.7f));
+        }
     }
 
     private boolean isHoldingVoidBreaker(Player player) {
@@ -165,35 +192,75 @@ public class VoidBreakerMobility implements Listener {
         // its normal mace damage — this adds one more full instance as an
         // Aftershock against nearby opponents only). Crumble never hurts
         // the caster — if there's nobody else around, the Aftershock
-        // simply has nothing to hit.
+        // simply has nothing to hit. The hit itself is deferred until a
+        // particle animation plays out: expand outward, close back in,
+        // then the actual explosion/damage.
         sinRemaining.put(id, total);
-
         double maceDamage = event.getDamage();
-        Location impact = target.getLocation();
-        impact.getWorld().spawnParticle(Particle.EXPLOSION, impact.add(0, 1, 0), 1);
-        impact.getWorld().playSound(impact, Sound.ITEM_MACE_SMASH_GROUND_HEAVY, 1f, 0.8f);
+        playCrumbleAftershockAnimation(player, target, maceDamage);
+    }
 
-        // Rock/debris crumbling and flying up off the target, matching the name.
-        for (int i = 0; i < 40; i++) {
-            double x = (Math.random() - 0.5) * 1.5;
-            double z = (Math.random() - 0.5) * 1.5;
-            Location debrisSpot = target.getLocation().add(x, Math.random() * 0.5, z);
-            target.getWorld().spawnParticle(Particle.BLOCK, debrisSpot, 1, 0.1, 0.3, 0.1, 0.15,
-                    org.bukkit.Material.COBBLESTONE.createBlockData());
-        }
+    private void playCrumbleAftershockAnimation(Player player, LivingEntity target, double maceDamage) {
+        new BukkitRunnable() {
+            int tick = 0;
 
-        // A ring of alternating black/white/gray pips orbits whoever got
-        // hit for 3s, visualizing the Sin that was just cashed in.
-        orbitPipRing(target);
+            @Override
+            public void run() {
+                if (!target.isValid() || target.isDead()) {
+                    cancel();
+                    return;
+                }
+                Location center = target.getLocation().add(0, 1, 0);
 
-        for (Entity e : target.getNearbyEntities(3, 3, 3)) {
-            if (e instanceof LivingEntity le && !le.equals(player) && !le.equals(target)) {
-                le.damage(maceDamage, player);
+                if (tick <= 10) {
+                    // Phase 1: expand outward
+                    double radius = (tick / 10.0) * 3.0;
+                    ringParticle(center, radius);
+                } else if (tick <= 20) {
+                    // Phase 2: close back in
+                    double radius = 3.0 - ((tick - 10) / 10.0) * 3.0;
+                    ringParticle(center, radius);
+                } else {
+                    // Phase 3: the actual explosion + damage
+                    Location impact = target.getLocation();
+                    impact.getWorld().spawnParticle(Particle.EXPLOSION, impact.add(0, 1, 0), 1);
+                    impact.getWorld().playSound(impact, Sound.ITEM_MACE_SMASH_GROUND_HEAVY, 1f, 0.8f);
+
+                    // Rock/debris crumbling and flying up off the target, matching the name.
+                    for (int i = 0; i < 40; i++) {
+                        double x = (Math.random() - 0.5) * 1.5;
+                        double z = (Math.random() - 0.5) * 1.5;
+                        Location debrisSpot = target.getLocation().add(x, Math.random() * 0.5, z);
+                        target.getWorld().spawnParticle(Particle.BLOCK, debrisSpot, 1, 0.1, 0.3, 0.1, 0.15,
+                                org.bukkit.Material.COBBLESTONE.createBlockData());
+                    }
+
+                    // A ring of alternating black/white/gray pips orbits whoever got
+                    // hit for 3s, visualizing the Sin that was just cashed in.
+                    orbitPipRing(target);
+
+                    for (Entity e : target.getNearbyEntities(3, 3, 3)) {
+                        if (e instanceof LivingEntity le && !le.equals(player) && !le.equals(target)) {
+                            le.damage(maceDamage, player);
+                        }
+                    }
+
+                    player.sendActionBar(net.kyori.adventure.text.Component.text(
+                            "Crumble unleashed!", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+                    cancel();
+                    return;
+                }
+                tick++;
             }
-        }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
 
-        player.sendActionBar(net.kyori.adventure.text.Component.text(
-                "Crumble unleashed!", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+    private void ringParticle(Location center, double radius) {
+        for (int i = 0; i < 16; i++) {
+            double angle = (2 * Math.PI / 16) * i;
+            Location p = center.clone().add(radius * Math.cos(angle), 0, radius * Math.sin(angle));
+            center.getWorld().spawnParticle(Particle.CRIT, p, 1, 0, 0, 0, 0);
+        }
     }
 
     private void orbitPipRing(LivingEntity target) {

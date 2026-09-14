@@ -361,7 +361,6 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         msg(player, "Smite Beam strikes " + target.getName() + "!");
     }
 
-    /**
     private final Map<UUID, Integer> blinkCharges = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<UUID, Long> lastBlinkTime = new java.util.concurrent.ConcurrentHashMap<>();
     private final Set<UUID> cannotThrowProjectiles = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -1328,7 +1327,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
         if (wasBreach) {
             item.removeEnchantment(Enchantment.BREACH);
             item.addUnsafeEnchantment(Enchantment.DENSITY, 6);
-            item.addUnsafeEnchantment(Enchantment.WIND_BURST, 1);
+            item.addUnsafeEnchantment(Enchantment.WIND_BURST, 3);
             msg(player, "The VoidBreaker Feels Heavy.");
         } else {
             item.removeEnchantment(Enchantment.DENSITY);
