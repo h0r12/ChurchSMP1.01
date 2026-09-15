@@ -108,9 +108,9 @@ public class JudasPassives implements Listener {
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
         target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR,
-                target.getLocation().add(0, 1, 0), 6, 0.3, 0.3, 0.3, 0);
+                target.getLocation().add(0, 1, 0), 12, 0.3, 0.3, 0.3, 0);
         target.getWorld().spawnParticle(Particle.CRIT,
-                target.getLocation().add(0, 1, 0), 6, 0.3, 0.3, 0.3, 0.1);
+                target.getLocation().add(0, 1, 0), 12, 0.3, 0.3, 0.3, 0.15);
 
         long now = System.currentTimeMillis();
         long last = biteCooldown.getOrDefault(player.getUniqueId(), 0L);

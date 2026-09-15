@@ -99,11 +99,11 @@ public class VoidBreakerMobility implements Listener {
         double angle = tick * 0.15;
         double radius = 0.6;
         Location base = player.getLocation();
-        for (int i = 0; i < 3; i++) { // a short trailing tail behind the ball
-            double trailAngle = angle - i * 0.3;
+        for (int i = 0; i < 5; i++) { // a short trailing tail behind the ball
+            double trailAngle = angle - i * 0.25;
             Location p = base.clone().add(radius * Math.cos(trailAngle), 0.1, radius * Math.sin(trailAngle));
-            player.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0,
-                    new Particle.DustOptions(org.bukkit.Color.fromRGB(140, 0, 200), i == 0 ? 1.2f : 0.7f));
+            player.getWorld().spawnParticle(Particle.DUST, p, 2, 0.02, 0.02, 0.02, 0,
+                    new Particle.DustOptions(org.bukkit.Color.fromRGB(140, 0, 200), i == 0 ? 1.3f : 0.8f));
         }
     }
 
@@ -256,10 +256,10 @@ public class VoidBreakerMobility implements Listener {
     }
 
     private void ringParticle(Location center, double radius) {
-        for (int i = 0; i < 16; i++) {
-            double angle = (2 * Math.PI / 16) * i;
+        for (int i = 0; i < 28; i++) {
+            double angle = (2 * Math.PI / 28) * i;
             Location p = center.clone().add(radius * Math.cos(angle), 0, radius * Math.sin(angle));
-            center.getWorld().spawnParticle(Particle.CRIT, p, 1, 0, 0, 0, 0);
+            center.getWorld().spawnParticle(Particle.CRIT, p, 2, 0.03, 0.03, 0.03, 0);
         }
     }
 
@@ -281,8 +281,8 @@ public class VoidBreakerMobility implements Listener {
                     double angle = tick * 0.25 + (2 * Math.PI / pips) * i;
                     Location point = target.getLocation().add(
                             0.9 * Math.cos(angle), 0.15, 0.9 * Math.sin(angle));
-                    Particle.DustOptions dust = new Particle.DustOptions(pipColors[i % pipColors.length], 1f);
-                    target.getWorld().spawnParticle(Particle.DUST, point, 1, 0, 0, 0, 0, dust);
+                    Particle.DustOptions dust = new Particle.DustOptions(pipColors[i % pipColors.length], 1.3f);
+                    target.getWorld().spawnParticle(Particle.DUST, point, 3, 0.03, 0.03, 0.03, 0, dust);
                 }
                 tick += 2;
             }

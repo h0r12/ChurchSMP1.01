@@ -108,9 +108,9 @@ public class WeaponPassiveEffects implements Listener {
 
         Particle.DustOptions gold = new Particle.DustOptions(Color.fromRGB(255, 200, 60), 1f);
         Particle.DustOptions red = new Particle.DustOptions(Color.fromRGB(200, 30, 30), 1f);
-        player.getWorld().spawnParticle(Particle.DUST, goldPoint, 1, 0, 0, 0, 0, gold);
-        player.getWorld().spawnParticle(Particle.DUST, redPoint, 1, 0, 0, 0, 0, red);
-        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1.3, 0), 1, 0.15, 0.15, 0.15, 0.005);
+        player.getWorld().spawnParticle(Particle.DUST, goldPoint, 3, 0.03, 0.03, 0.03, 0, gold);
+        player.getWorld().spawnParticle(Particle.DUST, redPoint, 3, 0.03, 0.03, 0.03, 0, red);
+        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1.3, 0), 3, 0.2, 0.2, 0.2, 0.008);
     }
 
     /** Expands outward from the player and resets every 2 seconds (40 ticks). */

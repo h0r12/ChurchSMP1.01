@@ -412,7 +412,7 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
             Particle.DustOptions color = (((int) (d * 3)) % 2 == 0)
                     ? new Particle.DustOptions(Color.RED, 1f)
                     : new Particle.DustOptions(Color.WHITE, 1f);
-            player.getWorld().spawnParticle(Particle.DUST, point, 2, 0.05, 0.05, 0.05, 0, color);
+            player.getWorld().spawnParticle(Particle.DUST, point, 5, 0.08, 0.08, 0.08, 0, color);
 
             for (Entity e : point.getWorld().getNearbyEntities(point, 1, 1, 1)) {
                 if (e instanceof LivingEntity le && !le.equals(player) && !cannotThrowProjectiles.contains(le.getUniqueId())) {
@@ -542,11 +542,14 @@ public class WeaponAbilities implements org.bukkit.event.Listener {
                 }
                 double radius = 0.6 + ring * 0.6;
                 Location base = target.getLocation();
-                for (int i = 0; i < 20; i++) {
-                    double angle = (2 * Math.PI / 20) * i;
+                Particle.DustOptions gold = new Particle.DustOptions(Color.fromRGB(255, 210, 90), 1.3f);
+                for (int i = 0; i < 40; i++) {
+                    double angle = (2 * Math.PI / 40) * i;
                     Location p = base.clone().add(radius * Math.cos(angle), 0.1, radius * Math.sin(angle));
-                    base.getWorld().spawnParticle(Particle.END_ROD, p, 1, 0, 0, 0, 0);
+                    base.getWorld().spawnParticle(Particle.END_ROD, p, 3, 0.05, 0.1, 0.05, 0.01);
+                    base.getWorld().spawnParticle(Particle.DUST, p, 2, 0.05, 0.1, 0.05, 0, gold);
                 }
+                base.getWorld().spawnParticle(Particle.FLASH, base.clone().add(0, 1, 0), 0);
                 ring++;
             }
         }.runTaskTimer(plugin, 0L, 13L); // ~2s across 3 stages (13 ticks each)
