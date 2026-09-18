@@ -1,78 +1,79 @@
-# ===================== Church SMP Configuration =====================
+# ==========================================================
+#                  ChurchSMP Configuration
+# ==========================================================
 
-alignment:
-  min: -100
-  max: 100
-  decay-per-day: 2          # points moved back toward 0 each in-game day
-  tiers:
-    saint: 61                # score >= this -> Saint
-    righteous: 21             # score >= this -> Righteous
-    nullified-low: -20        # score between nullified-low and righteous-1 -> Nullified
-    wicked: -60                # score >= this (and < -20) -> Wicked
-    # anything below "wicked" threshold -> Fallen
+settings:
+  # Action bar format when holding a legendary weapon or using gem abilities.
+  # Available placeholders:
+  # %skill1_name%, %skill1_status% (Ready! / Active (Xs) / Cooldown (Xs))
+  # %skill2_name%, %skill2_status% (Ready! / Active (Xs) / Cooldown (Xs))
+  action_bar_format: "<gray>[<gold>%skill1_name%: %skill1_status%<gray>] <dark_gray>| <gray>[<gold>%skill2_name%: %skill2_status%<gray>]"
 
-good-deeds:
-  tithe-per-item: 2
-  tithe-daily-cap: 40
-  cure-zombie-villager: 10
-  heal-player: 5
-  revive-assist: 8
-  feed-hungry: 3
-  altar-prayer: 1
-  altar-prayer-daily-cap: 5
-  build-on-holy-ground-per-10-blocks: 1
-  breed-animal-near-church: 2
-  donate-command: 3
-  sermon-attendance: 5
+  # Status format strings
+  status_ready: "<green><bold>Ready!</bold></green>"
+  status_active: "<aqua><bold>Active (%time%s)</bold></aqua>"
+  status_cooldown: "<red><bold>%time%s</bold></red>"
 
-evil-deeds:
-  murder-player: -15
-  kill-villager: -8
-  griefing-church: -10
-  desecrate-holy-ground: -12
-  summon-wither: -20
-  necromancy: -10
-  animal-sacrifice: -5
-  blasphemy: -3
-  betray-ally: -20
+  # Sound effects
+  ability_ready_sound: true
+  bossbar_enabled: true
 
-effects:
-  tick-interval-seconds: 5
-  saint:
-    regeneration-amplifier: 1
-    resistance-amplifier: 0
-    absorption-on-tick: true
-  righteous:
-    regeneration-amplifier: 0
-    speed-amplifier: 0
-    fall-damage-negate-chance: 0.25
-  wicked:
-    weakness-amplifier: 0
-    hunger-amplifier: 0
-    holy-ground-slowness-amplifier: 1
-  fallen:
-    weakness-amplifier: 1
-    mining-fatigue-amplifier: 0
-    extra-hearts-removed: 2
-    holy-ground-burns: true
+# Alignment options (GOOD, EVIL, NULLIFIED)
+alignments:
+  default: "NULLIFIED"
 
+# Relic Gems Cooldowns & Values (in seconds)
+gems:
+  wrath:
+    cooldown: 40
+    duration: 8
+    damage_multiplier: 1.35
+  greed:
+    cooldown: 45
+    duration: 10
+    bonus_drop_multiplier: 2.0
+  gluttony:
+    cooldown: 35
+    duration: 6
+    devour_heal_amount: 4.0
+  lust:
+    cooldown: 30
+    duration: 5
+    pull_radius: 8.0
+  envy:
+    cooldown: 40
+    duration: 10
+    steal_percentage: 0.20
+  pride:
+    cooldown: 50
+    duration: 12
+    max_stacks: 5
+  sloth:
+    cooldown: 35
+    duration: 8
+    slow_radius: 6.0
+    slow_amplifier: 2
+
+# Legendary Weapons Settings
 weapons:
-  cooldown-seconds:
-    ability-1: 20
-    ability-2: 90
-  require-exact-tier-for-nullified: true
-  deactivate-on-tier-mismatch: true
-  keybind-mouse-enabled: true
-  keybind-offhand-enabled: true
-
-confession:
-  points-per-item: 2
-  daily-cap: 30
-
-sermon:
-  default-duration-seconds: 60
-  default-radius: 20
-
-chat-filter:
-  blasphemy-detection-enabled: false
-  flagged-phrases: []
+  excalibur:
+    primary_cooldown: 18
+    secondary_cooldown: 25
+  luminescence_spear:
+    primary_cooldown: 10
+    secondary_cooldown: 30
+  mayim:
+    primary_cooldown: 15
+    secondary_cooldown: 28
+  judas:
+    primary_cooldown: 16
+    secondary_cooldown: 45
+  sorrowess:
+    primary_cooldown: 20
+    secondary_cooldown: 35
+  voidbreaker:
+    primary_cooldown: 22
+    secondary_cooldown: 40
+  grim:
+    primary_cooldown: 14
+    secondary_cooldown: 32
