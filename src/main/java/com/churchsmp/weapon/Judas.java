@@ -37,7 +37,7 @@ public class Judas extends LegendaryWeapon {
                 "judas",
                 new String[]{"blade_of_judas", "dagger_of_betrayal"},
                 Component.text("Judas", TextColor.color(0x8B0000)).decorate(TextDecoration.BOLD),
-                Material.NETHERITE_DAGGER == null ? Material.NETHERITE_SWORD : Material.NETHERITE_SWORD,
+                Material.NETHERITE_SWORD,
                 Alignment.EVIL,
                 "Hemorrhaged Mold",
                 "Thirty Pieces of Silver");
@@ -127,7 +127,7 @@ public class Judas extends LegendaryWeapon {
         plugin.getBossBarManager().showActiveCountdown(player, "Thirty Pieces of Silver", BossBar.Color.RED, 5);
 
         // Docks real max health
-        AttributeInstance maxHealthAttr = target.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        AttributeInstance maxHealthAttr = target.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealthAttr != null) {
             double currentBase = maxHealthAttr.getBaseValue();
             double dockedBase = Math.max(6.0, currentBase - 4.0); // Docks 2 full hearts (4 HP)
