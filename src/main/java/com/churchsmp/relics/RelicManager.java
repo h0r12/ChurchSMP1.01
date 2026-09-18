@@ -112,4 +112,19 @@ public class RelicManager {
         cooldowns.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>())
                 .put(ability, System.currentTimeMillis() + seconds * 1000L);
     }
+
+    // ---- Greed's /ritual preload (stored on the player, not a physical item — see RelicAbilities for why) ----
+    private final NamespacedKey greedPreloadKey = new NamespacedKey(plugin, "greed_ritual_preload");
+
+    public void setGreedPreload(Player player, String type) {
+        player.getPersistentDataContainer().set(greedPreloadKey, PersistentDataType.STRING, type);
+    }
+
+    public String getGreedPreload(Player player) {
+        return player.getPersistentDataContainer().get(greedPreloadKey, PersistentDataType.STRING);
+    }
+
+    public void clearGreedPreload(Player player) {
+        player.getPersistentDataContainer().remove(greedPreloadKey);
+    }
 }

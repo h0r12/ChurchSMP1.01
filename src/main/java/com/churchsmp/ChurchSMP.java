@@ -98,6 +98,7 @@ public final class ChurchSMP extends JavaPlugin {
         getCommand("churchadmin").setExecutor(new ChurchAdminCommand(this));
         getCommand("sermon").setExecutor(new SermonCommand(this));
         getCommand("church").setExecutor(new com.churchsmp.commands.ChurchCommand(this));
+        getCommand("ritual").setExecutor(new com.churchsmp.relics.RitualCommand(this));
 
         // Daily alignment decay — approximated as a real-time interval here;
         // hook this to a proper in-game day counter if your server changes day length.

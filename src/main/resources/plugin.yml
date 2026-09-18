@@ -26,6 +26,10 @@ commands:
     description: Look up what your held legendary weapon does.
     usage: /church guide
     permission: churchsmp.guide
+  ritual:
+    description: Stage an item for Greed's Taken ability to consume.
+    usage: /ritual <ores|sword|head>
+    permission: churchsmp.relic
 
 permissions:
   churchsmp.alignment:
@@ -35,6 +39,8 @@ permissions:
   churchsmp.sermon:
     default: true
   churchsmp.guide:
+    default: true
+  churchsmp.relic:
     default: true
   churchsmp.admin:
     default: op

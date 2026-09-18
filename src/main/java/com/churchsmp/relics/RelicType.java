@@ -20,9 +20,13 @@ public enum RelicType {
             "Ability 1: Blood Scythe (Sneak+hit, 8s Fury: guaranteed crit + true fire dmg, builds Revenge, 40s cd)",
             "Ability 2: Overdrive (hit with 2+ Revenge: 5x5 flame ring, Stun+Darkness+DoT, 60s cd)"
     ),
-    GREED("greed", "Greed", "Burning Golds", Material.GOLD_NUGGET, new String[0],
-            "Ability 1: Taxing Ray (not yet implemented)",
-            "Ability 2: Taken (not yet implemented)"),
+    GREED("greed", "Greed", "Burning Golds", Material.GOLD_NUGGET,
+            new String[]{
+                    "Preloaded: /ritual <ores|sword|head> preloads an item for Ability 2 to consume.",
+                    "Gold Siphon: melee hits have a 2% chance to steal a Golden Apple or Ender Pearl from the target's hotbar (20s cd per target)."
+            },
+            "Ability 1: Taxing Ray (RMB, 8-block gold beam seals offhand+hotbar slot 4s, 32s cd)",
+            "Ability 2: Taken (Sneak+RMB, consumes /ritual preload, 120s cd)"),
     GLUTTONY("gluttony", "Gluttony", "Food of Bitterness", Material.ROTTEN_FLESH, new String[0],
             "Ability 1: Devour Buff (not yet implemented)",
             "Ability 2: Acid Spout (not yet implemented)"),

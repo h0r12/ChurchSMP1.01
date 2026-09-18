@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
@@ -12,8 +13,13 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -36,6 +42,10 @@ public class RelicAbilities implements Listener {
     private final Set<UUID> furyActive = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
     private final Map<UUID, Integer> revengeStacks = new HashMap<>();
 
+    // Greed
+    private final Map<String, Long> goldSiphonReadyAt = new HashMap<>(); // keyed "attackerUUID:victimUUID"
+    private final Set<UUID> sealedHotbar = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     public RelicAbilities(ChurchSMP plugin) {
         this.plugin = plugin;
         this.relicManager = plugin.getRelicManager();
@@ -43,6 +53,10 @@ public class RelicAbilities implements Listener {
 
     private boolean hasWrath(Player player) {
         return relicManager.getAssignedRelic(player) == RelicType.WRATH;
+    }
+
+    private boolean hasGreed(Player player) {
+        return relicManager.getAssignedRelic(player) == RelicType.GREED;
     }
 
     // ============================================================
@@ -215,5 +229,233 @@ public class RelicAbilities implements Listener {
                 remaining--;
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    // ============================================================
+    // Greed
+    // ============================================================
+
+    private static final Material[] SIPHONABLE = {Material.GOLDEN_APPLE, Material.ENCHANTED_GOLDEN_APPLE, Material.ENDER_PEARL};
+
+    /** Passive 2, Gold Siphon: 2% chance per hit to steal a Golden Apple or Ender Pearl from the target's hotbar. */
+    @EventHandler
+    public void onGoldSiphon(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !hasGreed(player)) return;
+        if (!(event.getEntity() instanceof Player victim)) return;
+
+        String pairKey = player.getUniqueId() + ":" + victim.getUniqueId();
+        Long readyAt = goldSiphonReadyAt.get(pairKey);
+        if (readyAt != null && readyAt > System.currentTimeMillis()) return;
+        if (Math.random() >= 0.02) return;
+
+        for (int slot = 0; slot < 9; slot++) {
+            ItemStack item = victim.getInventory().getItem(slot);
+            if (item == null) continue;
+            for (Material siphonable : SIPHONABLE) {
+                if (item.getType() == siphonable) {
+                    item.setAmount(item.getAmount() - 1);
+                    player.getInventory().addItem(new ItemStack(siphonable));
+                    goldSiphonReadyAt.put(pairKey, System.currentTimeMillis() + 20_000L);
+                    player.sendMessage(Component.text("Gold Siphon pulls " + siphonable.name().toLowerCase().replace('_', ' ')
+                            + " from " + victim.getName() + "'s hand.", NamedTextColor.GOLD));
+                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 0.7f);
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Ability 1, Taxing Ray. RMB, 32s cd. Fires an 8-block gold beam; the
+     * first player it hits has their current hotbar slot and shield/offhand
+     * blocking locked for 4s.
+     */
+    @EventHandler
+    public void onTaxingRayTrigger(PlayerInteractEvent event) {
+        if (event.isCancelled()) return; // a legendary weapon ability already consumed this click
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        if (!hasGreed(player) || player.isSneaking()) return;
+        if (relicManager.isOnCooldown(player, 1)) return;
+
+        relicManager.putOnCooldown(player, 1, 32);
+        event.setCancelled(true);
+
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        double range = 8;
+        Particle.DustOptions gold = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 200, 30), 1.2f);
+
+        for (double d = 0; d < range; d += 0.4) {
+            Location point = eye.clone().add(direction.clone().multiply(d));
+            point.getWorld().spawnParticle(Particle.DUST, point, 3, 0.05, 0.05, 0.05, 0, gold);
+        }
+        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 0.6f);
+
+        for (double d = 0; d < range; d += 0.5) {
+            Location point = eye.clone().add(direction.clone().multiply(d));
+            for (Entity e : point.getWorld().getNearbyEntities(point, 1, 1, 1)) {
+                if (e instanceof Player target && !target.equals(player)) {
+                    sealHotbar(target);
+                    player.sendMessage(Component.text("Taxing Ray seals " + target.getName() + "'s hand.", NamedTextColor.GOLD));
+                    return;
+                }
+            }
+        }
+    }
+
+    private void sealHotbar(Player target) {
+        UUID id = target.getUniqueId();
+        sealedHotbar.add(id);
+        target.getWorld().spawnParticle(Particle.DUST, target.getLocation().add(0, 1, 0), 20, 0.3, 0.5, 0.3, 0,
+                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 200, 30), 1.2f));
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                sealedHotbar.remove(id);
+            }
+        }.runTaskLater(plugin, 80L); // 4 seconds
+    }
+
+    /** Prevents switching hotbar slots while sealed by Taxing Ray. */
+    @EventHandler
+    public void onSealedSlotSwitch(PlayerItemHeldEvent event) {
+        Player player = event.getPlayer();
+        if (!sealedHotbar.contains(player.getUniqueId())) return;
+        event.setCancelled(true);
+    }
+
+    /** Prevents shield/offhand blocking while sealed by Taxing Ray. */
+    @EventHandler
+    public void onSealedBlockAttempt(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        if (!sealedHotbar.contains(player.getUniqueId())) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        ItemStack item = event.getHand() == EquipmentSlot.HAND
+                ? player.getInventory().getItemInMainHand() : player.getInventory().getItemInOffHand();
+        if (item.getType() == Material.SHIELD) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Ability 2, Taken. Sneak+RMB, 120s cd. Consumes whatever /ritual
+     * staged and applies the matching effect.
+     */
+    @EventHandler
+    public void onTakenTrigger(PlayerInteractEvent event) {
+        if (event.isCancelled()) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        if (!hasGreed(player) || !player.isSneaking()) return;
+        if (relicManager.isOnCooldown(player, 2)) return;
+
+        String preload = relicManager.getGreedPreload(player);
+        if (preload == null) {
+            player.sendMessage(Component.text("Nothing is primed — use /ritual first.", NamedTextColor.RED));
+            return;
+        }
+
+        event.setCancelled(true);
+        relicManager.putOnCooldown(player, 2, 120);
+        relicManager.clearGreedPreload(player);
+
+        switch (preload) {
+            case "ORES" -> {
+                player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 3)); // 10s, Absorption IV
+                player.sendMessage(Component.text("Taken grants Absorption IV.", NamedTextColor.GOLD));
+            }
+            case "SWORD" -> {
+                player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 150, 2)); // 7.5s, Strength III
+                player.sendMessage(Component.text("Taken grants Strength III.", NamedTextColor.GOLD));
+            }
+            case "HEAD" -> {
+                LivingEntity target = resolveGreedTarget(player, 25);
+                if (target == null) {
+                    player.sendMessage(Component.text("No target in sight — the ritual is wasted.", NamedTextColor.RED));
+                    return;
+                }
+                startDamageTether(player, target);
+                player.sendMessage(Component.text("Taken tethers itself to " + target.getName() + ".", NamedTextColor.GOLD));
+            }
+        }
+        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.6f, 1.5f);
+    }
+
+    private LivingEntity resolveGreedTarget(Player player, double range) {
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        LivingEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (Entity e : player.getNearbyEntities(range, range, range)) {
+            if (!(e instanceof LivingEntity le) || le.equals(player)) continue;
+            Vector toTarget = le.getLocation().toVector().subtract(eye.toVector());
+            double dist = toTarget.length();
+            if (dist > range) continue;
+            double angle = toTarget.normalize().angle(direction);
+            if (angle < 0.3 && dist < bestDist) {
+                best = le;
+                bestDist = dist;
+            }
+        }
+        return best;
+    }
+
+    /** The Player Head branch of Taken: 30s, siphoning 10% of the tracked target's dealt damage back as healing. */
+    private final Map<UUID, UUID> activeTethers = new HashMap<>(); // casterUUID -> targetUUID
+
+    private void startDamageTether(Player caster, LivingEntity target) {
+        UUID casterId = caster.getUniqueId();
+        UUID targetId = target.getUniqueId();
+        activeTethers.put(casterId, targetId);
+
+        new BukkitRunnable() {
+            int tick = 0;
+
+            @Override
+            public void run() {
+                if (tick >= 600 || !caster.isOnline() || !target.isValid() || target.isDead()) { // 30 seconds
+                    activeTethers.remove(casterId, targetId);
+                    cancel();
+                    return;
+                }
+                if (caster.getWorld().equals(target.getWorld())) {
+                    Location from = caster.getLocation().add(0, 1, 0);
+                    Location to = target.getLocation().add(0, 1, 0);
+                    Vector step = to.toVector().subtract(from.toVector());
+                    double dist = step.length();
+                    if (dist > 0) {
+                        step.normalize();
+                        for (double d = 0; d < dist; d += 1.0) {
+                            caster.getWorld().spawnParticle(Particle.DUST, from.clone().add(step.clone().multiply(d)),
+                                    2, 0.05, 0.05, 0.05, 0, new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 200, 30), 1f));
+                        }
+                    }
+                }
+                tick += 5;
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    /** Whenever the tethered target deals damage, the caster is healed for 10% of it. */
+    @EventHandler
+    public void onTetherSiphon(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof LivingEntity attacker)) return;
+        for (var entry : activeTethers.entrySet()) {
+            if (entry.getValue().equals(attacker.getUniqueId())) {
+                Player caster = Bukkit.getPlayer(entry.getKey());
+                if (caster != null && caster.isOnline()) {
+                    double heal = event.getDamage() * 0.10;
+                    caster.setHealth(Math.min(caster.getHealth() + heal,
+                            caster.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue()));
+                }
+                return;
+            }
+        }
     }
 }
