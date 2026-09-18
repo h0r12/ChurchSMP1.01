@@ -36,6 +36,8 @@ public final class ChurchSMP extends JavaPlugin {
     private WeaponPassiveEffects weaponPassiveEffects;
     private VoidBreakerMobility voidBreakerMobility;
     private com.churchsmp.weapons.GrimPassives grimPassives;
+    private com.churchsmp.relics.RelicManager relicManager;
+    private com.churchsmp.relics.RelicJoinListener relicJoinListener;
 
     @Override
     public void onEnable() {
@@ -44,6 +46,7 @@ public final class ChurchSMP extends JavaPlugin {
 
         // Managers
         this.alignmentManager = new AlignmentManager(this);
+        this.relicManager = new com.churchsmp.relics.RelicManager(this);
         this.weaponManager = new WeaponManager(this);
         this.weaponAbilities = new WeaponAbilities(this);
         getServer().getPluginManager().registerEvents(weaponAbilities, this);
@@ -82,6 +85,9 @@ public final class ChurchSMP extends JavaPlugin {
         var excaliburPassives = new com.churchsmp.weapons.ExcaliburPassives(this);
         getServer().getPluginManager().registerEvents(excaliburPassives, this);
         excaliburPassives.start();
+        this.relicJoinListener = new com.churchsmp.relics.RelicJoinListener(this);
+        getServer().getPluginManager().registerEvents(relicJoinListener, this);
+        getServer().getPluginManager().registerEvents(new com.churchsmp.relics.RelicAbilities(this), this);
 
         // Recipes
         new WeaponRecipeManager(this).registerAll();
@@ -117,6 +123,8 @@ public final class ChurchSMP extends JavaPlugin {
     public ShrineManager getShrineManager() { return shrineManager; }
     public SermonManager getSermonManager() { return sermonManager; }
     public VoidBreakerMobility getVoidBreakerMobility() { return voidBreakerMobility; }
+    public com.churchsmp.relics.RelicManager getRelicManager() { return relicManager; }
+    public com.churchsmp.relics.RelicJoinListener getRelicJoinListener() { return relicJoinListener; }
     public com.churchsmp.weapons.GrimPassives getGrimPassives() { return grimPassives; }
     public RegionWandListener getRegionWandListener() { return regionWandListener; }
 }

@@ -15,7 +15,7 @@ import org.bukkit.entity.Player;
 
 /**
  * /churchadmin                                          (shows this help list)
- * /churchadmin give <player> <weaponId>
+ * /churchadmin give <player> <weaponId|gem|reroll>
  * /churchadmin set <player> <score>
  * /churchadmin resetcooldown <player> <weaponId|sermon|all>
  * /churchadmin region wand                    (gives the region-selection wand)
@@ -53,7 +53,7 @@ public class ChurchAdminCommand implements CommandExecutor {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("===== ChurchSMP Admin =====", NamedTextColor.GOLD));
-        sendHelpLine(sender, "/churchadmin give <player> <weaponId>", "Gives a legendary weapon.");
+        sendHelpLine(sender, "/churchadmin give <player> <weaponId|gem|reroll>", "Gives a legendary weapon, a sin gem, or a reroll token.");
         sendHelpLine(sender, "/churchadmin set <player> <score>", "Sets a player's alignment score.");
         sendHelpLine(sender, "/churchadmin resetcooldown <player> <weaponId|sermon|all>", "Clears cooldowns.");
         sendHelpLine(sender, "/churchadmin keybind <mouse|offhand> <on|off>", "Toggles that activation input server-wide.");
@@ -184,7 +184,7 @@ public class ChurchAdminCommand implements CommandExecutor {
 
     private void handleGive(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(Component.text("Usage: /churchadmin give <player> <weaponId> [killCount]", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Usage: /churchadmin give <player> <weaponId|gem|reroll> [killCount|sinId]", NamedTextColor.RED));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -192,11 +192,29 @@ public class ChurchAdminCommand implements CommandExecutor {
             sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
             return;
         }
+
+        if (args[2].equalsIgnoreCase("reroll")) {
+            target.getInventory().addItem(plugin.getRelicJoinListener().createRerollToken());
+            sender.sendMessage(Component.text("Gave a Reroll Token to " + target.getName(), NamedTextColor.GREEN));
+            return;
+        }
+        if (args[2].equalsIgnoreCase("gem")) {
+            com.churchsmp.relics.RelicType relic = args.length > 3
+                    ? com.churchsmp.relics.RelicType.fromId(args[3].toLowerCase()) : null;
+            if (relic == null) {
+                var all = com.churchsmp.relics.RelicType.values();
+                relic = all[(int) (Math.random() * all.length)];
+            }
+            target.getInventory().addItem(plugin.getRelicManager().createGem(relic));
+            sender.sendMessage(Component.text("Gave a " + relic.getDisplayName() + " Gem to " + target.getName(), NamedTextColor.GREEN));
+            return;
+        }
+
         WeaponType type = WeaponType.fromId(args[2].toLowerCase());
         if (type == null) {
             StringBuilder ids = new StringBuilder();
             for (WeaponType t : WeaponType.values()) ids.append(t.getId()).append(" ");
-            sender.sendMessage(Component.text("Unknown weapon. Valid IDs: " + ids, NamedTextColor.RED));
+            sender.sendMessage(Component.text("Unknown give target. Use 'gem', 'reroll', or a weapon ID: " + ids, NamedTextColor.RED));
             return;
         }
         var item = plugin.getWeaponManager().createWeapon(type);

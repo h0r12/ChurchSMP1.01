@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Bukkit;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
 
 /**
@@ -13,20 +14,30 @@ import org.bukkit.inventory.ShapedRecipe;
  * what actually blocks the result unless the crafter's alignment tier
  * matches the weapon's category, so a Fallen player can gather the
  * ingredients but the altar/table will refuse to yield the finished item.
+ *
+ * Every recipe now also requires exactly one sin gem (any of the 7 —
+ * they're generic currency here, not restricted to matching the weapon's
+ * category) as the price of forging a legendary weapon, consuming it in
+ * the process. Where the original shape had an unused blank slot, the
+ * gem was added there so existing ingredient costs weren't touched;
+ * Excalibur's grid was already completely full, so one of its four
+ * Netherite Ingots was swapped out for the gem slot instead.
  */
 public class WeaponRecipeManager {
 
     private final ChurchSMP plugin;
     private final WeaponManager weaponManager;
+    private final com.churchsmp.relics.RelicManager relicManager;
 
     public WeaponRecipeManager(ChurchSMP plugin) {
         this.plugin = plugin;
         this.weaponManager = plugin.getWeaponManager();
+        this.relicManager = plugin.getRelicManager();
     }
 
     public void registerAll() {
         register(WeaponType.BLADE_OF_ARCHANGEL,
-                new String[]{"NDN", "DBD", "NGN"},
+                new String[]{"NDN", "DBD", "NGX"},
                 Map(
                         'N', Material.NETHERITE_INGOT,
                         'D', Material.DIAMOND,
@@ -35,7 +46,7 @@ public class WeaponRecipeManager {
                 ));
 
         register(WeaponType.SWORD_OF_DAVID,
-                new String[]{" G ", "GBG", " S "},
+                new String[]{"XG ", "GBG", " S "},
                 Map(
                         'G', Material.GOLD_INGOT,
                         'B', Material.BOOK,
@@ -43,14 +54,14 @@ public class WeaponRecipeManager {
                 ));
 
         register(WeaponType.STAFF_OF_MOSES,
-                new String[]{" W ", " W ", "PWP"},
+                new String[]{"XW ", " W ", "PWP"},
                 Map(
                         'W', Material.WARPED_FUNGUS_ON_A_STICK,
                         'P', Material.PRISMARINE_SHARD
                 ));
 
         register(WeaponType.SCYTHE_OF_CAIN,
-                new String[]{"NNR", " SF", "S  "},
+                new String[]{"NNR", "XSF", "S  "},
                 Map(
                         'N', Material.NETHERITE_SCRAP,
                         'R', Material.ROTTEN_FLESH,
@@ -59,14 +70,14 @@ public class WeaponRecipeManager {
                 ));
 
         register(WeaponType.SORROWESS,
-                new String[]{" T ", "PTP", " T "},
+                new String[]{"XT ", "PTP", " T "},
                 Map(
                         'T', Material.TRIDENT,
                         'P', Material.PRISMARINE_CRYSTALS
                 ));
 
         register(WeaponType.BLADE_OF_JUDAS,
-                new String[]{" I ", "ISI", " C "},
+                new String[]{"XI ", "ISI", " C "},
                 Map(
                         'I', Material.IRON_INGOT,
                         'S', Material.STICK,
@@ -74,7 +85,7 @@ public class WeaponRecipeManager {
                 ));
 
         register(WeaponType.VOIDBREAKER,
-                new String[]{" Q ", "BRB", " Q "},
+                new String[]{"XQ ", "BRB", " Q "},
                 Map(
                         'Q', Material.QUARTZ,
                         'B', Material.BLAZE_ROD,
@@ -90,6 +101,7 @@ public class WeaponRecipeManager {
         for (var entry : ingredients.entrySet()) {
             recipe.setIngredient(entry.getKey(), entry.getValue());
         }
+        recipe.setIngredient('X', new RecipeChoice.ExactChoice(relicManager.allGems()));
         Bukkit.addRecipe(recipe);
     }
 
