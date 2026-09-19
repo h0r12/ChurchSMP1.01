@@ -215,9 +215,47 @@ public class VoidBreaker extends LegendaryWeapon {
             crumbleHits.put(attacker.getUniqueId(), hits);
             attacker.sendMessage(Component.text("✦ Crumble: " + hits + "/3", NamedTextColor.LIGHT_PURPLE));
             attacker.playSound(attacker.getLocation(), Sound.BLOCK_ANVIL_USE, 0.8f, 1.2f + (hits * 0.2f));
+
+            // Dust particles at target's feet — more intense with each hit
+            Location feet = target.getLocation();
+            int particleCount = 8 + (hits * 6); // 14, 20, 26 particles
+            double spread = 0.3 + (hits * 0.15); // expanding ring
+            Particle.DustOptions dustColor = new Particle.DustOptions(
+                    org.bukkit.Color.fromRGB(140, 140, 140), 1.0f + (hits * 0.3f)); // grey, growing size
+            feet.getWorld().spawnParticle(Particle.DUST, feet.add(0, 0.1, 0), particleCount, spread, 0.05, spread, 0, dustColor);
+            feet.getWorld().spawnParticle(Particle.BLOCK, feet, particleCount / 2,
+                    spread, 0.1, spread, 0.1, Material.GRAVEL.createBlockData());
+
+            // Ring effect at feet for visual clarity
+            for (int i = 0; i < hits * 6; i++) {
+                double angle = (2 * Math.PI / (hits * 6)) * i;
+                double rx = Math.cos(angle) * (0.6 + hits * 0.2);
+                double rz = Math.sin(angle) * (0.6 + hits * 0.2);
+                feet.getWorld().spawnParticle(Particle.DUST,
+                        target.getLocation().add(rx, 0.05, rz), 1, 0, 0, 0, 0, dustColor);
+            }
         } else {
             // 4th hit: Double damage with aftershock explosion
             crumbleHits.put(attacker.getUniqueId(), 0);
+
+            // Big dust burst at target's feet FIRST before the explosion
+            Location feet = target.getLocation();
+            Particle.DustOptions bigDust = new Particle.DustOptions(
+                    org.bukkit.Color.fromRGB(90, 90, 90), 2.5f);
+            feet.getWorld().spawnParticle(Particle.DUST, feet.add(0, 0.1, 0), 60, 1.2, 0.1, 1.2, 0, bigDust);
+            feet.getWorld().spawnParticle(Particle.BLOCK, feet, 40,
+                    1.5, 0.2, 1.5, 0.2, Material.GRAVEL.createBlockData());
+
+            // Expanding dust ring at feet
+            for (int i = 0; i < 24; i++) {
+                double angle = (2 * Math.PI / 24) * i;
+                double rx = Math.cos(angle) * 1.5;
+                double rz = Math.sin(angle) * 1.5;
+                feet.getWorld().spawnParticle(Particle.DUST,
+                        target.getLocation().add(rx, 0.1, rz), 2, 0, 0, 0, 0, bigDust);
+            }
+
+            // Then the actual explosion + damage
             target.damage(damage, attacker); // Double hit
 
             Location loc = target.getLocation();
