@@ -8,12 +8,12 @@ author: ChurchSMP Team
 commands:
   church:
     description: ChurchSMP guide, alignment, and information
-    usage: /<command> [guide|info]
+    usage: /<command> [guide|info|reroll]
     permission: churchsmp.use
     aliases: [csmp]
   churchadmin:
     description: Administrative commands for ChurchSMP
-    usage: /<command> [help|resetcooldown|setalignment|giveweapon|givegem|toggleinput]
+    usage: /<command> [help|resetcooldown|setalignment|giveweapon|givegem|reload]
     permission: churchsmp.admin
 
 permissions:

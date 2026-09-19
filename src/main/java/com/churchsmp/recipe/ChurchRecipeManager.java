@@ -46,27 +46,26 @@ public class ChurchRecipeManager implements Listener {
     }
 
     private void registerWeaponRecipe(String recipeKeyStr, String weaponId, SinGemType gemType, Material coreMaterial, Material baseMaterial) {
-        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(weaponId);
-        if (weapon == null) return;
-
-        NamespacedKey key = new NamespacedKey(plugin, recipeKeyStr);
-        // Remove if exists
         try {
-            Bukkit.removeRecipe(key);
-        } catch (Exception ignored) {}
+            LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(weaponId);
+            if (weapon == null) return;
 
-        ShapedRecipe recipe = new ShapedRecipe(key, weapon.createItem());
-        recipe.shape(" G ", " C ", " B ");
+            NamespacedKey key = new NamespacedKey(plugin, recipeKeyStr);
+            try {
+                Bukkit.removeRecipe(key);
+            } catch (Throwable ignored) {}
 
-        ItemStack gemItem = plugin.getSinGemManager().createGemItem(gemType);
-        recipe.setIngredient('G', new RecipeChoice.ExactChoice(gemItem));
-        recipe.setIngredient('C', coreMaterial);
-        recipe.setIngredient('B', baseMaterial);
+            ShapedRecipe recipe = new ShapedRecipe(key, weapon.createItem());
+            recipe.shape(" G ", " C ", " B ");
 
-        try {
+            ItemStack gemItem = plugin.getSinGemManager().createGemItem(gemType);
+            recipe.setIngredient('G', new RecipeChoice.ExactChoice(gemItem));
+            recipe.setIngredient('C', coreMaterial);
+            recipe.setIngredient('B', baseMaterial);
+
             Bukkit.addRecipe(recipe);
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not register recipe for " + weaponId + ": " + e.getMessage());
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Could not register recipe for " + weaponId + ": " + t.getMessage());
         }
     }
 

@@ -32,40 +32,45 @@ public class ChurchSMP extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // Configuration
-        saveDefaultConfig();
+        try {
+            // Configuration
+            saveDefaultConfig();
 
-        // Managers
-        this.alignmentManager = new AlignmentManager(this);
-        this.cooldownManager = new CooldownManager(this);
-        this.bossBarManager = new BossBarManager(this);
-        this.sinGemManager = new SinGemManager(this);
-        this.gemAbilityExecutor = new SinGemAbilityExecutor(this);
-        this.weaponManager = new WeaponManager(this);
-        this.recipeManager = new ChurchRecipeManager(this);
+            // Managers
+            this.alignmentManager = new AlignmentManager(this);
+            this.cooldownManager = new CooldownManager(this);
+            this.bossBarManager = new BossBarManager(this);
+            this.sinGemManager = new SinGemManager(this);
+            this.gemAbilityExecutor = new SinGemAbilityExecutor(this);
+            this.weaponManager = new WeaponManager(this);
+            this.recipeManager = new ChurchRecipeManager(this);
 
-        // Listeners
-        Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
-        Bukkit.getPluginManager().registerEvents(new CombatListener(this), this);
-        Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
-        Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
+            // Listeners
+            Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
+            Bukkit.getPluginManager().registerEvents(new CombatListener(this), this);
+            Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
+            Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
 
-        // Commands
-        if (getCommand("church") != null) {
-            ChurchCommand churchCommand = new ChurchCommand(this);
-            getCommand("church").setExecutor(churchCommand);
-            getCommand("church").setTabCompleter(churchCommand);
+            // Commands
+            if (getCommand("church") != null) {
+                ChurchCommand churchCommand = new ChurchCommand(this);
+                getCommand("church").setExecutor(churchCommand);
+                getCommand("church").setTabCompleter(churchCommand);
+            }
+            if (getCommand("churchadmin") != null) {
+                ChurchAdminCommand adminCommand = new ChurchAdminCommand(this);
+                getCommand("churchadmin").setExecutor(adminCommand);
+                getCommand("churchadmin").setTabCompleter(adminCommand);
+            }
+
+            // Action bar real-time cooldown/active display task (runs every 2 ticks = 100ms)
+            new ActionBarCooldownTask(this).runTaskTimer(this, 0L, 2L);
+
+            getLogger().info("ChurchSMP v" + getDescription().getVersion() + " has been successfully enabled!");
+        } catch (Throwable t) {
+            getLogger().severe("Error while enabling ChurchSMP: " + t.getMessage());
+            t.printStackTrace();
         }
-        if (getCommand("churchadmin") != null) {
-            ChurchAdminCommand adminCommand = new ChurchAdminCommand(this);
-            getCommand("churchadmin").setExecutor(adminCommand);
-            getCommand("churchadmin").setTabCompleter(adminCommand);
-        }
-
-        // Action bar real-time cooldown/active display task (runs every 2 ticks = 100ms)
-        new ActionBarCooldownTask(this).runTaskTimer(this, 0L, 2L);
-
-        getLogger().info("ChurchSMP v" + getPluginMeta().getVersion() + " has been successfully enabled!");
     }
 
     @Override
