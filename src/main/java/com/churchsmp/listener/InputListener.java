@@ -1,4 +1,4 @@
-package com.churchsmp.listener;
+﻿package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
@@ -136,7 +136,7 @@ public class InputListener implements Listener {
 
     private void triggerWeaponAbility(Player player, LegendaryWeapon weapon, boolean secondary) {
         if (!plugin.getAlignmentManager().canWield(player, weapon.getRequiredAlignment())) {
-            player.sendMessage(Component.text("✦ Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
+            player.sendMessage(Component.text("âœ¦ Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
             return;
         }
 

@@ -1,4 +1,4 @@
-package com.churchsmp.gem;
+﻿package com.churchsmp.gem;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;
@@ -54,9 +54,9 @@ public class SinGemManager {
                     .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));
             lore.add(Component.text(type.getDescription(), NamedTextColor.WHITE));
             lore.add(Component.empty());
-            lore.add(Component.text("✦ Status: Unattuned", NamedTextColor.YELLOW));
-            lore.add(Component.text("✦ Right-Click to permanently attune", NamedTextColor.GREEN));
-            lore.add(Component.text("✦ Used as crafting reagent for Legendaries", NamedTextColor.LIGHT_PURPLE));
+            lore.add(Component.text("âœ¦ Status: Unattuned", NamedTextColor.YELLOW));
+            lore.add(Component.text("âœ¦ Right-Click to permanently attune", NamedTextColor.GREEN));
+            lore.add(Component.text("âœ¦ Used as crafting reagent for Legendaries", NamedTextColor.LIGHT_PURPLE));
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
 
             meta.lore(lore);
@@ -115,7 +115,7 @@ public class SinGemManager {
 
         player.getPersistentDataContainer().set(attunedKey, PersistentDataType.STRING, type.name());
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-        player.sendMessage(Component.text("⚔ You have permanently attuned your soul to the ", NamedTextColor.GOLD)
+        player.sendMessage(Component.text("âš” You have permanently attuned your soul to the ", NamedTextColor.GOLD)
                 .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD))
                 .append(Component.text(" Relic Gem!", NamedTextColor.GOLD)));
 
@@ -133,9 +133,9 @@ public class SinGemManager {
             SinGemType chosen = values[random.nextInt(values.length)];
             player.getInventory().addItem(createGemItem(chosen));
 
-            player.sendMessage(Component.text("✦ A mysterious relic materialized in your inventory: ", NamedTextColor.YELLOW)
+            player.sendMessage(Component.text("âœ¦ A mysterious relic materialized in your inventory: ", NamedTextColor.YELLOW)
                     .append(chosen.getFormattedName()));
-            player.sendMessage(Component.text("✦ Right-click to attune, or use /church reroll before attuning!", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("âœ¦ Right-click to attune, or use /church reroll before attuning!", NamedTextColor.GRAY));
         }
     }
 
@@ -163,7 +163,7 @@ public class SinGemManager {
 
         player.getInventory().setItemInMainHand(createGemItem(next));
         player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.2f);
-        player.sendMessage(Component.text("✦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
+        player.sendMessage(Component.text("âœ¦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
                 .append(next.getFormattedName()));
         return true;
     }

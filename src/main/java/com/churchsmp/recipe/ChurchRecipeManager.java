@@ -1,4 +1,4 @@
-package com.churchsmp.recipe;
+﻿package com.churchsmp.recipe;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.gem.SinGemType;
@@ -79,7 +79,7 @@ public class ChurchRecipeManager implements Listener {
         if (weapon != null) {
             // Player successfully crafted a legendary weapon!
             if (event.getWhoClicked() instanceof org.bukkit.entity.Player player) {
-                player.sendMessage(net.kyori.adventure.text.Component.text("⚔ The altar resonated with your sin relic and forged ", net.kyori.adventure.text.format.NamedTextColor.GOLD)
+                player.sendMessage(net.kyori.adventure.text.Component.text("âš” The altar resonated with your sin relic and forged ", net.kyori.adventure.text.format.NamedTextColor.GOLD)
                         .append(weapon.getDisplayName())
                         .append(net.kyori.adventure.text.Component.text("!", net.kyori.adventure.text.format.NamedTextColor.GOLD)));
                 player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);

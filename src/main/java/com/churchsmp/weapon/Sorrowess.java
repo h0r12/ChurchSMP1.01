@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -65,11 +66,11 @@ public class Sorrowess extends LegendaryWeapon {
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
             lore.add(Component.text("Its-a-sorrowy day...", TextColor.color(0x9370DB)).decorate(TextDecoration.ITALIC));
             lore.add(Component.empty());
-            lore.add(Component.text("✦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
+            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
             lore.add(Component.empty());
             lore.add(Component.text("Passives:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" • Forming: ", NamedTextColor.GRAY).append(Component.text("Crouching summons a temporary non-flowing water pool.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Brave: ", NamedTextColor.GRAY).append(Component.text("Increases max health to 12 hearts while held; reverts when dropped.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" â€¢ Forming: ", NamedTextColor.GRAY).append(Component.text("Crouching summons a temporary non-flowing water pool.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" â€¢ Brave: ", NamedTextColor.GRAY).append(Component.text("Increases max health to 12 hearts while held; reverts when dropped.", NamedTextColor.WHITE)));
             lore.add(Component.empty());
             lore.add(Component.text("Abilities:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
             lore.add(Component.text(" [Primary] Grief Shards: ", NamedTextColor.DARK_PURPLE).append(Component.text("Launches 5 homing white sorrow shards dealing 2.5 True Damage + Bleedout DOT. (30s CD)", NamedTextColor.WHITE)));
@@ -120,6 +121,8 @@ public class Sorrowess extends LegendaryWeapon {
         final LivingEntity finalTarget = target;
         Location spawnLoc = player.getEyeLocation();
 
+        Particle.DustOptions sorrowDust = new Particle.DustOptions(Color.fromRGB(147, 112, 219), 1.4f);
+
         for (int i = 0; i < 5; i++) {
             Material whiteMat = whiteItems[random.nextInt(whiteItems.length)];
             ItemStack whiteItem = new ItemStack(whiteMat);
@@ -138,10 +141,19 @@ public class Sorrowess extends LegendaryWeapon {
                         return;
                     }
 
+                    // White and purple sorrow trail behind each shard
+                    Location itemLoc = itemEntity.getLocation();
+                    itemLoc.getWorld().spawnParticle(Particle.END_ROD, itemLoc, 1, 0.05, 0.05, 0.05, 0.01);
+                    itemLoc.getWorld().spawnParticle(Particle.DUST, itemLoc, 2, 0.05, 0.05, 0.05, 0, sorrowDust);
+
                     Vector dir = finalTarget.getLocation().add(0, 1.0, 0).toVector().subtract(itemEntity.getLocation().toVector()).normalize().multiply(1.2);
                     itemEntity.setVelocity(dir);
 
                     if (itemEntity.getLocation().distance(finalTarget.getLocation().add(0, 1.0, 0)) < 1.5) {
+                        Location hitLoc = finalTarget.getLocation().add(0, 1.0, 0);
+                        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1);
+                        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 8, 0.3, 0.3, 0.3, 0.05);
+
                         itemEntity.remove();
                         // 2.5 True Damage (5 HP)
                         double newHp = finalTarget.getHealth() - 5.0;
@@ -168,6 +180,8 @@ public class Sorrowess extends LegendaryWeapon {
         target.sendMessage(Component.text("⚔ You are hemorrhaging from Bleedout!", NamedTextColor.RED));
         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.0f, 0.8f);
 
+        Particle.DustOptions bloodDust = new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.4f);
+
         new BukkitRunnable() {
             int ticks = 0;
 
@@ -179,7 +193,14 @@ public class Sorrowess extends LegendaryWeapon {
                     return;
                 }
                 target.damage(1.5, attacker);
-                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, target.getLocation().add(0, 1.0, 0), 4);
+                Location loc = target.getLocation().add(0, 1.0, 0);
+                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 4);
+                // Bleedout ground ring pulse
+                Location feet = target.getLocation();
+                for (int d = 0; d < 360; d += 30) {
+                    double rad = Math.toRadians(d);
+                    feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 0.8, 0.1, Math.sin(rad) * 0.8), 1, 0, 0, 0, 0, bloodDust);
+                }
             }
         }.runTaskTimer(plugin, 15L, 15L);
     }
@@ -195,8 +216,9 @@ public class Sorrowess extends LegendaryWeapon {
         plugin.getBossBarManager().showActiveCountdown(player, "Bloody Rain", BossBar.Color.PURPLE, 20);
 
         player.playSound(player.getLocation(), Sound.WEATHER_RAIN, 1.5f, 0.8f);
+        Particle.DustOptions purpleRain = new Particle.DustOptions(Color.fromRGB(128, 0, 128), 1.3f);
 
-        // 8x8 Cloud above player's head
+        // 8x8 Cloud above player's head with purple-tinted rain
         new BukkitRunnable() {
             int ticks = 200; // 20s
 
@@ -211,7 +233,9 @@ public class Sorrowess extends LegendaryWeapon {
                 for (double x = -4.0; x <= 4.0; x += 1.5) {
                     for (double z = -4.0; z <= 4.0; z += 1.5) {
                         cloudLoc.getWorld().spawnParticle(Particle.CLOUD, cloudLoc.clone().add(x, 0, z), 1, 0.2, 0.1, 0.2, 0.01);
+                        cloudLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, cloudLoc.clone().add(x, 0, z), 1, 0.1, 0.1, 0.1, 0.01);
                         cloudLoc.getWorld().spawnParticle(Particle.DRIPPING_WATER, cloudLoc.clone().add(x, -0.2, z), 1);
+                        cloudLoc.getWorld().spawnParticle(Particle.DUST, cloudLoc.clone().add(x, -0.4, z), 1, 0, 0, 0, 0, purpleRain);
                     }
                 }
 
@@ -246,8 +270,11 @@ public class Sorrowess extends LegendaryWeapon {
                 });
 
                 clones.add(clone);
-                victim.getWorld().spawnParticle(Particle.PORTAL, cloneLoc, 20, 0.3, 0.5, 0.3, 0.1);
-                victim.playSound(cloneLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.0f);
+                // Mirror shatter particles
+                victim.getWorld().spawnParticle(Particle.PORTAL, cloneLoc.clone().add(0, 1.0, 0), 25, 0.4, 0.5, 0.4, 0.1);
+                victim.getWorld().spawnParticle(Particle.END_ROD, cloneLoc.clone().add(0, 1.0, 0), 12, 0.3, 0.4, 0.3, 0.05);
+                victim.playSound(cloneLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.4f, 1.0f);
+                victim.playSound(cloneLoc, Sound.BLOCK_GLASS_BREAK, 1.2f, 1.2f);
 
                 // Give attacker weakness if attacker is a living entity
                 if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent edbe && edbe.getDamager() instanceof LivingEntity attacker) {
@@ -269,10 +296,18 @@ public class Sorrowess extends LegendaryWeapon {
     @Override
     public void onCrouch(Player player, boolean isSneaking) {
         if (!isSneaking) return;
-        // Forming: Crouching summons non-flowing water block
+        // Forming: Crouching summons non-flowing water block + ripple ring
         Block block = player.getLocation().getBlock();
         if (block.getType() == Material.AIR) {
             block.setType(Material.WATER);
+
+            Particle.DustOptions waterRing = new Particle.DustOptions(Color.fromRGB(0, 150, 255), 1.5f);
+            Location loc = player.getLocation();
+            for (int d = 0; d < 360; d += 25) {
+                double rad = Math.toRadians(d);
+                loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(Math.cos(rad) * 1.2, 0.1, Math.sin(rad) * 1.2), 1, 0, 0, 0, 0, waterRing);
+            }
+
             // Revert after 3 seconds so world isn't flooded permanently
             new BukkitRunnable() {
                 @Override

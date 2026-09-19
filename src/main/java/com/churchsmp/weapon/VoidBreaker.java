@@ -65,12 +65,12 @@ public class VoidBreaker extends LegendaryWeapon {
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
             lore.add(Component.text("The Abandoned Unknowing.", TextColor.color(0xDA70D6)).decorate(TextDecoration.ITALIC));
             lore.add(Component.empty());
-            lore.add(Component.text("✦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
+            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
             lore.add(Component.empty());
             lore.add(Component.text("Passives:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" • Voidfeels: ", NamedTextColor.DARK_AQUA).append(Component.text("Double Jump in mid-air. (5s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Crumble: ", NamedTextColor.DARK_AQUA).append(Component.text("Slam counter (1/3, 2/3, 3/3); 4th hit doubles damage with aftershock; missed shock rebounds for half. Resets on hit.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Rifted: ", NamedTextColor.DARK_AQUA).append(Component.text("Sneaking Double Jump launches at crosshair. (30s CD, halved each slam)", NamedTextColor.WHITE)));
+            lore.add(Component.text(" â€¢ Voidfeels: ", NamedTextColor.DARK_AQUA).append(Component.text("Double Jump in mid-air. (5s CD)", NamedTextColor.WHITE)));
+            lore.add(Component.text(" â€¢ Crumble: ", NamedTextColor.DARK_AQUA).append(Component.text("Slam counter (1/3, 2/3, 3/3); 4th hit doubles damage with aftershock; missed shock rebounds for half. Resets on hit.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" â€¢ Rifted: ", NamedTextColor.DARK_AQUA).append(Component.text("Sneaking Double Jump launches at crosshair. (30s CD, halved each slam)", NamedTextColor.WHITE)));
             lore.add(Component.empty());
             lore.add(Component.text("Abilities:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
             lore.add(Component.text(" [Primary] Fractured: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Next hit embeds Fallen debuff + 2s stun. (75s CD)", NamedTextColor.WHITE)));
@@ -108,7 +108,7 @@ public class VoidBreaker extends LegendaryWeapon {
 
         fracturedArmed.put(player.getUniqueId(), true);
         player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
-        player.sendMessage(Component.text("✦ Fractured armed! Your next strike inflicts the devastating Fallen debuff & stuns for 2s.", NamedTextColor.DARK_PURPLE));
+        player.sendMessage(Component.text("âœ¦ Fractured armed! Your next strike inflicts the devastating Fallen debuff & stuns for 2s.", NamedTextColor.DARK_PURPLE));
         return true;
     }
 
@@ -129,7 +129,7 @@ public class VoidBreaker extends LegendaryWeapon {
 
         int charges = boundCharges.getOrDefault(player.getUniqueId(), 3);
         if (charges <= 0) {
-            player.sendMessage(Component.text("✦ Bound: Out of dash charges! Land a mace hit to gain +1 charge.", NamedTextColor.RED));
+            player.sendMessage(Component.text("âœ¦ Bound: Out of dash charges! Land a mace hit to gain +1 charge.", NamedTextColor.RED));
             return false;
         }
 
@@ -147,7 +147,8 @@ public class VoidBreaker extends LegendaryWeapon {
         Vector dash = player.getLocation().getDirection().normalize().multiply(1.7).setY(0.2);
         player.setVelocity(dash);
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
-        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 25, 0.4, 0.4, 0.4, 0.1);
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 30, 0.4, 0.4, 0.4, 0.1);
+        player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
 
         player.sendMessage(Component.text("✦ Bound Dash! Charges remaining: " + charges + "/3", NamedTextColor.LIGHT_PURPLE));
         return true;
@@ -171,7 +172,7 @@ public class VoidBreaker extends LegendaryWeapon {
             Vector launch = player.getEyeLocation().getDirection().normalize().multiply(2.2);
             player.setVelocity(launch);
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.5f, 1.4f);
-            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 20, 0.5, 0.5, 0.5, 0.05);
+            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 25, 0.5, 0.5, 0.5, 0.05);
             player.sendMessage(Component.text("✦ Rifted Crosshair Launch!", NamedTextColor.DARK_PURPLE));
             return;
         }
@@ -194,7 +195,7 @@ public class VoidBreaker extends LegendaryWeapon {
             int c = boundCharges.getOrDefault(attacker.getUniqueId(), 0);
             if (c < 3) {
                 boundCharges.put(attacker.getUniqueId(), c + 1);
-                attacker.sendMessage(Component.text("✦ Bound: +1 Dash Charge from hit! (" + (c + 1) + "/3)", NamedTextColor.LIGHT_PURPLE));
+                attacker.sendMessage(Component.text("âœ¦ Bound: +1 Dash Charge from hit! (" + (c + 1) + "/3)", NamedTextColor.LIGHT_PURPLE));
             }
         }
 
@@ -206,7 +207,7 @@ public class VoidBreaker extends LegendaryWeapon {
         if (Boolean.TRUE.equals(fracturedArmed.remove(attacker.getUniqueId()))) {
             plugin.getFallenManager().applyFallen(target);
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 255)); // 2s stun
-            attacker.sendMessage(Component.text("✦ Fractured strike landed! Target infected with Fallen!", NamedTextColor.DARK_PURPLE));
+            attacker.sendMessage(Component.text("âœ¦ Fractured strike landed! Target infected with Fallen!", NamedTextColor.DARK_PURPLE));
         }
 
         // Crumble: 1/3, 2/3, 3/3, 4th hit doubles damage with aftershock
@@ -216,7 +217,7 @@ public class VoidBreaker extends LegendaryWeapon {
             attacker.sendMessage(Component.text("✦ Crumble: " + hits + "/3", NamedTextColor.LIGHT_PURPLE));
             attacker.playSound(attacker.getLocation(), Sound.BLOCK_ANVIL_USE, 0.8f, 1.2f + (hits * 0.2f));
 
-            // Dust particles at target's feet — more intense with each hit
+            // Dust particles at target's feet â€” more intense with each hit
             Location feet = target.getLocation();
             int particleCount = 8 + (hits * 6); // 14, 20, 26 particles
             double spread = 0.3 + (hits * 0.15); // expanding ring
@@ -275,7 +276,7 @@ public class VoidBreaker extends LegendaryWeapon {
         // Crumble: Resets after taking damage of any kind
         Integer hits = crumbleHits.remove(victim.getUniqueId());
         if (hits != null && hits > 0) {
-            victim.sendMessage(Component.text("✦ Crumble hit counter reset by incoming damage!", NamedTextColor.RED));
+            victim.sendMessage(Component.text("âœ¦ Crumble hit counter reset by incoming damage!", NamedTextColor.RED));
         }
     }
 }

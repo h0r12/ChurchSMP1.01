@@ -1,4 +1,4 @@
-package com.churchsmp.alignment;
+﻿package com.churchsmp.alignment;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;

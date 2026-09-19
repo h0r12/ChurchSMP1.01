@@ -1,4 +1,4 @@
-package com.churchsmp.command;
+﻿package com.churchsmp.command;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
@@ -52,7 +52,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getCooldownManager().resetAllCooldowns(target);
                 sender.sendMessage(Component.text("All cooldowns reset for " + target.getName() + "!", NamedTextColor.GREEN));
-                target.sendMessage(Component.text("✦ Your cooldowns have been reset by an administrator.", NamedTextColor.YELLOW));
+                target.sendMessage(Component.text("âœ¦ Your cooldowns have been reset by an administrator.", NamedTextColor.YELLOW));
             }
             case "setalignment" -> {
                 if (args.length < 3) {

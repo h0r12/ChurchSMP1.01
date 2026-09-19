@@ -1,4 +1,4 @@
-package com.churchsmp.effect;
+﻿package com.churchsmp.effect;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;
@@ -47,7 +47,7 @@ public class FallenEffectManager {
 
         if (target instanceof Player player) {
             player.setFoodLevel(0);
-            player.sendMessage(Component.text("☠ YOU HAVE BEEN STRUCK WITH FALLEN!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
+            player.sendMessage(Component.text("â˜  YOU HAVE BEEN STRUCK WITH FALLEN!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
             player.sendMessage(Component.text("Gems & Legends disabled, armor weakened by 60%, hunger drained!", NamedTextColor.RED));
         }
 

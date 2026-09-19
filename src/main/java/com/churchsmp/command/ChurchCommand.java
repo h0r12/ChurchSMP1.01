@@ -1,4 +1,4 @@
-package com.churchsmp.command;
+﻿package com.churchsmp.command;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
@@ -43,24 +43,24 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
 
         player.sendMessage(Component.text("================[ ChurchSMP Guide ]================", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-        player.sendMessage(Component.text("✦ Your Alignment: ", NamedTextColor.GRAY).append(alignment.getFormattedComponent()));
+        player.sendMessage(Component.text("âœ¦ Your Alignment: ", NamedTextColor.GRAY).append(alignment.getFormattedComponent()));
         player.sendMessage(Component.text("  " + alignment.getDescription(), NamedTextColor.DARK_GRAY));
         player.sendMessage(Component.empty());
 
         if (gem != null) {
-            player.sendMessage(Component.text("✦ Attuned Sin Gem: ", NamedTextColor.GRAY).append(gem.getFormattedName()));
+            player.sendMessage(Component.text("âœ¦ Attuned Sin Gem: ", NamedTextColor.GRAY).append(gem.getFormattedName()));
             player.sendMessage(Component.text("  " + gem.getDescription(), NamedTextColor.DARK_GRAY));
         } else {
-            player.sendMessage(Component.text("✦ Attuned Sin Gem: ", NamedTextColor.GRAY).append(Component.text("None (Hold gem and Right-Click to attune)", NamedTextColor.YELLOW)));
+            player.sendMessage(Component.text("âœ¦ Attuned Sin Gem: ", NamedTextColor.GRAY).append(Component.text("None (Hold gem and Right-Click to attune)", NamedTextColor.YELLOW)));
             player.sendMessage(Component.text("  Tip: Use ", NamedTextColor.DARK_GRAY)
                     .append(Component.text("/church reroll", NamedTextColor.AQUA))
                     .append(Component.text(" before attuning if you want a different gem.", NamedTextColor.DARK_GRAY)));
         }
 
         player.sendMessage(Component.empty());
-        player.sendMessage(Component.text("✦ Legendary Weapons:", NamedTextColor.YELLOW).decorate(TextDecoration.BOLD));
+        player.sendMessage(Component.text("âœ¦ Legendary Weapons:", NamedTextColor.YELLOW).decorate(TextDecoration.BOLD));
         for (LegendaryWeapon w : plugin.getWeaponManager().getAllWeapons()) {
-            player.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
+            player.sendMessage(Component.text(" â€¢ ", NamedTextColor.DARK_GRAY)
                     .append(w.getDisplayName())
                     .append(Component.text(" (" + w.getRequiredAlignment().getDisplayName() + ")", NamedTextColor.GRAY)));
         }

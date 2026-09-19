@@ -1,4 +1,4 @@
-package com.churchsmp.listener;
+﻿package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.weapon.LegendaryWeapon;
@@ -86,7 +86,7 @@ public class PlayerListener implements Listener {
             if (off.getType() != Material.AIR) {
                 player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
                 player.getInventory().addItem(off);
-                player.sendMessage(Component.text("✦ Mayim's Honor forbids holding anything in your offhand!", NamedTextColor.RED));
+                player.sendMessage(Component.text("âœ¦ Mayim's Honor forbids holding anything in your offhand!", NamedTextColor.RED));
             }
         }
     }

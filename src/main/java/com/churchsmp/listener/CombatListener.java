@@ -1,4 +1,4 @@
-package com.churchsmp.listener;
+﻿package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.weapon.Grim;
@@ -38,7 +38,7 @@ public class CombatListener implements Listener {
 
         // Fallen effect check on attacker: disables ChurchSMP gems and legends
         if (plugin.getFallenManager().isFallen(attacker)) {
-            attacker.sendMessage(Component.text("✦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
+            attacker.sendMessage(Component.text("âœ¦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
             event.setDamage(event.getDamage() * 0.5); // enchants / damage halved
             return;
         }
@@ -55,7 +55,7 @@ public class CombatListener implements Listener {
             // Alignment check
             if (!plugin.getAlignmentManager().canWield(attacker, weapon.getRequiredAlignment())) {
                 event.setCancelled(true);
-                attacker.sendMessage(Component.text("✦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
+                attacker.sendMessage(Component.text("âœ¦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
                 return;
             }
 

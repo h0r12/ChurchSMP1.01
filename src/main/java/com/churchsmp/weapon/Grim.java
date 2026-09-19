@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -60,10 +61,14 @@ public class Grim extends LegendaryWeapon {
             public void run() {
                 for (Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
                     if (isHoldingGrim(player)) {
+                        Location pLoc = player.getLocation().add(0, 1.0, 0);
+                        pLoc.getWorld().spawnParticle(Particle.SMOKE, pLoc, 6, 0.4, 0.3, 0.4, 0.02);
+
                         for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 5.0)) {
                             if (e.equals(player)) continue;
                             e.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 40, 0));
                             e.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 40, 0));
+                            e.getWorld().spawnParticle(Particle.SOUL, e.getLocation().add(0, 1.0, 0), 3, 0.2, 0.3, 0.2, 0.02);
                         }
                     }
                 }
@@ -127,6 +132,12 @@ public class Grim extends LegendaryWeapon {
 
         hollowedOutArmed.put(player.getUniqueId(), true);
         player.playSound(player.getLocation(), Sound.ENTITY_WITHER_AMBIENT, 1.2f, 0.5f);
+
+        // Dark void particles around hands and feet
+        Location pLoc = player.getLocation();
+        pLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, pLoc.clone().add(0, 1.0, 0), 15, 0.4, 0.4, 0.4, 0.05);
+        pLoc.getWorld().spawnParticle(Particle.SOUL, pLoc.clone().add(0, 0.5, 0), 10, 0.3, 0.3, 0.3, 0.02);
+
         player.sendMessage(Component.text("✦ HollowedOut armed! Next hit inflicts crippling curse & 40% failure chance.", NamedTextColor.DARK_PURPLE));
         return true;
     }
@@ -145,6 +156,15 @@ public class Grim extends LegendaryWeapon {
         darkParticleHearts.put(player.getUniqueId(), 0);
 
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 1.2f, 1.2f);
+
+        // Dark red aura pulse from player
+        Location pLoc = player.getLocation();
+        Particle.DustOptions darkRed = new Particle.DustOptions(Color.fromRGB(120, 0, 20), 1.8f);
+        for (int d = 0; d < 360; d += 20) {
+            double rad = Math.toRadians(d);
+            pLoc.getWorld().spawnParticle(Particle.DUST, pLoc.clone().add(Math.cos(rad) * 1.5, 0.2, Math.sin(rad) * 1.5), 1, 0, 0, 0, 0, darkRed);
+        }
+
         player.sendMessage(Component.text("✦ Dark Particle active (25s)! Attacks grant bonus max health and Sharpness X!", NamedTextColor.DARK_RED));
         return true;
     }
@@ -156,6 +176,12 @@ public class Grim extends LegendaryWeapon {
             target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 300, 0)); // 15s
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 300, 1));
             failedActionTarget.put(target.getUniqueId(), System.currentTimeMillis() + 15000L);
+
+            // Void explosion at target
+            Location hitLoc = target.getLocation().add(0, 1.0, 0);
+            hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_WITHER_DEATH, 1.0f, 1.6f);
+            hitLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, hitLoc, 25, 0.5, 0.5, 0.5, 0.08);
+            hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 15, 0.4, 0.4, 0.4, 0.05);
 
             target.sendMessage(Component.text("⚔ Your actions have a 40% chance to fail for 15s from HollowedOut!", NamedTextColor.DARK_PURPLE));
             attacker.sendMessage(Component.text("✦ HollowedOut curse planted on " + target.getName() + "!", NamedTextColor.DARK_PURPLE));
@@ -172,9 +198,15 @@ public class Grim extends LegendaryWeapon {
                 attr.setBaseValue(Math.min(40.0, attr.getBaseValue() + 2.0)); // +1 heart (2 HP)
             }
 
-            // Orbiting soul sand particles
+            // Orbiting soul sand and dark red particles
             Location loc = attacker.getLocation().add(0, 1.0, 0);
             loc.getWorld().spawnParticle(Particle.SOUL, loc, 15, 0.5, 0.5, 0.5, 0.05);
+            Particle.DustOptions darkRed = new Particle.DustOptions(Color.fromRGB(150, 10, 30), 1.5f);
+            for (int d = 0; d < 360; d += 30) {
+                double rad = Math.toRadians(d);
+                loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(Math.cos(rad) * 1.0, 0, Math.sin(rad) * 1.0), 1, 0, 0, 0, 0, darkRed);
+            }
+
             attacker.sendMessage(Component.text("✦ Dark Particle: +1 Max Heart! (Total bonus: " + bonus + " hearts)", NamedTextColor.DARK_RED));
         }
     }
@@ -188,6 +220,10 @@ public class Grim extends LegendaryWeapon {
             if (attr != null) {
                 attr.setBaseValue(Math.max(20.0, attr.getBaseValue() - (bonus * 2.0)));
             }
+            Location loc = victim.getLocation().add(0, 1.0, 0);
+            loc.getWorld().playSound(loc, Sound.BLOCK_GLASS_BREAK, 1.5f, 0.7f);
+            loc.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 10, 0.4, 0.4, 0.4, 0.1);
+            loc.getWorld().spawnParticle(Particle.SOUL, loc, 12, 0.5, 0.5, 0.5, 0.08);
             victim.sendMessage(Component.text("✦ Dark Particle hearts shattered by damage!", NamedTextColor.RED));
         }
     }
@@ -229,7 +265,11 @@ public class Grim extends LegendaryWeapon {
             attr.setBaseValue(attr.getBaseValue() + 2.0);
         }
 
+        // Soul harvesting visual
+        Location loc = player.getLocation().add(0, 1.0, 0);
+        loc.getWorld().spawnParticle(Particle.SOUL, loc, 25, 0.6, 0.8, 0.6, 0.05);
         player.playSound(player.getLocation(), Sound.ENTITY_VEX_DEATH, 1.2f, 0.6f);
+        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_AMBIENT, 1.0f, 1.2f);
         player.sendMessage(Component.text("✦ Reaper harvested soul #" + kills + "! +1 Permanent Max Heart!", NamedTextColor.DARK_RED));
     }
 }

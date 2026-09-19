@@ -1,4 +1,4 @@
-package com.churchsmp.weapon;
+﻿package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import org.bukkit.NamespacedKey;

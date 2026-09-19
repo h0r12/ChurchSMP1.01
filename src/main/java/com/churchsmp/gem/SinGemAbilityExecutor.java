@@ -1,4 +1,4 @@
-package com.churchsmp.gem;
+﻿package com.churchsmp.gem;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.bossbar.BossBar;
@@ -192,7 +192,7 @@ public class SinGemAbilityExecutor {
                     player.addPotionEffect(new PotionEffect(effect.getType(), duration * 20, effect.getAmplifier()));
                 }
             }
-            player.sendMessage(Component.text("✦ You siphoned power and positive buffs from " + target.getName() + "!", NamedTextColor.AQUA));
+            player.sendMessage(Component.text("âœ¦ You siphoned power and positive buffs from " + target.getName() + "!", NamedTextColor.AQUA));
         } else {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, duration * 20, 1));
             player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, duration * 20, 1));
@@ -217,7 +217,7 @@ public class SinGemAbilityExecutor {
         // Set max pride stacks
         prideStacks.put(player.getUniqueId(), 5);
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, duration * 20, 1));
-        player.sendMessage(Component.text("✦ Monarch's Presence: Max Pride stacks gained! (Do not get hit!)", NamedTextColor.GOLD));
+        player.sendMessage(Component.text("âœ¦ Monarch's Presence: Max Pride stacks gained! (Do not get hit!)", NamedTextColor.GOLD));
     }
 
     // -------------------------------------------------------------
@@ -263,7 +263,7 @@ public class SinGemAbilityExecutor {
                 if (current < 5) {
                     current++;
                     prideStacks.put(player.getUniqueId(), current);
-                    player.sendMessage(Component.text("✦ Pride Stack: " + current + "/5 (+ " + (current * 7) + "% damage)", NamedTextColor.GOLD));
+                    player.sendMessage(Component.text("âœ¦ Pride Stack: " + current + "/5 (+ " + (current * 7) + "% damage)", NamedTextColor.GOLD));
                 }
             }
             case GREED -> {
@@ -285,7 +285,7 @@ public class SinGemAbilityExecutor {
                 prideStacks.put(player.getUniqueId(), 0);
                 player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.0f, 0.8f);
                 player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 1));
-                player.sendMessage(Component.text("✦ Your Pride was shattered! All stacks lost!", NamedTextColor.RED));
+                player.sendMessage(Component.text("âœ¦ Your Pride was shattered! All stacks lost!", NamedTextColor.RED));
             }
         }
     }
