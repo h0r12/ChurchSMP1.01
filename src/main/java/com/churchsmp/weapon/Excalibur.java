@@ -159,7 +159,7 @@ public class Excalibur extends LegendaryWeapon {
 
         // Altar Pining: particles around feet, Excalibur ascends exploding nearby entities (2 true damage = 4 HP)
         Location feet = player.getLocation();
-        feet.getWorld().spawnParticle(Particle.GOLD, feet, 40, 0.8, 0.1, 0.8, 0.05);
+        feet.getWorld().spawnParticle(Particle.WAX_ON, feet, 40, 0.8, 0.1, 0.8, 0.05);
         feet.getWorld().playSound(feet, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.5f, 0.6f);
 
         // Stage 1: Ascends, 2 true damage, launch 10x10 into the sky
