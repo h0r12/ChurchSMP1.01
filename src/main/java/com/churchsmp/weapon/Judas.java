@@ -2,7 +2,6 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -12,8 +11,6 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -29,44 +26,54 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Judas extends LegendaryWeapon {
+
+    private final Map<UUID, Integer> skullCharges = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> biteCooldown = new ConcurrentHashMap<>();
+    private final Random random = new Random();
 
     public Judas(ChurchSMP plugin) {
         super(plugin,
                 "judas",
                 new String[]{"blade_of_judas", "dagger_of_betrayal"},
                 Component.text("Judas", TextColor.color(0x8B0000)).decorate(TextDecoration.BOLD),
-                Material.NETHERITE_SWORD,
+                Material.NETHERITE_AXE,
                 Alignment.EVIL,
-                "Hemorrhaged Mold",
-                "Thirty Pieces of Silver");
+                "Hemorrhaged",
+                "Crescent Bloodmoon");
     }
 
     @Override
     public ItemStack createItem() {
-        ItemStack item = new ItemStack(Material.NETHERITE_SWORD);
+        ItemStack item = new ItemStack(baseMaterial);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_RED));
+            lore.add(Component.text("Decayed Blood.", TextColor.color(0xB22222)).decorate(TextDecoration.ITALIC));
+            lore.add(Component.empty());
             lore.add(Component.text("✦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
             lore.add(Component.empty());
             lore.add(Component.text("Passives:", NamedTextColor.RED).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" • Bloodfeast: ", NamedTextColor.GOLD).append(Component.text("Feast upon enemy health on strike.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Unfree: ", NamedTextColor.GOLD).append(Component.text("Inflicts crippling darkness and slowness.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Bite: ", NamedTextColor.GOLD).append(Component.text("Inflicts deep hemorrhaging bleedout.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Bloodlust: ", NamedTextColor.GOLD).append(Component.text("Cannot regenerate health while holding Judas.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Unfree: ", NamedTextColor.GOLD).append(Component.text("You occasionally receive a random Judas curse/gift.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Bite: ", NamedTextColor.GOLD).append(Component.text("25% chance on hit to inflict Wither, Nausea & Blindness (30s CD).", NamedTextColor.WHITE)));
             lore.add(Component.empty());
             lore.add(Component.text("Abilities:", NamedTextColor.RED).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Hemorrhaged Mold: ", NamedTextColor.DARK_RED).append(Component.text("Fire 3 explosive wither skulls.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Thirty Pieces of Silver: ", NamedTextColor.DARK_RED).append(Component.text("Permanently docks target's real max health.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" [Primary] Hemorrhaged: ", NamedTextColor.DARK_RED).append(Component.text("Launch explosive Wither Skulls (3/3 charges).", NamedTextColor.WHITE)));
+            lore.add(Component.text(" [Secondary] Crescent Bloodmoon: ", NamedTextColor.DARK_RED).append(Component.text("Horizontal crescent wave of wither skulls dealing damage + Wither II for 5s in a 5-block cone.", NamedTextColor.WHITE)));
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_RED));
 
             meta.lore(lore);
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
-            meta.addEnchant(Enchantment.BANE_OF_ARTHROPODS, 5, true);
             meta.addEnchant(Enchantment.SHARPNESS, 5, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
         }
@@ -76,30 +83,28 @@ public class Judas extends LegendaryWeapon {
     @Override
     public boolean executePrimary(Player player) {
         String key = id + "_primary";
-        if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
+        int currentCharges = skullCharges.getOrDefault(player.getUniqueId(), 3);
 
-        int cd = plugin.getConfig().getInt("weapons.judas.primary_cooldown", 16);
-        plugin.getCooldownManager().setCooldown(player, key, cd);
+        if (currentCharges <= 0) {
+            if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
+            skullCharges.put(player.getUniqueId(), 3);
+            currentCharges = 3;
+        }
 
-        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.2f, 0.8f);
+        Vector dir = player.getEyeLocation().getDirection().normalize().multiply(1.3);
+        WitherSkull skull = player.launchProjectile(WitherSkull.class, dir);
+        skull.setCharged(currentCharges == 1);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.0f, 1.2f);
 
-        // Fire 3 wither skulls in rapid succession
-        new BukkitRunnable() {
-            int count = 0;
+        currentCharges--;
+        skullCharges.put(player.getUniqueId(), currentCharges);
 
-            @Override
-            public void run() {
-                if (!player.isOnline() || count >= 3) {
-                    cancel();
-                    return;
-                }
-                Vector dir = player.getEyeLocation().getDirection().normalize().multiply(1.4);
-                WitherSkull skull = player.launchProjectile(WitherSkull.class, dir);
-                skull.setCharged(count == 2); // 3rd one is charged!
-                player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 0.9f, 1.2f);
-                count++;
-            }
-        }.runTaskTimer(plugin, 0L, 4L);
+        if (currentCharges <= 0) {
+            int cd = plugin.getConfig().getInt("weapons.judas.primary_cooldown", 16);
+            plugin.getCooldownManager().setCooldown(player, key, cd);
+        } else {
+            player.sendMessage(Component.text("✦ Hemorrhaged Skull Charges: " + currentCharges + "/3", NamedTextColor.DARK_RED));
+        }
 
         return true;
     }
@@ -109,66 +114,61 @@ public class Judas extends LegendaryWeapon {
         String key = id + "_secondary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
-        // Target enemy in front
-        LivingEntity target = null;
-        for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 6.0)) {
-            if (e.equals(player)) continue;
-            target = e;
-            break;
-        }
-
-        if (target == null) {
-            player.sendMessage(Component.text("No victim nearby to claim Thirty Pieces of Silver!", NamedTextColor.RED));
-            return false;
-        }
-
-        int cd = plugin.getConfig().getInt("weapons.judas.secondary_cooldown", 45);
+        int cd = plugin.getConfig().getInt("weapons.judas.secondary_cooldown", 40);
         plugin.getCooldownManager().setCooldown(player, key, cd);
-        plugin.getBossBarManager().showActiveCountdown(player, "Thirty Pieces of Silver", BossBar.Color.RED, 5);
 
-        // Docks real max health
-        AttributeInstance maxHealthAttr = target.getAttribute(Attribute.MAX_HEALTH);
-        if (maxHealthAttr != null) {
-            double currentBase = maxHealthAttr.getBaseValue();
-            double dockedBase = Math.max(6.0, currentBase - 4.0); // Docks 2 full hearts (4 HP)
-            maxHealthAttr.setBaseValue(dockedBase);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 1.6f);
+        player.swingMainHand();
 
-            target.damage(6.0, player);
-            target.getWorld().playSound(target.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, 1.5f, 0.5f);
-            target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.05);
+        // Unleash a horizontal crescent wave of wither skulls in a 5-block cone
+        Location eye = player.getEyeLocation();
+        Vector baseDir = eye.getDirection().setY(0).normalize();
 
-            player.sendMessage(Component.text("✦ You claimed Thirty Pieces of Silver! Docked 2 max hearts from " + target.getName(), NamedTextColor.DARK_RED));
-            target.sendMessage(Component.text("⚔ Your soul was betrayed! Judas docked your maximum health!", NamedTextColor.DARK_RED));
+        for (int angle = -40; angle <= 40; angle += 20) {
+            Vector dir = baseDir.clone().rotateAroundY(Math.toRadians(angle)).multiply(1.4);
+            WitherSkull skull = player.launchProjectile(WitherSkull.class, dir);
+            skull.setCharged(false);
         }
 
+        // Damage and Wither II for 5s to all entities in 5-block cone
+        for (LivingEntity target : player.getWorld().getNearbyLivingEntities(player.getLocation(), 6.0)) {
+            if (target.equals(player)) continue;
+            Vector toTarget = target.getLocation().toVector().subtract(player.getLocation().toVector()).normalize();
+            if (baseDir.dot(toTarget) > 0.4) {
+                target.damage(10.0, player);
+                target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 1));
+            }
+        }
+
+        player.sendMessage(Component.text("✦ Crescent Bloodmoon unleashed!", NamedTextColor.DARK_RED));
         return true;
     }
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
-        // Bloodfeast: Lifesteal
-        double heal = Math.min(attacker.getMaxHealth(), attacker.getHealth() + (damage * 0.25));
-        attacker.setHealth(heal);
-        attacker.getWorld().spawnParticle(Particle.HEART, attacker.getLocation().add(0, 1.5, 0), 2);
+        // Bite: 25% chance to trigger debuff hit (wither, nausea, blindness), 30s cooldown
+        long now = System.currentTimeMillis();
+        long lastBite = biteCooldown.getOrDefault(attacker.getUniqueId(), 0L);
 
-        // Unfree: Darkness & Slowness
-        target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 60, 0, false, false));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 1, false, false));
+        if (now - lastBite > 30000L && random.nextDouble() < 0.25) {
+            biteCooldown.put(attacker.getUniqueId(), now);
 
-        // Bite: Bleedout over time
-        new BukkitRunnable() {
-            int ticks = 0;
+            target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 1));
+            target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 120, 0));
+            target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 80, 0));
 
-            @Override
-            public void run() {
-                ticks++;
-                if (!target.isValid() || ticks > 4) {
-                    cancel();
-                    return;
-                }
-                target.damage(1.5, attacker);
-                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, target.getLocation().add(0, 1, 0), 3);
-            }
-        }.runTaskTimer(plugin, 10L, 10L);
+            target.getWorld().playSound(target.getLocation(), Sound.ENTITY_FOX_BITE, 1.5f, 0.6f);
+            attacker.sendMessage(Component.text("✦ Bite triggered! Target inflicted with Wither, Nausea & Blindness.", NamedTextColor.DARK_RED));
+        }
+
+        // Unfree: Judas gift (random debuff on victim or small drawback on attacker)
+        if (random.nextDouble() < 0.15) {
+            PotionEffectType[] curses = new PotionEffectType[]{
+                    PotionEffectType.SLOWNESS, PotionEffectType.MINING_FATIGUE, PotionEffectType.WEAKNESS, PotionEffectType.DARKNESS
+            };
+            PotionEffectType curse = curses[random.nextInt(curses.length)];
+            attacker.addPotionEffect(new PotionEffect(curse, 80, 0));
+            attacker.sendMessage(Component.text("✦ Unfree: You received a gift from Judas...", NamedTextColor.DARK_GRAY));
+        }
     }
 }

@@ -15,13 +15,13 @@ import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -32,43 +32,64 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class VoidBreaker extends LegendaryWeapon {
 
-    // Crumble charge stacks: UUID -> Stacks (0 - 10)
-    private final Map<UUID, Integer> crumbleStacks = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> crumbleHits = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> doubleJumpCooldown = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> riftedCooldown = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> riftedCDDuration = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> boundCharges = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastDashTime = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean> fracturedArmed = new ConcurrentHashMap<>();
 
     public VoidBreaker(ChurchSMP plugin) {
         super(plugin,
                 "voidbreaker",
                 new String[]{"void_breaker", "abyssal_shatter"},
-                Component.text("VoidBreaker", TextColor.color(0x9400D3)).decorate(TextDecoration.BOLD),
-                Material.NETHERITE_AXE,
+                Component.text("Voidbreaker", TextColor.color(0x9400D3)).decorate(TextDecoration.BOLD),
+                Material.MACE,
                 Alignment.NULLIFIED,
                 "Fractured",
-                "Bound & Infection");
+                "Bound");
     }
 
     @Override
     public ItemStack createItem() {
+        return createItemWithEnchant(true); // Default to Density 6
+    }
+
+    public ItemStack createItemWithEnchant(boolean useDensity) {
         ItemStack item = new ItemStack(baseMaterial);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
+            lore.add(Component.text("The Abandoned Unknowing.", TextColor.color(0xDA70D6)).decorate(TextDecoration.ITALIC));
+            lore.add(Component.empty());
             lore.add(Component.text("✦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
             lore.add(Component.empty());
             lore.add(Component.text("Passives:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" • Voidfeels: ", NamedTextColor.DARK_AQUA).append(Component.text("Absolute immunity to Levitation and Void blindness.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Crumble: ", NamedTextColor.DARK_AQUA).append(Component.text("Builds to an empowered slam (expand→close→explode).", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Rifted: ", NamedTextColor.DARK_AQUA).append(Component.text("Crits rip spacetime to warp behind target.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Voidfeels: ", NamedTextColor.DARK_AQUA).append(Component.text("Double Jump in mid-air. (5s CD)", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Crumble: ", NamedTextColor.DARK_AQUA).append(Component.text("Slam counter (1/3, 2/3, 3/3); 4th hit doubles damage with aftershock; missed shock rebounds for half. Resets on hit.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" • Rifted: ", NamedTextColor.DARK_AQUA).append(Component.text("Sneaking Double Jump launches at crosshair. (30s CD, halved each slam)", NamedTextColor.WHITE)));
             lore.add(Component.empty());
             lore.add(Component.text("Abilities:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Fractured: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Shatter the floor with erupting void fissures.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Bound & Infection: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Binds target and inflicts the Fallen debuff.", NamedTextColor.WHITE)));
+            lore.add(Component.text(" [Primary] Fractured: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Next hit embeds Fallen debuff + 2s stun. (75s CD)", NamedTextColor.WHITE)));
+            lore.add(Component.text(" [Secondary] Bound: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Dash (3/3 charges, 1s cooldown); landing mace hit grants +1 charge. Active for 10s.", NamedTextColor.WHITE)));
             lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
 
             meta.lore(lore);
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
-            meta.addEnchant(Enchantment.SHARPNESS, 6, true);
+
+            // 1.21 Mace Enchantments: Wind Burst 3, Density 6 or Breach 6
+            try {
+                meta.addEnchant(Enchantment.WIND_BURST, 3, true);
+                if (useDensity) {
+                    meta.addEnchant(Enchantment.DENSITY, 6, true);
+                } else {
+                    meta.addEnchant(Enchantment.BREACH, 6, true);
+                }
+            } catch (Throwable ignored) {}
+
             meta.addEnchant(Enchantment.UNBREAKING, 3, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
@@ -81,121 +102,142 @@ public class VoidBreaker extends LegendaryWeapon {
         String key = id + "_primary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
-        int cd = plugin.getConfig().getInt("weapons.voidbreaker.primary_cooldown", 22);
+        int cd = plugin.getConfig().getInt("weapons.voidbreaker.primary_cooldown", 75);
         plugin.getCooldownManager().setCooldown(player, key, cd);
+        plugin.getBossBarManager().showActiveCountdown(player, "Fractured Strike Armed", BossBar.Color.PURPLE, 15);
 
-        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.5f);
-
-        // Fractured: ground void fissures in a forward line
-        Location eye = player.getEyeLocation();
-        Vector dir = eye.getDirection().setY(0).normalize();
-        for (int i = 1; i <= 14; i++) {
-            Location p = eye.clone().add(dir.clone().multiply(i)).subtract(0, 1.2, 0);
-            p.getWorld().spawnParticle(Particle.DRAGON_BREATH, p, 15, 0.4, 0.2, 0.4, 0.02);
-            p.getWorld().spawnParticle(Particle.PORTAL, p, 10, 0.3, 0.3, 0.3, 0.1);
-
-            for (LivingEntity e : p.getWorld().getNearbyLivingEntities(p, 1.6)) {
-                if (e.equals(player)) continue;
-                e.damage(12.0, player);
-                e.setVelocity(new Vector(0, 0.8, 0)); // knock up
-            }
-        }
-
+        fracturedArmed.put(player.getUniqueId(), true);
+        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
+        player.sendMessage(Component.text("✦ Fractured armed! Your next strike inflicts the devastating Fallen debuff & stuns for 2s.", NamedTextColor.DARK_PURPLE));
         return true;
     }
 
     @Override
     public boolean executeSecondary(Player player) {
         String key = id + "_secondary";
-        if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
+        long now = System.currentTimeMillis();
 
-        LivingEntity target = null;
-        for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 10.0)) {
-            if (e.equals(player)) continue;
-            target = e;
-            break;
+        // Check active duration
+        if (!plugin.getCooldownManager().isActive(player, key)) {
+            if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
+
+            // Start Bound ability (10s active duration)
+            plugin.getCooldownManager().setActiveDuration(player, key, 10);
+            plugin.getBossBarManager().showActiveCountdown(player, "Bound Active (Dash)", BossBar.Color.PURPLE, 10);
+            boundCharges.put(player.getUniqueId(), 3);
         }
 
-        if (target == null) {
-            player.sendMessage(Component.text("No target found within void range!", NamedTextColor.RED));
+        int charges = boundCharges.getOrDefault(player.getUniqueId(), 3);
+        if (charges <= 0) {
+            player.sendMessage(Component.text("✦ Bound: Out of dash charges! Land a mace hit to gain +1 charge.", NamedTextColor.RED));
             return false;
         }
 
-        int cd = plugin.getConfig().getInt("weapons.voidbreaker.secondary_cooldown", 40);
-        plugin.getCooldownManager().setCooldown(player, key, cd);
-        plugin.getBossBarManager().showActiveCountdown(player, "Bound: Fallen Infection", BossBar.Color.PURPLE, 6);
+        // 1s cooldown between dashes
+        long lastDash = lastDashTime.getOrDefault(player.getUniqueId(), 0L);
+        if (now - lastDash < 1000L) {
+            return false;
+        }
 
-        // Bound & Infection: Binds and inflicts Fallen debuff
-        target.setVelocity(new Vector(0, 0, 0));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 120, 10, false, false));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 120, 1, false, false));
-        target.getWorld().playSound(target.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 1.5f, 0.6f);
+        lastDashTime.put(player.getUniqueId(), now);
+        charges--;
+        boundCharges.put(player.getUniqueId(), charges);
 
-        player.sendMessage(Component.text("✦ " + target.getName() + " was infected with the Fallen debuff! (Healing cut, bound in place)", NamedTextColor.DARK_PURPLE));
-        target.sendMessage(Component.text("⚔ The Void binds you! Fallen debuff applied!", NamedTextColor.DARK_PURPLE));
+        // Perform dash
+        Vector dash = player.getLocation().getDirection().normalize().multiply(1.7).setY(0.2);
+        player.setVelocity(dash);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 25, 0.4, 0.4, 0.4, 0.1);
 
+        player.sendMessage(Component.text("✦ Bound Dash! Charges remaining: " + charges + "/3", NamedTextColor.LIGHT_PURPLE));
         return true;
+    }
+
+    public void handleDoubleJump(Player player) {
+        long now = System.currentTimeMillis();
+
+        if (player.isSneaking()) {
+            // Rifted: launches at crosshair (30s CD, halved each mace slam)
+            long lastRifted = riftedCooldown.getOrDefault(player.getUniqueId(), 0L);
+            long cdDuration = riftedCDDuration.getOrDefault(player.getUniqueId(), 30000L);
+
+            if (now - lastRifted < cdDuration) {
+                double remaining = Math.round((cdDuration - (now - lastRifted)) / 100.0) / 10.0;
+                player.sendMessage(Component.text("Rifted launch on cooldown: " + remaining + "s", NamedTextColor.RED));
+                return;
+            }
+
+            riftedCooldown.put(player.getUniqueId(), now);
+            Vector launch = player.getEyeLocation().getDirection().normalize().multiply(2.2);
+            player.setVelocity(launch);
+            player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.5f, 1.4f);
+            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 20, 0.5, 0.5, 0.5, 0.05);
+            player.sendMessage(Component.text("✦ Rifted Crosshair Launch!", NamedTextColor.DARK_PURPLE));
+            return;
+        }
+
+        // Voidfeels: standard double jump (5s CD)
+        long lastDJ = doubleJumpCooldown.getOrDefault(player.getUniqueId(), 0L);
+        if (now - lastDJ < 5000L) return;
+
+        doubleJumpCooldown.put(player.getUniqueId(), now);
+        player.setVelocity(new Vector(player.getVelocity().getX(), 0.9, player.getVelocity().getZ()));
+        player.playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.2f, 1.2f);
+        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 15, 0.3, 0.1, 0.3, 0.05);
     }
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
-        // Voidfeels: remove negative effects if any
-        attacker.removePotionEffect(PotionEffectType.LEVITATION);
-        attacker.removePotionEffect(PotionEffectType.DARKNESS);
-
-        // Build Crumble Stacks
-        int stacks = crumbleStacks.getOrDefault(attacker.getUniqueId(), 0) + 1;
-        if (stacks >= 10) {
-            // Trigger Crumble Slam: expand -> close -> explode sequence
-            triggerCrumbleSlam(attacker);
-            crumbleStacks.put(attacker.getUniqueId(), 0);
-        } else {
-            crumbleStacks.put(attacker.getUniqueId(), stacks);
-            if (stacks >= 7) {
-                // "Ready" trail indicator
-                attacker.getWorld().spawnParticle(Particle.PORTAL, attacker.getLocation().add(0, 0.2, 0), 15, 0.2, 0.1, 0.2, 0.05);
-                attacker.sendMessage(Component.text("✦ Crumble charging: " + stacks + "/10", NamedTextColor.LIGHT_PURPLE));
+        // Bound: +1 charge if hit landed while active
+        String boundKey = id + "_secondary";
+        if (plugin.getCooldownManager().isActive(attacker, boundKey)) {
+            int c = boundCharges.getOrDefault(attacker.getUniqueId(), 0);
+            if (c < 3) {
+                boundCharges.put(attacker.getUniqueId(), c + 1);
+                attacker.sendMessage(Component.text("✦ Bound: +1 Dash Charge from hit! (" + (c + 1) + "/3)", NamedTextColor.LIGHT_PURPLE));
             }
+        }
+
+        // Halve Rifted cooldown on mace slam
+        long currentCD = riftedCDDuration.getOrDefault(attacker.getUniqueId(), 30000L);
+        riftedCDDuration.put(attacker.getUniqueId(), Math.max(3750L, currentCD / 2));
+
+        // Fractured: Applies Fallen debuff + 2s stun
+        if (Boolean.TRUE.equals(fracturedArmed.remove(attacker.getUniqueId()))) {
+            plugin.getFallenManager().applyFallen(target);
+            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 255)); // 2s stun
+            attacker.sendMessage(Component.text("✦ Fractured strike landed! Target infected with Fallen!", NamedTextColor.DARK_PURPLE));
+        }
+
+        // Crumble: 1/3, 2/3, 3/3, 4th hit doubles damage with aftershock
+        int hits = crumbleHits.getOrDefault(attacker.getUniqueId(), 0) + 1;
+        if (hits < 4) {
+            crumbleHits.put(attacker.getUniqueId(), hits);
+            attacker.sendMessage(Component.text("✦ Crumble: " + hits + "/3", NamedTextColor.LIGHT_PURPLE));
+            attacker.playSound(attacker.getLocation(), Sound.BLOCK_ANVIL_USE, 0.8f, 1.2f + (hits * 0.2f));
+        } else {
+            // 4th hit: Double damage with aftershock explosion
+            crumbleHits.put(attacker.getUniqueId(), 0);
+            target.damage(damage, attacker); // Double hit
+
+            Location loc = target.getLocation();
+            loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.8f);
+            loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 2);
+
+            for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 4.0)) {
+                if (e.equals(attacker)) continue;
+                e.damage(8.0, attacker);
+            }
+            attacker.sendMessage(Component.text("✦ CRUMBLE 4th HIT AFTERSHOCK!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
         }
     }
 
-    private void triggerCrumbleSlam(Player player) {
-        Location center = player.getLocation();
-        player.sendMessage(Component.text("✦ CRUMBLE SLAM TRIGGERED!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
-
-        // Animated expand -> close -> explode sequence
-        new BukkitRunnable() {
-            int step = 0;
-
-            @Override
-            public void run() {
-                step++;
-                if (step == 1) {
-                    // Expand
-                    for (int deg = 0; deg < 360; deg += 15) {
-                        double rad = Math.toRadians(deg);
-                        center.getWorld().spawnParticle(Particle.DRAGON_BREATH, center.clone().add(Math.cos(rad) * 4.0, 0.5, Math.sin(rad) * 4.0), 1);
-                    }
-                    center.getWorld().playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 1.0f);
-                } else if (step == 2) {
-                    // Close
-                    for (int deg = 0; deg < 360; deg += 15) {
-                        double rad = Math.toRadians(deg);
-                        center.getWorld().spawnParticle(Particle.PORTAL, center.clone().add(Math.cos(rad) * 1.5, 0.5, Math.sin(rad) * 1.5), 2);
-                    }
-                } else if (step == 3) {
-                    // Explode
-                    center.getWorld().playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.7f);
-                    center.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, center, 2);
-
-                    for (LivingEntity e : center.getWorld().getNearbyLivingEntities(center, 6.0)) {
-                        if (e.equals(player)) continue;
-                        e.damage(16.0, player);
-                        e.setVelocity(e.getLocation().toVector().subtract(center.toVector()).normalize().multiply(1.4).setY(0.4));
-                    }
-                    cancel();
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 5L);
+    @Override
+    public void onDamaged(Player victim, EntityDamageEvent event) {
+        // Crumble: Resets after taking damage of any kind
+        Integer hits = crumbleHits.remove(victim.getUniqueId());
+        if (hits != null && hits > 0) {
+            victim.sendMessage(Component.text("✦ Crumble hit counter reset by incoming damage!", NamedTextColor.RED));
+        }
     }
 }

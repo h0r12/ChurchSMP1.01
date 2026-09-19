@@ -20,6 +20,7 @@ public class ChurchSMP extends JavaPlugin {
 
     private static ChurchSMP instance;
 
+    private FallenEffectManager fallenManager;
     private AlignmentManager alignmentManager;
     private CooldownManager cooldownManager;
     private BossBarManager bossBarManager;
@@ -37,6 +38,7 @@ public class ChurchSMP extends JavaPlugin {
             saveDefaultConfig();
 
             // Managers
+            this.fallenManager = new com.churchsmp.effect.FallenEffectManager(this);
             this.alignmentManager = new AlignmentManager(this);
             this.cooldownManager = new CooldownManager(this);
             this.bossBarManager = new BossBarManager(this);
@@ -81,6 +83,10 @@ public class ChurchSMP extends JavaPlugin {
 
     public static ChurchSMP getInstance() {
         return instance;
+    }
+
+    public FallenEffectManager getFallenManager() {
+        return fallenManager;
     }
 
     public AlignmentManager getAlignmentManager() {

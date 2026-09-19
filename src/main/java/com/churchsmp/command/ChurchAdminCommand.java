@@ -73,7 +73,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
             }
             case "giveweapon" -> {
                 if (args.length < 3) {
-                    sender.sendMessage(Component.text("Usage: /churchadmin giveweapon <player> <weapon_id>", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Usage: /churchadmin giveweapon <player> <weapon_id> [extra_arg]", NamedTextColor.RED));
                     return true;
                 }
                 Player target = Bukkit.getPlayer(args[1]);
@@ -86,7 +86,20 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("Unknown weapon ID: " + args[2], NamedTextColor.RED));
                     return true;
                 }
-                target.getInventory().addItem(weapon.createItem());
+
+                ItemStack item;
+                if (weapon instanceof com.churchsmp.weapon.Grim grim && args.length >= 4) {
+                    int kills = 0;
+                    try { kills = Integer.parseInt(args[3]); } catch (NumberFormatException ignored) {}
+                    item = grim.createItemWithKills(kills);
+                } else if (weapon instanceof com.churchsmp.weapon.VoidBreaker vb && args.length >= 4) {
+                    boolean useDensity = !args[3].equalsIgnoreCase("breach");
+                    item = vb.createItemWithEnchant(useDensity);
+                } else {
+                    item = weapon.createItem();
+                }
+
+                target.getInventory().addItem(item);
                 sender.sendMessage(Component.text("Gave ", NamedTextColor.GREEN).append(weapon.getDisplayName()).append(Component.text(" to " + target.getName())));
             }
             case "givegem" -> {

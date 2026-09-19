@@ -57,23 +57,23 @@ gems:
 # Legendary Weapons Settings
 weapons:
   excalibur:
-    primary_cooldown: 18
-    secondary_cooldown: 25
+    primary_cooldown: 45
+    secondary_cooldown: 80
   luminescence_spear:
-    primary_cooldown: 10
-    secondary_cooldown: 30
+    primary_cooldown: 12
+    secondary_cooldown: 130
   mayim:
-    primary_cooldown: 15
-    secondary_cooldown: 28
+    primary_cooldown: 30
+    secondary_cooldown: 45
   judas:
     primary_cooldown: 16
-    secondary_cooldown: 45
-  sorrowess:
-    primary_cooldown: 20
-    secondary_cooldown: 35
-  voidbreaker:
-    primary_cooldown: 22
     secondary_cooldown: 40
+  sorrowess:
+    primary_cooldown: 30
+    secondary_cooldown: 100
+  voidbreaker:
+    primary_cooldown: 75
+    secondary_cooldown: 10
   grim:
-    primary_cooldown: 14
-    secondary_cooldown: 32
+    primary_cooldown: 60
+    secondary_cooldown: 80

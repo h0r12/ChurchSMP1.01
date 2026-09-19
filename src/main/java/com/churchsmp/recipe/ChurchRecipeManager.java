@@ -29,20 +29,20 @@ public class ChurchRecipeManager implements Listener {
         // Luminescence Spear: requires Trident, Amethyst Shard, and Greed Gem
         registerWeaponRecipe("recipe_luminescence_spear", "luminescence_spear", SinGemType.GREED, Material.AMETHYST_SHARD, Material.TRIDENT);
 
-        // Mayim: requires Heart of the Sea, Breeze Rod / Stick, and Gluttony Gem
-        registerWeaponRecipe("recipe_mayim", "mayim", SinGemType.GLUTTONY, Material.HEART_OF_THE_SEA, Material.STICK);
+        // Mayim: requires Heart of the Sea, Netherite Sword, and Gluttony Gem
+        registerWeaponRecipe("recipe_mayim", "mayim", SinGemType.GLUTTONY, Material.HEART_OF_THE_SEA, Material.NETHERITE_SWORD);
 
-        // Judas: requires Netherite Sword, 30 Silver/Gold, and Wrath Gem
-        registerWeaponRecipe("recipe_judas", "judas", SinGemType.WRATH, Material.GOLD_BLOCK, Material.NETHERITE_SWORD);
+        // Judas: requires Netherite Axe, Gold Block, and Wrath Gem
+        registerWeaponRecipe("recipe_judas", "judas", SinGemType.WRATH, Material.GOLD_BLOCK, Material.NETHERITE_AXE);
 
-        // Sorrowess: requires Netherite Sword, Crying Obsidian, and Envy Gem
-        registerWeaponRecipe("recipe_sorrowess", "sorrowess", SinGemType.ENVY, Material.CRYING_OBSIDIAN, Material.NETHERITE_SWORD);
+        // Sorrowess: requires Trident, Crying Obsidian, and Envy Gem
+        registerWeaponRecipe("recipe_sorrowess", "sorrowess", SinGemType.ENVY, Material.CRYING_OBSIDIAN, Material.TRIDENT);
 
-        // VoidBreaker: requires Netherite Axe, Echo Shards, and Wrath Gem
-        registerWeaponRecipe("recipe_voidbreaker", "voidbreaker", SinGemType.WRATH, Material.ECHO_SHARD, Material.NETHERITE_AXE);
+        // VoidBreaker: requires Mace, Echo Shards, and Wrath Gem
+        registerWeaponRecipe("recipe_voidbreaker", "voidbreaker", SinGemType.WRATH, Material.ECHO_SHARD, Material.MACE);
 
-        // Grim: requires Netherite Hoe, Wither Skeleton Skull, and Sloth Gem
-        registerWeaponRecipe("recipe_grim", "grim", SinGemType.SLOTH, Material.WITHER_SKELETON_SKULL, Material.NETHERITE_HOE);
+        // Grim: requires Netherite Sword, Wither Skeleton Skull, and Sloth Gem
+        registerWeaponRecipe("recipe_grim", "grim", SinGemType.SLOTH, Material.WITHER_SKELETON_SKULL, Material.NETHERITE_SWORD);
     }
 
     private void registerWeaponRecipe(String recipeKeyStr, String weaponId, SinGemType gemType, Material coreMaterial, Material baseMaterial) {
