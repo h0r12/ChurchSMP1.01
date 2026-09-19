@@ -6,6 +6,7 @@ import com.churchsmp.command.ChurchCommand;
 import com.churchsmp.cooldown.ActionBarCooldownTask;
 import com.churchsmp.cooldown.BossBarManager;
 import com.churchsmp.cooldown.CooldownManager;
+import com.churchsmp.effect.FallenEffectManager;
 import com.churchsmp.gem.SinGemAbilityExecutor;
 import com.churchsmp.gem.SinGemManager;
 import com.churchsmp.listener.CombatListener;
