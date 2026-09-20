@@ -21,6 +21,10 @@ public class ImpietyItem {
     private static final Material BASE_MATERIAL = Material.RECOVERY_COMPASS;
 
     public static ItemStack create(ChurchSMP plugin) {
+        return createImpietyItem(plugin);
+    }
+
+    public static ItemStack createImpietyItem(ChurchSMP plugin) {
         ItemStack item = new ItemStack(BASE_MATERIAL);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -47,6 +51,10 @@ public class ImpietyItem {
     }
 
     public static boolean isImpiety(ChurchSMP plugin, ItemStack item) {
+        return isImpietyItem(item, plugin);
+    }
+
+    public static boolean isImpietyItem(ItemStack item, ChurchSMP plugin) {
         if (item == null || !item.hasItemMeta()) return false;
         NamespacedKey key = new NamespacedKey(plugin, "is_impiety");
         return item.getItemMeta().getPersistentDataContainer().has(key, PersistentDataType.BOOLEAN);

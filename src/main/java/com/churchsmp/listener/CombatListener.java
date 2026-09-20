@@ -5,6 +5,7 @@ import com.churchsmp.weapon.Grim;
 import com.churchsmp.weapon.Judas;
 import com.churchsmp.weapon.LegendaryWeapon;
 import com.churchsmp.weapon.LuminescenceSpear;
+import com.churchsmp.weapon.Sorrowess;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.LivingEntity;
