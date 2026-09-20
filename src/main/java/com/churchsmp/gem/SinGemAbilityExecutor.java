@@ -4,6 +4,7 @@ import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -204,7 +205,7 @@ public class SinGemAbilityExecutor {
     // -------------------------------------------------------------
     private void activatePride(Player player, int duration) {
         player.playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.8f, 1.5f);
-        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1, 0), 3);
+        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1, 0), 3, Color.WHITE);
 
         // Knockback burst
         for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 7.0)) {

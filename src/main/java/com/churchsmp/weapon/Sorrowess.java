@@ -137,7 +137,7 @@ public class Sorrowess extends LegendaryWeapon {
 
                     if (itemEntity.getLocation().distance(finalTarget.getLocation().add(0, 1.0, 0)) < 1.5) {
                         Location hitLoc = finalTarget.getLocation().add(0, 1.0, 0);
-                        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1);
+                        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1, Color.WHITE);
                         hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 8, 0.3, 0.3, 0.3, 0, redDust);
 
                         itemEntity.remove();
@@ -323,7 +323,7 @@ public class Sorrowess extends LegendaryWeapon {
         Location hitLoc = hitClone.getLocation();
         hitLoc.getWorld().playSound(hitLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.2f);
         hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.2f);
-        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc.clone().add(0, 1, 0), 1);
+        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc.clone().add(0, 1, 0), 1, Color.WHITE);
         hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc.clone().add(0, 1, 0), 25, 0.4, 0.5, 0.4, 0, new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.5f));
 
         hitClone.remove();

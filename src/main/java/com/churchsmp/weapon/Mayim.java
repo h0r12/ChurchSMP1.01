@@ -224,7 +224,7 @@ public class Mayim extends LegendaryWeapon {
                     // Explode in 5x5 giving Slowness II for 10s
                     curr.getWorld().playSound(curr, Sound.BLOCK_GLASS_BREAK, 1.8f, 0.7f);
                     curr.getWorld().playSound(curr, Sound.ITEM_TRIDENT_THUNDER, 1.2f, 1.6f);
-                    curr.getWorld().spawnParticle(Particle.FLASH, curr, 2);
+                    curr.getWorld().spawnParticle(Particle.FLASH, curr, 2, Color.WHITE);
                     curr.getWorld().spawnParticle(Particle.EXPLOSION, curr, 2);
                     curr.getWorld().spawnParticle(Particle.SNOWFLAKE, curr, 100, 2.5, 1.0, 2.5, 0.15);
                     curr.getWorld().spawnParticle(Particle.BLOCK, curr, 50, 2.0, 0.8, 2.0, 0.2, Material.BLUE_ICE.createBlockData());

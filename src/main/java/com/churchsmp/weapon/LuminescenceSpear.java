@@ -227,7 +227,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
                     double offsetZ = (Math.random() - 0.5) * 0.7;
                     currentBolt.add(offsetX, -0.6, offsetZ);
 
-                    currentBolt.getWorld().spawnParticle(Particle.FLASH, currentBolt, 1);
+                    currentBolt.getWorld().spawnParticle(Particle.FLASH, currentBolt, 1, Color.WHITE);
                     currentBolt.getWorld().spawnParticle(Particle.END_ROD, currentBolt, 2, 0.05, 0.05, 0.05, 0.01);
                     currentBolt.getWorld().spawnParticle(Particle.DUST, currentBolt, 3, 0.1, 0.1, 0.1, 0, whiteDust);
                     currentBolt.getWorld().spawnParticle(Particle.DUST, currentBolt, 2, 0.1, 0.1, 0.1, 0, lightBlueDust);
@@ -240,7 +240,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
                 // Sonic Boom burst at ground
                 loc.getWorld().spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.0, 0), 1);
-                loc.getWorld().spawnParticle(Particle.FLASH, loc.clone().add(0, 1.0, 0), 3);
+                loc.getWorld().spawnParticle(Particle.FLASH, loc.clone().add(0, 1.0, 0), 3, Color.WHITE);
 
                 // Reduced damage (5.0 HP = 2.5 hearts)
                 target.damage(5.0, thrower);

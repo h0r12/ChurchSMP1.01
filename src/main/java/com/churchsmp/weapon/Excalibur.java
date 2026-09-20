@@ -181,46 +181,22 @@ public class Excalibur extends LegendaryWeapon {
         plugin.getCooldownManager().setCooldown(player, key, cd);
         plugin.getBossBarManager().showActiveCountdown(player, "Altar Pining", BossBar.Color.YELLOW, 4);
 
-        // Altar Pining: Pulls everyone into you, Excalibur ascends, slams down
-        Location feet = player.getLocation();
-        feet.getWorld().playSound(feet, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.5f, 0.6f);
-        feet.getWorld().playSound(feet, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.4f);
+        // Altar Pining: Pulls everyone into you, celestial Excalibur descends, slam impact
+        final Location altarCenter = player.getLocation().clone();
+        altarCenter.getWorld().playSound(altarCenter, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.4f);
+        altarCenter.getWorld().playSound(altarCenter, Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.8f);
+        altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_EVOKER_CAST_SPELL, 1.4f, 0.8f);
 
-        Particle.DustOptions ringYellow = new Particle.DustOptions(Color.fromRGB(255, 220, 0), 1.8f);
-        Particle.DustOptions ringOrange = new Particle.DustOptions(Color.fromRGB(255, 130, 0), 1.8f);
-        Particle.DustOptions ringRed = new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.8f);
+        final Particle.DustOptions ringYellow = new Particle.DustOptions(Color.fromRGB(255, 220, 0), 1.8f);
+        final Particle.DustOptions ringOrange = new Particle.DustOptions(Color.fromRGB(255, 130, 0), 1.8f);
+        final Particle.DustOptions ringRed = new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.8f);
+        final Particle.DustOptions bladeGold = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 2.2f);
+        final Particle.DustOptions bladeWhite = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
 
-        // Concentric rings at feet
-        for (int deg = 0; deg < 360; deg += 15) {
-            double rad = Math.toRadians(deg);
-            feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 1.5, 0.1, Math.sin(rad) * 1.5), 1, 0, 0, 0, 0, ringYellow);
-        }
-        for (int deg = 0; deg < 360; deg += 12) {
-            double rad = Math.toRadians(deg);
-            feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 3.0, 0.1, Math.sin(rad) * 3.0), 1, 0, 0, 0, 0, ringOrange);
-        }
-        for (int deg = 0; deg < 360; deg += 10) {
-            double rad = Math.toRadians(deg);
-            feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 4.5, 0.1, Math.sin(rad) * 4.5), 1, 0, 0, 0, 0, ringRed);
-        }
+        // Player ascends into the air to command the celestial descent
+        player.setVelocity(new Vector(0, 1.35, 0));
+        player.setFallDistance(0);
 
-        // Particle sword ascending aura
-        for (double y = 0; y <= 3.5; y += 0.3) {
-            feet.getWorld().spawnParticle(Particle.WAX_ON, feet.clone().add(0, y, 0), 3, 0.1, 0.05, 0.1, 0.02);
-            feet.getWorld().spawnParticle(Particle.END_ROD, feet.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.01);
-        }
-
-        // Pull nearby entities in 10-block radius in towards the player
-        for (LivingEntity e : feet.getWorld().getNearbyLivingEntities(feet, 10.0, 6.0, 10.0)) {
-            if (e.equals(player)) continue;
-            Vector pull = feet.toVector().subtract(e.getLocation().toVector()).normalize().multiply(1.3).setY(0.35);
-            e.setVelocity(pull);
-        }
-
-        // Player ascends slightly to prepare descend
-        player.setVelocity(new Vector(0, 1.4, 0));
-
-        // Descend & Slam impact after 16 ticks
         new BukkitRunnable() {
             int ticks = 0;
             boolean slammed = false;
@@ -228,42 +204,123 @@ public class Excalibur extends LegendaryWeapon {
             @Override
             public void run() {
                 ticks++;
-                if (ticks == 15 && !slammed) {
-                    player.setVelocity(new Vector(0, -3.0, 0));
-                    slammed = true;
+
+                // Phase 1: Vortex Suction & Altar Runes (ticks 1 - 15)
+                if (ticks <= 15) {
+                    // Concentric spinning ground runes at altarCenter
+                    double spin = Math.toRadians(ticks * 16);
+                    for (int deg = 0; deg < 360; deg += 20) {
+                        double rad = Math.toRadians(deg) + spin;
+                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(Math.cos(rad) * 1.8, 0.1, Math.sin(rad) * 1.8), 1, 0, 0, 0, 0, ringYellow);
+                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(Math.cos(rad) * 3.2, 0.1, Math.sin(rad) * 3.2), 1, 0, 0, 0, 0, ringOrange);
+                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(Math.cos(rad) * 4.8, 0.1, Math.sin(rad) * 4.8), 1, 0, 0, 0, 0, ringRed);
+                    }
+
+                    // Upward light beams at altar boundary
+                    for (double y = 0; y <= 3.0; y += 0.6) {
+                        altarCenter.getWorld().spawnParticle(Particle.WAX_ON, altarCenter.clone().add(0, y, 0), 2, 0.1, 0.05, 0.1, 0.02);
+                        altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.01);
+                    }
+
+                    // Irresistible Suction Pull: continuously drag all entities within 12 blocks into altar center
+                    for (LivingEntity e : altarCenter.getWorld().getNearbyLivingEntities(altarCenter, 12.0, 8.0, 12.0)) {
+                        if (e.equals(player)) continue;
+                        Vector toCenter = altarCenter.toVector().subtract(e.getLocation().toVector());
+                        double dist = toCenter.length();
+                        if (dist > 0.8) {
+                            Vector pull = toCenter.normalize().multiply(Math.min(1.4, 0.45 + (dist * 0.12))).setY(0.22);
+                            e.setVelocity(pull);
+
+                            // Tether particle connecting entity to center
+                            Location eLoc = e.getLocation().add(0, 1.0, 0);
+                            eLoc.getWorld().spawnParticle(Particle.DUST, eLoc, 2, 0.1, 0.1, 0.1, 0, ringYellow);
+                        }
+                    }
                 }
 
-                if (slammed && (player.isOnGround() || ticks >= 35)) {
-                    Location impact = player.getLocation();
-                    impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.8f, 0.8f);
-                    impact.getWorld().playSound(impact, Sound.BLOCK_ANVIL_LAND, 1.5f, 0.7f);
-                    impact.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, impact, 2);
-                    impact.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, impact, 120, 3.5, 0.6, 3.5, 0.3);
+                // Phase 2: Celestial Excalibur Descends from the Heavens (ticks 6 - 16)
+                if (ticks >= 6 && ticks <= 16) {
+                    double swordY = Math.max(0.0, 18.0 - (ticks - 6) * 1.8);
+                    Location swordTip = altarCenter.clone().add(0, swordY, 0);
 
-                    // Expanding ground shockwave rings (animated outward over 3 ticks)
-                    for (int wave = 1; wave <= 3; wave++) {
+                    // Blade vertical spine (7 blocks length)
+                    for (double y = 0; y <= 7.0; y += 0.4) {
+                        Location p = swordTip.clone().add(0, y, 0);
+                        p.getWorld().spawnParticle(Particle.END_ROD, p, 1, 0.03, 0.03, 0.03, 0.01);
+                        p.getWorld().spawnParticle(Particle.DUST, p, 2, 0.05, 0.05, 0.05, 0, (y > 4.5) ? bladeGold : bladeWhite);
+                    }
+
+                    // Crossguard at y = 5.0 (3 blocks wide)
+                    for (double w = -1.5; w <= 1.5; w += 0.3) {
+                        swordTip.getWorld().spawnParticle(Particle.DUST, swordTip.clone().add(w, 5.0, 0), 1, 0, 0, 0, 0, ringYellow);
+                        swordTip.getWorld().spawnParticle(Particle.DUST, swordTip.clone().add(0, 5.0, w), 1, 0, 0, 0, 0, ringYellow);
+                    }
+
+                    // Sound of descending celestial blade
+                    altarCenter.getWorld().playSound(swordTip, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 0.6f + (ticks * 0.05f));
+                }
+
+                // Phase 3: Player Plunge Dive (tick 13)
+                if (ticks == 13 && !slammed) {
+                    Vector dive = altarCenter.toVector().subtract(player.getLocation().toVector()).setY(0);
+                    if (dive.length() > 0.1) dive.normalize().multiply(0.8);
+                    dive.setY(-3.5);
+                    player.setVelocity(dive);
+                    player.setFallDistance(0);
+                }
+
+                // Phase 4: Divine Slam Impact (tick 16 or upon hitting ground)
+                if (!slammed && (ticks >= 16 || (ticks > 13 && player.isOnGround()))) {
+                    slammed = true;
+                    player.setFallDistance(0);
+
+                    // Celestial Excalibur & Player slam the ground
+                    altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.75f);
+                    altarCenter.getWorld().playSound(altarCenter, Sound.BLOCK_ANVIL_LAND, 1.8f, 0.5f);
+                    altarCenter.getWorld().playSound(altarCenter, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 1.1f);
+                    altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.5f, 1.2f);
+
+                    altarCenter.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, altarCenter, 3);
+                    altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 160, 3.5, 0.8, 3.5, 0.35);
+
+                    // Rising holy light pillars
+                    for (double y = 0; y <= 6.0; y += 0.5) {
+                        altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 3, 0.2, 0.1, 0.2, 0.02);
+                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(0, y, 0), 3, 0.15, 0.15, 0.15, 0, bladeGold);
+                    }
+
+                    // Multi-wave expanding ground shockwave rings (waves at 2.5, 5.0, 7.5, 10.0 blocks)
+                    for (int wave = 1; wave <= 4; wave++) {
                         final double waveRadius = wave * 2.5;
                         new BukkitRunnable() {
                             @Override
                             public void run() {
-                                for (int d = 0; d < 360; d += 15) {
+                                for (int d = 0; d < 360; d += 12) {
                                     double rad = Math.toRadians(d);
-                                    impact.getWorld().spawnParticle(Particle.DUST,
-                                            impact.clone().add(Math.cos(rad) * waveRadius, 0.15, Math.sin(rad) * waveRadius),
+                                    altarCenter.getWorld().spawnParticle(Particle.DUST,
+                                            altarCenter.clone().add(Math.cos(rad) * waveRadius, 0.15, Math.sin(rad) * waveRadius),
                                             1, 0, 0, 0, 0, ringYellow);
                                 }
                             }
                         }.runTaskLater(plugin, wave * 2L);
                     }
 
-                    for (LivingEntity e : impact.getWorld().getNearbyLivingEntities(impact, 8.0, 4.0, 8.0)) {
+                    // Slam damage & 3-second pin/stun on all caught enemies
+                    for (LivingEntity e : altarCenter.getWorld().getNearbyLivingEntities(altarCenter, 9.0, 5.0, 9.0)) {
                         if (e.equals(player)) continue;
-                        applyTrueDamage(e, 4.0, player); // 2 true damage (4 HP)
-                        // Stun for 3 seconds (Slowness 255 + Jump boost 128)
+                        applyTrueDamage(e, 4.0, player); // 2 hearts true damage (4 HP)
+                        // Stun for 3 seconds (Slowness 255 + Jump boost 128 completely immobilizes)
                         e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 255, false, false));
                         e.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 60, 128, false, false));
-                        e.setVelocity(new Vector(0, 0, 0));
+                        e.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
+                        e.setVelocity(new Vector(0, -0.6, 0)); // Pin firmly to ground
                     }
+
+                    player.sendMessage(Component.text("✦ Excalibur impales the altar! Caught enemies pinned & stunned!", NamedTextColor.GOLD));
+                    cancel();
+                }
+
+                if (ticks > 40) {
                     cancel();
                 }
             }
