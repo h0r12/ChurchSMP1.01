@@ -1,4 +1,4 @@
-﻿package com.churchsmp.effect;
+package com.churchsmp.effect;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;

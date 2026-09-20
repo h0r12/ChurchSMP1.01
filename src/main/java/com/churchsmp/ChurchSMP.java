@@ -1,4 +1,4 @@
-﻿package com.churchsmp;
+package com.churchsmp;
 
 import com.churchsmp.alignment.AlignmentManager;
 import com.churchsmp.command.ChurchAdminCommand;

@@ -1,4 +1,4 @@
-﻿package com.churchsmp.listener;
+package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.weapon.Grim;

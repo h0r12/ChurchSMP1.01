@@ -1,4 +1,4 @@
-﻿package com.churchsmp.recipe;
+package com.churchsmp.recipe;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.gem.SinGemType;

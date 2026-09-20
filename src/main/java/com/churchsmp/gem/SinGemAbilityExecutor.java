@@ -1,4 +1,4 @@
-﻿package com.churchsmp.gem;
+package com.churchsmp.gem;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.bossbar.BossBar;

@@ -1,4 +1,4 @@
-﻿package com.churchsmp.cooldown;
+package com.churchsmp.cooldown;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.bossbar.BossBar;

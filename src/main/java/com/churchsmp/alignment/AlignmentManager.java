@@ -1,4 +1,4 @@
-﻿package com.churchsmp.alignment;
+package com.churchsmp.alignment;
 
 import com.churchsmp.ChurchSMP;
 import net.kyori.adventure.text.Component;

@@ -1,4 +1,4 @@
-﻿package com.churchsmp.gem;
+package com.churchsmp.gem;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
