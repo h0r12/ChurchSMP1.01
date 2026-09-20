@@ -48,7 +48,7 @@ public class Grim extends LegendaryWeapon {
         super(plugin,
                 "grim",
                 new String[]{"scythe_of_cain"},
-                Component.text("Grim", TextColor.color(0x2F4F4F)).decorate(TextDecoration.BOLD),
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<!italic><gradient:#004d00:#556B2F:#004d00><bold>Grim Scythe</bold></gradient>"),
                 Material.NETHERITE_SWORD,
                 Alignment.EVIL,
                 "HollowedOut",
@@ -92,33 +92,116 @@ public class Grim extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_GRAY));
-            lore.add(Component.text("And Soul Cycle Spirals Again", TextColor.color(0x708090)).decorate(TextDecoration.ITALIC));
-            lore.add(Component.empty());
-            lore.add(Component.text("✦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
-            lore.add(Component.empty());
-            lore.add(Component.text("Passives:", NamedTextColor.RED).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" • Disgusts: ", NamedTextColor.GRAY).append(Component.text("Nearby entities receive Nausea & Poison for 2s.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Soultaking: ", NamedTextColor.GRAY).append(Component.text("Throw the sword to steal 2 hearts, teleport behind target, and blind. (60s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" • Reaper: ", NamedTextColor.GRAY).append(Component.text("Each kill permanently adds +1 max heart. Potion effects +20s. Sneak to view kills.", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
-            lore.add(Component.text("Abilities:", NamedTextColor.RED).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] HollowedOut: ", NamedTextColor.DARK_GRAY).append(Component.text("Next hit inflicts Darkness + Slowness II + 40% action fail chance (15s); throw replaced by 6s charging sonic boom. (60s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Dark Particle: ", NamedTextColor.DARK_GRAY).append(Component.text("Sharpness X on next hit; attacks give +1 max health (resets if hit); active 25s. (80s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
+            List<Component> lore = new ArrayList<>(buildCleanLore(List.of("Disgusts", "Soultaking", "Reaper"), "HollowedOut", "Dark Particle"));
             lore.add(Component.text("☠ Souls Reaped: " + startingKills, NamedTextColor.DARK_RED));
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_GRAY));
-
             meta.lore(lore);
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             meta.getPersistentDataContainer().set(killCountKey, PersistentDataType.INTEGER, startingKills);
-            meta.addEnchant(Enchantment.SHARPNESS, 6, true);
-            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            applyStandardEnchants(meta);
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    public void throwScythe(Player player) {
+        // Alignment check
+        if (!plugin.getAlignmentManager().canWield(player, requiredAlignment)) {
+            player.sendMessage(Component.text("✦ Your alignment prevents you from channeling Grim Scythe!", NamedTextColor.RED));
+            return;
+        }
+
+        // If HollowedOut is armed -> fires a sonic boom blast!
+        if (Boolean.TRUE.equals(hollowedOutArmed.remove(player.getUniqueId()))) {
+            Location eye = player.getEyeLocation();
+            Vector dir = eye.getDirection().normalize();
+
+            player.getWorld().playSound(eye, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1.0f);
+            player.getWorld().playSound(eye, Sound.ENTITY_WITHER_SHOOT, 1.2f, 0.6f);
+
+            Particle.DustOptions darkGreen = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 2.0f);
+            Particle.DustOptions grayGreen = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
+
+            Location curr = eye.clone();
+            for (int i = 0; i < 20; i++) {
+                curr.add(dir.clone().multiply(0.8));
+                curr.getWorld().spawnParticle(Particle.DUST, curr, 3, 0.1, 0.1, 0.1, 0, darkGreen);
+                curr.getWorld().spawnParticle(Particle.DUST, curr, 2, 0.1, 0.1, 0.1, 0, grayGreen);
+                curr.getWorld().spawnParticle(Particle.SMOKE, curr, 1, 0.05, 0.05, 0.05, 0.01);
+                if (i % 4 == 0) {
+                    curr.getWorld().spawnParticle(Particle.SONIC_BOOM, curr, 1);
+                }
+
+                for (LivingEntity target : curr.getWorld().getNearbyLivingEntities(curr, 1.5, e -> !e.equals(player))) {
+                    target.damage(8.0, player);
+                    target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
+                    target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1));
+                    failedActionTarget.put(target.getUniqueId(), System.currentTimeMillis() + 15000L);
+                }
+            }
+
+            player.sendMessage(Component.text("✦ HollowedOut unleashed a dark Sonic Boom blast!", NamedTextColor.DARK_GREEN));
+            return;
+        }
+
+        // Soultaking throw: 40s cooldown
+        String cdKey = "grim_soultaking";
+        if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+            return;
+        }
+        plugin.getCooldownManager().setCooldown(player, cdKey, 40);
+
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.2f, 0.8f);
+        player.swingMainHand();
+
+        Vector dir = player.getEyeLocation().getDirection().normalize().multiply(1.4);
+        Location startLoc = player.getEyeLocation();
+
+        Particle.DustOptions scytheDust = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 1.8f);
+        Particle.DustOptions scytheGray = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
+
+        new BukkitRunnable() {
+            int step = 0;
+            Location current = startLoc.clone();
+
+            @Override
+            public void run() {
+                step++;
+                if (step > 25) {
+                    cancel();
+                    return;
+                }
+
+                current.add(dir);
+                // Scythe spinning visual (dark green and gray green)
+                for (double angle = 0; angle < 360; angle += 60) {
+                    double rad = Math.toRadians(angle + (step * 30));
+                    Vector offset = new Vector(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, 0);
+                    current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset), 1, 0, 0, 0, 0, scytheDust);
+                    current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset.multiply(0.5)), 1, 0, 0, 0, 0, scytheGray);
+                }
+                current.getWorld().spawnParticle(Particle.SMOKE, current, 2, 0.1, 0.1, 0.1, 0.02);
+
+                for (LivingEntity target : current.getWorld().getNearbyLivingEntities(current, 1.5, e -> !e.equals(player))) {
+                    // Steal 2 hearts (4.0 HP), blind, teleport behind target
+                    target.damage(4.0, player);
+                    player.setHealth(Math.min(player.getMaxHealth(), player.getHealth() + 4.0));
+                    target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
+
+                    Vector behindVec = target.getLocation().getDirection().normalize().multiply(-1.5);
+                    Location behind = target.getLocation().add(behindVec);
+                    behind.setDirection(target.getLocation().getDirection());
+                    player.teleport(behind);
+
+                    player.getWorld().playSound(behind, Sound.ENTITY_ENDERMAN_TELEPORT, 1.5f, 0.8f);
+                    target.getWorld().playSound(target.getLocation(), Sound.ENTITY_VEX_HURT, 1.2f, 0.5f);
+                    target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 20, 0.4, 0.5, 0.4, 0.05);
+
+                    player.sendMessage(Component.text("✦ Soultaking: Stole 2 hearts and phased behind " + target.getName() + "!", NamedTextColor.DARK_GREEN));
+                    cancel();
+                    return;
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
     }
 
     @Override

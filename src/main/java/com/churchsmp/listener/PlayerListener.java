@@ -37,6 +37,7 @@ public class PlayerListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         plugin.getSinGemManager().checkAndGiveFirstGem(player);
+        Sorrowess.checkInventoryHearts(player, plugin);
     }
 
     @EventHandler
@@ -80,14 +81,9 @@ public class PlayerListener implements Listener {
             }
         }
 
-        // Mayim Honor check: cannot hold any offhand while having Mayim in main hand
+        // Mayim Honor check: stows offhand while holding Mayim
         if (weapon instanceof Mayim) {
-            ItemStack off = player.getInventory().getItemInOffHand();
-            if (off.getType() != Material.AIR) {
-                player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
-                player.getInventory().addItem(off);
-                player.sendMessage(Component.text("âœ¦ Mayim's Honor forbids holding anything in your offhand!", NamedTextColor.RED));
-            }
+            Mayim.checkAndStashOffhand(player);
         }
     }
 
@@ -100,11 +96,11 @@ public class PlayerListener implements Listener {
         LegendaryWeapon prevW = plugin.getWeaponManager().getWeapon(previous);
         LegendaryWeapon currW = plugin.getWeaponManager().getWeapon(current);
 
-        if (prevW instanceof Sorrowess sw) {
-            sw.removeBraveBuff(player);
-        }
-        if (currW instanceof Sorrowess sw) {
-            sw.applyBraveBuff(player);
+        // Mayim Honor: restore when switching away, stash when equipped
+        if (prevW instanceof Mayim && !(currW instanceof Mayim)) {
+            Mayim.restoreOffhand(player);
+        } else if (currW instanceof Mayim) {
+            Mayim.checkAndStashOffhand(player);
         }
 
         // Disable flight if switching away from Voidbreaker
@@ -113,6 +109,12 @@ public class PlayerListener implements Listener {
                 player.setAllowFlight(false);
             }
         }
+
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) {
+                Sorrowess.checkInventoryHearts(player, plugin);
+            }
+        }, 1L);
     }
 
     @EventHandler
@@ -120,13 +122,55 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = event.getItemDrop().getItemStack();
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
-        if (weapon instanceof Sorrowess sw) {
-            sw.removeBraveBuff(player);
+
+        if (weapon instanceof Mayim) {
+            Mayim.restoreOffhand(player);
+        }
+
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) {
+                Sorrowess.checkInventoryHearts(player, plugin);
+            }
+        }, 1L);
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    Sorrowess.checkInventoryHearts(player, plugin);
+                    ItemStack held = player.getInventory().getItemInMainHand();
+                    LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(held);
+                    if (weapon instanceof Mayim) {
+                        Mayim.checkAndStashOffhand(player);
+                    } else if (Mayim.stashedOffhand.containsKey(player.getUniqueId())) {
+                        Mayim.restoreOffhand(player);
+                    }
+                }
+            }, 1L);
         }
     }
 
     @EventHandler
+    public void onPickup(org.bukkit.event.entity.EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    Sorrowess.checkInventoryHearts(player, plugin);
+                }
+            }, 1L);
+        }
+    }
+
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Mayim.restoreOffhand(event.getPlayer());
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        Mayim.restoreOffhand(event.getPlayer());
         plugin.getBossBarManager().removeBossBar(event.getPlayer());
     }
 }

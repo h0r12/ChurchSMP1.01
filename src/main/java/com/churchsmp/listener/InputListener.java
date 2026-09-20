@@ -99,6 +99,13 @@ public class InputListener implements Listener {
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
+        // Check if Impiety item is right-clicked to open weapon selection GUI
+        if (com.churchsmp.item.ImpietyItem.isImpietyItem(mainHand, plugin)) {
+            event.setCancelled(true);
+            plugin.getWeaponMenuManager().openMenu(player);
+            return;
+        }
+
         // Check if it's an unattuned gem being right-clicked to attune
         SinGemType gemItem = plugin.getSinGemManager().getGemType(mainHand);
         if (gemItem != null) {
@@ -115,22 +122,11 @@ public class InputListener implements Listener {
             }
         }
 
-        // Legendary weapon right-click handling
+        // Grim Scythe right-click throw (mouse button activation for regular abilities has been removed)
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);
-        if (weapon == null) return;
-
-        // Verify alignment first
-        if (!plugin.getAlignmentManager().canWield(player, weapon.getRequiredAlignment())) {
-            return;
-        }
-
-        boolean secondary = player.isSneaking();
-        String abilityKey = weapon.getId() + (secondary ? "_secondary" : "_primary");
-
-        // Only hijack if ability is NOT on cooldown!
-        if (!plugin.getCooldownManager().isOnCooldown(player, abilityKey)) {
+        if (weapon instanceof com.churchsmp.weapon.Grim grim) {
             event.setCancelled(true);
-            triggerWeaponAbility(player, weapon, secondary);
+            grim.throwScythe(player);
         }
     }
 

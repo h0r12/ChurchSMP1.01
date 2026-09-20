@@ -44,7 +44,7 @@ public class VoidBreaker extends LegendaryWeapon {
         super(plugin,
                 "voidbreaker",
                 new String[]{"void_breaker", "abyssal_shatter"},
-                Component.text("Voidbreaker", TextColor.color(0x9400D3)).decorate(TextDecoration.BOLD),
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<!italic><gradient:#2F4F4F:#D3D3D3:#2F4F4F><bold>Voidbreaker</bold></gradient>"),
                 Material.MACE,
                 Alignment.NULLIFIED,
                 "Fractured",
@@ -61,24 +61,9 @@ public class VoidBreaker extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
-            lore.add(Component.text("The Abandoned Unknowing.", TextColor.color(0xDA70D6)).decorate(TextDecoration.ITALIC));
-            lore.add(Component.empty());
-            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
-            lore.add(Component.empty());
-            lore.add(Component.text("Passives:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" â€¢ Voidfeels: ", NamedTextColor.DARK_AQUA).append(Component.text("Double Jump in mid-air. (5s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ Crumble: ", NamedTextColor.DARK_AQUA).append(Component.text("Slam counter (1/3, 2/3, 3/3); 4th hit doubles damage with aftershock; missed shock rebounds for half. Resets on hit.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ Rifted: ", NamedTextColor.DARK_AQUA).append(Component.text("Sneaking Double Jump launches at crosshair. (30s CD, halved each slam)", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
-            lore.add(Component.text("Abilities:", NamedTextColor.LIGHT_PURPLE).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Fractured: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Next hit embeds Fallen debuff + 2s stun. (75s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Bound: ", NamedTextColor.LIGHT_PURPLE).append(Component.text("Dash (3/3 charges, 1s cooldown); landing mace hit grants +1 charge. Active for 10s.", NamedTextColor.WHITE)));
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_PURPLE));
-
-            meta.lore(lore);
+            meta.lore(buildCleanLore(List.of("Voidfeels", "Rifted", "Bound"), "Fractured", "Crumble"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
+            applyStandardEnchants(meta);
 
             // 1.21 Mace Enchantments: Wind Burst 3, Density 6 or Breach 6
             try {
@@ -90,8 +75,6 @@ public class VoidBreaker extends LegendaryWeapon {
                 }
             } catch (Throwable ignored) {}
 
-            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             item.setItemMeta(meta);
         }
         return item;
@@ -260,8 +243,22 @@ public class VoidBreaker extends LegendaryWeapon {
             target.damage(damage, attacker); // Double hit
 
             Location loc = target.getLocation();
-            loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.8f);
-            loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 2);
+            loc.getWorld().playSound(loc, Sound.BLOCK_HEAVY_CORE_FALL, 2.0f, 0.6f);
+            loc.getWorld().playSound(loc, Sound.BLOCK_ANVIL_LAND, 1.6f, 0.7f);
+
+            // Ground shockwave rings and heavy debris without explosion particles (Theme: white, black, gray)
+            Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 2.2f);
+            Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.8f);
+
+            for (double r = 1.0; r <= 3.5; r += 0.8) {
+                for (int d = 0; d < 360; d += 15) {
+                    double rad = Math.toRadians(d);
+                    Location p = loc.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
+                    loc.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 2.0) ? shockDustLight : shockDustDark);
+                }
+            }
+            loc.getWorld().spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 40, 1.5, 0.5, 1.5, 0.15, Material.GRAVEL.createBlockData());
+            loc.getWorld().spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 25, 1.2, 0.4, 1.2, 0.1, Material.COBBLESTONE.createBlockData());
 
             for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 4.0)) {
                 if (e.equals(attacker)) continue;

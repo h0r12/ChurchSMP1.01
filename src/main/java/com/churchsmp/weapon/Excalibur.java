@@ -41,7 +41,7 @@ public class Excalibur extends LegendaryWeapon {
         super(plugin,
                 "excalibur",
                 new String[]{"blade_of_the_archangel"},
-                Component.text("Excalibur", TextColor.color(0x55FFFF)).decorate(TextDecoration.BOLD),
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<!italic><gradient:#FFFFFF:#FFD700:#55FFFF><bold>Excalibur</bold></gradient>"),
                 Material.NETHERITE_SWORD,
                 Alignment.GOOD,
                 "Acceleration Nova",
@@ -54,26 +54,9 @@ public class Excalibur extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_AQUA));
-            lore.add(Component.text("Forged God's will.", TextColor.color(0xFFD700)).decorate(TextDecoration.ITALIC));
-            lore.add(Component.empty());
-            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
-            lore.add(Component.empty());
-            lore.add(Component.text("Passives:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" â€¢ Hopeful: ", NamedTextColor.YELLOW).append(Component.text("Every attack inflicts glowing matching your alignment.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ Wings: ", NamedTextColor.YELLOW).append(Component.text("Complete immunity to fall damage.", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
-            lore.add(Component.text("Abilities:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Acceleration Nova: ", NamedTextColor.AQUA).append(Component.text("Charge 10s with Resistance II, unleashing a holy sonic blast (2.5 True Damage).", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Altar Pining: ", NamedTextColor.AQUA).append(Component.text("Ascend exploding nearby foes for 2 True Damage, launching 10x10 into sky then slam for 1 True Damage + 3s stun.", NamedTextColor.WHITE)));
-            lore.add(Component.text("---------------------------------", NamedTextColor.DARK_AQUA));
-
-            meta.lore(lore);
+            meta.lore(buildCleanLore(List.of("Hopeful", "Wings"), "Acceleration Nova", "Altar Pining"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
-            meta.addEnchant(Enchantment.SHARPNESS, 6, true);
-            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            applyStandardEnchants(meta);
             item.setItemMeta(meta);
         }
         return item;
@@ -86,11 +69,11 @@ public class Excalibur extends LegendaryWeapon {
 
         // Check if already charging
         if (chargingTasks.containsKey(player.getUniqueId())) {
-            player.sendMessage(Component.text("âœ¦ You are already charging Acceleration Nova!", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("✦ You are already charging Acceleration Nova!", NamedTextColor.YELLOW));
             return false;
         }
 
-        player.sendMessage(Component.text("âœ¦ Charging Acceleration Nova (10s)... Keep steady!", NamedTextColor.AQUA));
+        player.sendMessage(Component.text("✦ Charging Acceleration Nova (10s)... Keep steady!", NamedTextColor.AQUA));
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_AMBIENT, 1.2f, 1.5f);
         plugin.getBossBarManager().showActiveCountdown(player, "Acceleration Nova Charging", BossBar.Color.BLUE, 10);
 
@@ -145,6 +128,8 @@ public class Excalibur extends LegendaryWeapon {
                     Particle.DustOptions blastGold = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 2.0f);
                     Particle.DustOptions blastWhite = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
 
+                    java.util.Set<UUID> damagedEntities = new java.util.HashSet<>();
+
                     for (int step = 1; step <= 22; step++) {
                         Location centerP = start.clone().add(dir.clone().multiply(step));
                         double theta = step * 0.7;
@@ -167,8 +152,9 @@ public class Excalibur extends LegendaryWeapon {
                         centerP.getWorld().spawnParticle(Particle.CRIT, centerP, 3, 0.15, 0.15, 0.15, 0.05);
 
                         for (LivingEntity e : centerP.getWorld().getNearbyLivingEntities(centerP, 2.8)) {
-                            if (e.equals(player)) continue;
-                            applyTrueDamage(e, 5.0, player); // 2.5 true damage (5 HP)
+                            if (e.equals(player) || damagedEntities.contains(e.getUniqueId())) continue;
+                            damagedEntities.add(e.getUniqueId());
+                            applyTrueDamage(e, 5.0, player); // 2.5 true damage (5 HP) once!
                             e.setVelocity(dir.clone().multiply(1.5).setY(0.4));
                         }
                     }
@@ -195,7 +181,7 @@ public class Excalibur extends LegendaryWeapon {
         plugin.getCooldownManager().setCooldown(player, key, cd);
         plugin.getBossBarManager().showActiveCountdown(player, "Altar Pining", BossBar.Color.YELLOW, 4);
 
-        // Altar Pining: Concentric rings at feet (Yellow/Gold, Orange, Red) matching user drawing!
+        // Altar Pining: Pulls everyone into you, Excalibur ascends, slams down
         Location feet = player.getLocation();
         feet.getWorld().playSound(feet, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.5f, 0.6f);
         feet.getWorld().playSound(feet, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.4f);
@@ -204,17 +190,15 @@ public class Excalibur extends LegendaryWeapon {
         Particle.DustOptions ringOrange = new Particle.DustOptions(Color.fromRGB(255, 130, 0), 1.8f);
         Particle.DustOptions ringRed = new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.8f);
 
-        // Inner Yellow ring (r=1.5)
+        // Concentric rings at feet
         for (int deg = 0; deg < 360; deg += 15) {
             double rad = Math.toRadians(deg);
             feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 1.5, 0.1, Math.sin(rad) * 1.5), 1, 0, 0, 0, 0, ringYellow);
         }
-        // Middle Orange ring (r=3.0)
         for (int deg = 0; deg < 360; deg += 12) {
             double rad = Math.toRadians(deg);
             feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 3.0, 0.1, Math.sin(rad) * 3.0), 1, 0, 0, 0, 0, ringOrange);
         }
-        // Outer Red ring (r=4.5)
         for (int deg = 0; deg < 360; deg += 10) {
             double rad = Math.toRadians(deg);
             feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 4.5, 0.1, Math.sin(rad) * 4.5), 1, 0, 0, 0, 0, ringRed);
@@ -225,21 +209,18 @@ public class Excalibur extends LegendaryWeapon {
             feet.getWorld().spawnParticle(Particle.WAX_ON, feet.clone().add(0, y, 0), 3, 0.1, 0.05, 0.1, 0.02);
             feet.getWorld().spawnParticle(Particle.END_ROD, feet.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.01);
         }
-        // Sword crossguard particles at y = 2.4
-        for (double x = -0.8; x <= 0.8; x += 0.2) {
-            feet.getWorld().spawnParticle(Particle.WAX_ON, feet.clone().add(x, 2.4, 0), 2, 0, 0, 0, 0);
-        }
 
-        // Stage 1: Ascends, 2 true damage, launch 10x10 into the sky
-        player.setVelocity(new Vector(0, 1.8, 0));
-
-        for (LivingEntity e : feet.getWorld().getNearbyLivingEntities(feet, 10.0, 5.0, 10.0)) {
+        // Pull nearby entities in 10-block radius in towards the player
+        for (LivingEntity e : feet.getWorld().getNearbyLivingEntities(feet, 10.0, 6.0, 10.0)) {
             if (e.equals(player)) continue;
-            applyTrueDamage(e, 4.0, player); // 2 true damage (4 HP)
-            e.setVelocity(new Vector(0, 1.7, 0)); // Launch skyward
+            Vector pull = feet.toVector().subtract(e.getLocation().toVector()).normalize().multiply(1.3).setY(0.35);
+            e.setVelocity(pull);
         }
 
-        // Stage 2: Slam down -> 1 more true damage (2 HP) + 3s stun
+        // Player ascends slightly to prepare descend
+        player.setVelocity(new Vector(0, 1.4, 0));
+
+        // Descend & Slam impact after 16 ticks
         new BukkitRunnable() {
             int ticks = 0;
             boolean slammed = false;
@@ -247,12 +228,12 @@ public class Excalibur extends LegendaryWeapon {
             @Override
             public void run() {
                 ticks++;
-                if (ticks == 18 && !slammed) {
+                if (ticks == 15 && !slammed) {
                     player.setVelocity(new Vector(0, -3.0, 0));
                     slammed = true;
                 }
 
-                if (slammed && (player.isOnGround() || ticks >= 38)) {
+                if (slammed && (player.isOnGround() || ticks >= 35)) {
                     Location impact = player.getLocation();
                     impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.8f, 0.8f);
                     impact.getWorld().playSound(impact, Sound.BLOCK_ANVIL_LAND, 1.5f, 0.7f);
@@ -277,7 +258,7 @@ public class Excalibur extends LegendaryWeapon {
 
                     for (LivingEntity e : impact.getWorld().getNearbyLivingEntities(impact, 8.0, 4.0, 8.0)) {
                         if (e.equals(player)) continue;
-                        applyTrueDamage(e, 2.0, player); // 1 more true damage
+                        applyTrueDamage(e, 4.0, player); // 2 true damage (4 HP)
                         // Stun for 3 seconds (Slowness 255 + Jump boost 128)
                         e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 255, false, false));
                         e.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 60, 128, false, false));

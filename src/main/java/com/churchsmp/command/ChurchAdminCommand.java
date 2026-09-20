@@ -121,6 +121,23 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("Invalid gem! Choose from: Wrath, Greed, Gluttony, Lust, Envy, Pride, Sloth", NamedTextColor.RED));
                 }
             }
+            case "menu" -> {
+                if (sender instanceof Player p) {
+                    plugin.getWeaponMenuManager().openMenu(p);
+                } else {
+                    sender.sendMessage(Component.text("Only players can open the weapon menu.", NamedTextColor.RED));
+                }
+            }
+            case "giveimpiety" -> {
+                Player target = (args.length > 1) ? Bukkit.getPlayer(args[1]) : (sender instanceof Player p ? p : null);
+                if (target == null) {
+                    sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+                    return true;
+                }
+                target.getInventory().addItem(com.churchsmp.item.ImpietyItem.createImpietyItem(plugin));
+                sender.sendMessage(Component.text("Gave Impiety weapon selector to " + target.getName() + "!", NamedTextColor.GREEN));
+                target.sendMessage(Component.text("✦ You received the Impiety weapon selector. Right-click to open!", NamedTextColor.GOLD));
+            }
             case "reload" -> {
                 plugin.reloadConfig();
                 sender.sendMessage(Component.text("ChurchSMP config reloaded successfully!", NamedTextColor.GREEN));
@@ -133,6 +150,10 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("==========[ ChurchAdmin Commands ]==========", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
+        sender.sendMessage(Component.text("/churchadmin menu", NamedTextColor.YELLOW)
+                .append(Component.text(" - Opens the interactive Legendary Weapon menu", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/churchadmin giveimpiety [player]", NamedTextColor.YELLOW)
+                .append(Component.text(" - Gives the Impiety right-click menu item", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/churchadmin resetcooldown [player]", NamedTextColor.YELLOW)
                 .append(Component.text(" - Resets all ability cooldowns", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/churchadmin setalignment <player> <alignment>", NamedTextColor.YELLOW)
@@ -149,7 +170,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            return filter(List.of("resetcooldown", "setalignment", "giveweapon", "givegem", "reload", "help"), args[0]);
+            return filter(List.of("menu", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "reload", "help"), args[0]);
         }
         if (args.length == 2) {
             return null; // suggest player names

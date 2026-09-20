@@ -46,7 +46,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
         super(plugin,
                 "luminescence_spear",
                 new String[]{"sword_of_david"},
-                Component.text("Luminescence Spear", TextColor.color(0xFFD700)).decorate(TextDecoration.BOLD),
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<!italic><gradient:#FFFFFF:#00008B:#FFFFFF><bold>Luminescence Spear</bold></gradient>"),
                 Material.TRIDENT,
                 Alignment.GOOD,
                 "Blink",
@@ -59,27 +59,10 @@ public class LuminescenceSpear extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("---------------------------------", NamedTextColor.GOLD));
-            lore.add(Component.text("As so the shadow fall behinds.", TextColor.color(0xFFE4B5)).decorate(TextDecoration.ITALIC));
-            lore.add(Component.empty());
-            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
-            lore.add(Component.empty());
-            lore.add(Component.text("Passives:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" â€¢ Bolt: ", NamedTextColor.YELLOW).append(Component.text("Falling creates an explosion scaling with velocity (like mace). (60s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ LightStealing: ", NamedTextColor.YELLOW).append(Component.text("Throwing inflicts Darkness for 10s. (60s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ BurningBones: ", NamedTextColor.YELLOW).append(Component.text("Sword attack speed (1.6) with trident impact power.", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
-            lore.add(Component.text("Abilities:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Blink: ", NamedTextColor.AQUA).append(Component.text("Dash 6 blocks (3/3 charges); foes caught take 1 heart & cannot throw projectiles for 8s.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] CrescentEclipse: ", NamedTextColor.AQUA).append(Component.text("Next throw marks target for stun + 4-heart orbital beam after 2s; ground shockwave stuns for 2s with Darkness for 4s. (130s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text("---------------------------------", NamedTextColor.GOLD));
-
-            meta.lore(lore);
+            meta.lore(buildCleanLore(List.of("Bolt", "LightStealing", "BurningBones"), "Blink", "CrescentEclipse"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
-            meta.addEnchant(Enchantment.IMPALING, 5, true);
-            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            applyStandardEnchants(meta);
+            meta.addEnchant(Enchantment.LOYALTY, 3, true);
 
             // BurningBones: attack speed of sword (1.6)
             NamespacedKey speedKey = new NamespacedKey(plugin, "spear_speed");
@@ -229,29 +212,38 @@ public class LuminescenceSpear extends LegendaryWeapon {
             public void run() {
                 if (!target.isValid()) return;
 
+                // White lightning bolt descending with sonic boom along its path
                 Location loc = target.getLocation();
                 loc.getWorld().playSound(loc, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 0.9f);
                 loc.getWorld().playSound(loc, Sound.ENTITY_WARDEN_SONIC_BOOM, 2.0f, 1.2f);
 
-                // Sonic Boom burst at ground
-                loc.getWorld().spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.5, 0), 1);
-                loc.getWorld().spawnParticle(Particle.FLASH, loc.clone().add(0, 1.0, 0), 3);
+                Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
+                Particle.DustOptions lightBlueDust = new Particle.DustOptions(Color.fromRGB(173, 216, 230), 1.5f);
 
-                // Massive vertical beam column with blue spiral wrapping around it (matching drawing)
-                for (double y = 0; y < 30; y += 0.4) {
-                    // Center column of light
-                    loc.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, y, 0), 3, 0.15, 0.1, 0.15, 0.01);
+                // Descending jagged lightning path from sky to ground
+                Location currentBolt = loc.clone().add(0, 24, 0);
+                while (currentBolt.getY() > loc.getY()) {
+                    double offsetX = (Math.random() - 0.5) * 0.7;
+                    double offsetZ = (Math.random() - 0.5) * 0.7;
+                    currentBolt.add(offsetX, -0.6, offsetZ);
 
-                    // Blue spiral rings wrapping around the beam column
-                    double spiralAngle = y * 0.75;
-                    double r = 1.3;
-                    Location blueP = loc.clone().add(Math.cos(spiralAngle) * r, y, Math.sin(spiralAngle) * r);
-                    blueP.getWorld().spawnParticle(Particle.DUST, blueP, 2, 0, 0, 0, 0, blueDust);
-                    blueP.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, blueP, 1, 0.02, 0.02, 0.02, 0.01);
+                    currentBolt.getWorld().spawnParticle(Particle.FLASH, currentBolt, 1);
+                    currentBolt.getWorld().spawnParticle(Particle.END_ROD, currentBolt, 2, 0.05, 0.05, 0.05, 0.01);
+                    currentBolt.getWorld().spawnParticle(Particle.DUST, currentBolt, 3, 0.1, 0.1, 0.1, 0, whiteDust);
+                    currentBolt.getWorld().spawnParticle(Particle.DUST, currentBolt, 2, 0.1, 0.1, 0.1, 0, lightBlueDust);
+
+                    // Sonic boom along path every ~6 blocks
+                    if (((int) currentBolt.getY()) % 6 == 0) {
+                        currentBolt.getWorld().spawnParticle(Particle.SONIC_BOOM, currentBolt, 1);
+                    }
                 }
 
-                // 4 hearts damage (8 HP)
-                target.damage(8.0, thrower);
+                // Sonic Boom burst at ground
+                loc.getWorld().spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.0, 0), 1);
+                loc.getWorld().spawnParticle(Particle.FLASH, loc.clone().add(0, 1.0, 0), 3);
+
+                // Reduced damage (5.0 HP = 2.5 hearts)
+                target.damage(5.0, thrower);
 
                 // Expanding ground shockwave rings (animated outward over 3 ticks)
                 for (int wave = 1; wave <= 3; wave++) {
@@ -304,12 +296,13 @@ public class LuminescenceSpear extends LegendaryWeapon {
                         loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(Math.cos(rad) * 3.5, 0.2, Math.sin(rad) * 3.5), 2, 0, 0, 0, 0.05);
                     }
 
-                    double dmg = Math.min(20.0, fallDist * 1.5);
+                    // Reduced Bolt damage (max 6.0 HP = 3 hearts)
+                    double dmg = Math.min(6.0, 2.0 + (fallDist * 0.4));
                     for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 5.0)) {
                         if (e.equals(victim)) continue;
                         e.damage(dmg, victim);
                     }
-                    victim.sendMessage(Component.text("âœ¦ Bolt slam discharged from your fall! (" + String.format(java.util.Locale.US, "%.1f", dmg) + " damage)", NamedTextColor.YELLOW));
+                    victim.sendMessage(Component.text("✦ Bolt slam discharged from your fall! (" + String.format(java.util.Locale.US, "%.1f", dmg) + " damage)", NamedTextColor.YELLOW));
                 }
             }
         }

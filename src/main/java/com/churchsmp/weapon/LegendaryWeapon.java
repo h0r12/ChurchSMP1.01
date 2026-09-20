@@ -71,4 +71,31 @@ public abstract class LegendaryWeapon {
     public void onDamaged(Player victim, EntityDamageEvent event) {}
 
     public void onCrouch(Player player, boolean isSneaking) {}
+
+    protected java.util.List<Component> buildCleanLore(java.util.List<String> passives, String primary, String secondary) {
+        java.util.List<Component> lore = new java.util.ArrayList<>();
+        lore.add(Component.text("---------------------------------", net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY));
+        lore.add(Component.text("✦ Alignment: ", net.kyori.adventure.text.format.NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
+        lore.add(Component.empty());
+        lore.add(Component.text("Passives:", net.kyori.adventure.text.format.NamedTextColor.RED).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD));
+        for (String p : passives) {
+            lore.add(Component.text(" • " + p, net.kyori.adventure.text.format.NamedTextColor.WHITE));
+        }
+        lore.add(Component.empty());
+        lore.add(Component.text("Abilities:", net.kyori.adventure.text.format.NamedTextColor.RED).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD));
+        lore.add(Component.text(" [Primary] " + primary, net.kyori.adventure.text.format.NamedTextColor.GOLD));
+        lore.add(Component.text(" [Secondary] " + secondary, net.kyori.adventure.text.format.NamedTextColor.GOLD));
+        lore.add(Component.text("---------------------------------", net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY));
+        return lore;
+    }
+
+    protected void applyStandardEnchants(org.bukkit.inventory.meta.ItemMeta meta) {
+        meta.setUnbreakable(true);
+        meta.addEnchant(org.bukkit.enchantments.Enchantment.SHARPNESS, 7, true);
+        meta.addEnchant(org.bukkit.enchantments.Enchantment.LOOTING, 3, true);
+        if (requiredAlignment == Alignment.GOOD) {
+            meta.addEnchant(org.bukkit.enchantments.Enchantment.SMITE, 7, true);
+        }
+        meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS, org.bukkit.inventory.ItemFlag.HIDE_UNBREAKABLE);
+    }
 }

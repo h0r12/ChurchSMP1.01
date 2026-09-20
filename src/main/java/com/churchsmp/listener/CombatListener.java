@@ -36,9 +36,19 @@ public class CombatListener implements Listener {
         if (!(event.getDamager() instanceof Player attacker)) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
+        // Intercept attacks on Sorrowess illusion clones
+        if (event.getEntity() instanceof org.bukkit.entity.ArmorStand as && as.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, "sorrowess_clone"), org.bukkit.persistence.PersistentDataType.STRING)) {
+            event.setCancelled(true);
+            LegendaryWeapon sw = plugin.getWeaponManager().getWeapon("sorrowess");
+            if (sw instanceof Sorrowess sorrowess) {
+                sorrowess.multiplyClone(as, attacker);
+            }
+            return;
+        }
+
         // Fallen effect check on attacker: disables ChurchSMP gems and legends
         if (plugin.getFallenManager().isFallen(attacker)) {
-            attacker.sendMessage(Component.text("âœ¦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
+            attacker.sendMessage(Component.text("✦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
             event.setDamage(event.getDamage() * 0.5); // enchants / damage halved
             return;
         }
@@ -55,12 +65,20 @@ public class CombatListener implements Listener {
             // Alignment check
             if (!plugin.getAlignmentManager().canWield(attacker, weapon.getRequiredAlignment())) {
                 event.setCancelled(true);
-                attacker.sendMessage(Component.text("âœ¦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
+                attacker.sendMessage(Component.text("✦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
                 return;
             }
 
             // Weapon onHit passive
             weapon.onHit(attacker, target, event.getDamage());
+        }
+
+        // Judas passives apply to every weapon attack
+        if (!(weapon instanceof Judas)) {
+            LegendaryWeapon judasW = plugin.getWeaponManager().getWeapon("judas");
+            if (judasW instanceof Judas judas) {
+                judas.triggerJudasPassives(attacker, target);
+            }
         }
 
         // Gem hit passives & multipliers

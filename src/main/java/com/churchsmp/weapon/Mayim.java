@@ -42,15 +42,45 @@ public class Mayim extends LegendaryWeapon {
     // Frostbite charging state: UUID -> Runnable
     private final Map<UUID, BukkitRunnable> frostbiteTasks = new ConcurrentHashMap<>();
 
+    // Stashed offhand items for Honor passive
+    public static final Map<UUID, ItemStack> stashedOffhand = new ConcurrentHashMap<>();
+
     public Mayim(ChurchSMP plugin) {
         super(plugin,
                 "mayim",
                 new String[]{"staff_of_moses"},
-                Component.text("Mayim", TextColor.color(0x00BFFF)).decorate(TextDecoration.BOLD),
+                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<!italic><gradient:#FFFFFF:#00DFFF:#FFFFFF><bold>Mayim</bold></gradient>"),
                 Material.NETHERITE_SWORD,
                 Alignment.GOOD,
                 "Cold",
                 "Frostbite");
+    }
+
+    public static void checkAndStashOffhand(Player player) {
+        ItemStack offhand = player.getInventory().getItemInOffHand();
+        if (offhand != null && offhand.getType() != Material.AIR) {
+            if (!stashedOffhand.containsKey(player.getUniqueId())) {
+                stashedOffhand.put(player.getUniqueId(), offhand.clone());
+                player.getInventory().setItemInOffHand(null);
+                player.sendMessage(Component.text("✦ Mayim Honor temporarily stowed your offhand item.", NamedTextColor.AQUA));
+            }
+        }
+    }
+
+    public static void restoreOffhand(Player player) {
+        ItemStack stashed = stashedOffhand.remove(player.getUniqueId());
+        if (stashed != null && stashed.getType() != Material.AIR) {
+            ItemStack currentOffhand = player.getInventory().getItemInOffHand();
+            if (currentOffhand == null || currentOffhand.getType() == Material.AIR) {
+                player.getInventory().setItemInOffHand(stashed);
+            } else {
+                Map<Integer, ItemStack> leftover = player.getInventory().addItem(stashed);
+                for (ItemStack drop : leftover.values()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                }
+            }
+            player.sendMessage(Component.text("✦ Mayim Honor returned your offhand item.", NamedTextColor.AQUA));
+        }
     }
 
     @Override
@@ -59,27 +89,9 @@ public class Mayim extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("---------------------------------", NamedTextColor.AQUA));
-            lore.add(Component.text("The Leviathan's Abandoned Shadow.", TextColor.color(0x00FFFF)).decorate(TextDecoration.ITALIC));
-            lore.add(Component.empty());
-            lore.add(Component.text("âœ¦ Alignment Required: ", NamedTextColor.GRAY).append(requiredAlignment.getFormattedComponent()));
-            lore.add(Component.empty());
-            lore.add(Component.text("Passives:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" â€¢ Finfuel: ", NamedTextColor.YELLOW).append(Component.text("Strength I on land, Strength III in water.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ Rust: ", NamedTextColor.YELLOW).append(Component.text("Chance to steal 5% armor durability with ice break sound.", NamedTextColor.WHITE)));
-            lore.add(Component.text(" â€¢ Honor: ", NamedTextColor.YELLOW).append(Component.text("Cannot hold any offhand item while holding Mayim.", NamedTextColor.WHITE)));
-            lore.add(Component.empty());
-            lore.add(Component.text("Abilities:", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-            lore.add(Component.text(" [Primary] Cold: ", NamedTextColor.AQUA).append(Component.text("Attacks escalate enemy slowness; resets if hit; grants Resistance III for time kept. (20s active, 30s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text(" [Secondary] Frostbite: ", NamedTextColor.AQUA).append(Component.text("Forms a 5-block wide slash; stuns and freezes; explodes in 5x5 on impact with Slowness II for 10s. (45s CD)", NamedTextColor.WHITE)));
-            lore.add(Component.text("---------------------------------", NamedTextColor.AQUA));
-
-            meta.lore(lore);
+            meta.lore(buildCleanLore(List.of("Finfuel", "Rust", "Honor"), "Cold", "Frostbite"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
-            meta.addEnchant(Enchantment.SHARPNESS, 5, true);
-            meta.addEnchant(Enchantment.UNBREAKING, 3, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            applyStandardEnchants(meta);
             item.setItemMeta(meta);
         }
         return item;

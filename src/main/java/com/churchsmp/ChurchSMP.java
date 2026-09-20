@@ -29,6 +29,7 @@ public class ChurchSMP extends JavaPlugin {
     private SinGemAbilityExecutor gemAbilityExecutor;
     private WeaponManager weaponManager;
     private ChurchRecipeManager recipeManager;
+    private com.churchsmp.menu.WeaponMenuManager weaponMenuManager;
 
     @Override
     public void onEnable() {
@@ -47,12 +48,14 @@ public class ChurchSMP extends JavaPlugin {
             this.gemAbilityExecutor = new SinGemAbilityExecutor(this);
             this.weaponManager = new WeaponManager(this);
             this.recipeManager = new ChurchRecipeManager(this);
+            this.weaponMenuManager = new com.churchsmp.menu.WeaponMenuManager(this);
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
             Bukkit.getPluginManager().registerEvents(new CombatListener(this), this);
             Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
             Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
+            Bukkit.getPluginManager().registerEvents(this.weaponMenuManager, this);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -160,5 +163,9 @@ public class ChurchSMP extends JavaPlugin {
 
     public ChurchRecipeManager getRecipeManager() {
         return recipeManager;
+    }
+
+    public com.churchsmp.menu.WeaponMenuManager getWeaponMenuManager() {
+        return weaponMenuManager;
     }
 }
