@@ -33,7 +33,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!sender.hasPermission("churchsmp.admin")) {
-            sender.sendMessage(Component.text("You lack permission to use /churchadmin.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("You lack permission to use /churchadmin. (Run '/op <your_name>' in the server console)", NamedTextColor.RED));
             return true;
         }
 

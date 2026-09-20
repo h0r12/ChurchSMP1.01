@@ -54,16 +54,61 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
             Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
 
-            // Commands
+            // Commands: register via getCommand and CommandMap fallback to guarantee they work everywhere
+            ChurchCommand churchCommand = new ChurchCommand(this);
+            ChurchAdminCommand adminCommand = new ChurchAdminCommand(this);
+
+            boolean churchRegistered = false;
+            boolean adminRegistered = false;
+
             if (getCommand("church") != null) {
-                ChurchCommand churchCommand = new ChurchCommand(this);
                 getCommand("church").setExecutor(churchCommand);
                 getCommand("church").setTabCompleter(churchCommand);
+                churchRegistered = true;
             }
             if (getCommand("churchadmin") != null) {
-                ChurchAdminCommand adminCommand = new ChurchAdminCommand(this);
                 getCommand("churchadmin").setExecutor(adminCommand);
                 getCommand("churchadmin").setTabCompleter(adminCommand);
+                adminRegistered = true;
+            }
+
+            // Direct CommandMap fallback: ensures commands work even if getCommand() is null
+            try {
+                org.bukkit.command.CommandMap commandMap = Bukkit.getCommandMap();
+                if (!churchRegistered) {
+                    org.bukkit.command.Command fallbackChurch = new org.bukkit.command.Command("church", "ChurchSMP guide and information", "/church [guide|reroll]", java.util.List.of("csmp")) {
+                        @Override
+                        public boolean execute(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String label, @org.jetbrains.annotations.NotNull String[] args) {
+                            return churchCommand.onCommand(sender, this, label, args);
+                        }
+
+                        @Override
+                        public @org.jetbrains.annotations.NotNull java.util.List<String> tabComplete(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String alias, @org.jetbrains.annotations.NotNull String[] args) {
+                            java.util.List<String> list = churchCommand.onTabComplete(sender, this, alias, args);
+                            return list != null ? list : super.tabComplete(sender, alias, args);
+                        }
+                    };
+                    fallbackChurch.setPermission("churchsmp.use");
+                    commandMap.register("churchsmp", fallbackChurch);
+                }
+                if (!adminRegistered) {
+                    org.bukkit.command.Command fallbackAdmin = new org.bukkit.command.Command("churchadmin", "ChurchSMP Admin Commands", "/churchadmin [help|...]", java.util.List.of("ca", "csmpadmin")) {
+                        @Override
+                        public boolean execute(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String label, @org.jetbrains.annotations.NotNull String[] args) {
+                            return adminCommand.onCommand(sender, this, label, args);
+                        }
+
+                        @Override
+                        public @org.jetbrains.annotations.NotNull java.util.List<String> tabComplete(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String alias, @org.jetbrains.annotations.NotNull String[] args) {
+                            java.util.List<String> list = adminCommand.onTabComplete(sender, this, alias, args);
+                            return list != null ? list : super.tabComplete(sender, alias, args);
+                        }
+                    };
+                    fallbackAdmin.setPermission("churchsmp.admin");
+                    commandMap.register("churchsmp", fallbackAdmin);
+                }
+            } catch (Throwable t) {
+                getLogger().warning("CommandMap fallback note: " + t.getMessage());
             }
 
             // Action bar real-time cooldown/active display task (runs every 2 ticks = 100ms)
