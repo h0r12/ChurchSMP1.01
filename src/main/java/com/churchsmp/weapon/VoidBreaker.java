@@ -70,6 +70,10 @@ public class VoidBreaker extends LegendaryWeapon {
         return item;
     }
 
+    public ItemStack createItemWithEnchant(boolean useDensity) {
+        return createItem();
+    }
+
     @Override
     public boolean executePrimary(Player player) {
         String key = id + "_primary";
