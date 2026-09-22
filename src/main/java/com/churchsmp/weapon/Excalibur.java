@@ -181,7 +181,24 @@ public class Excalibur extends LegendaryWeapon {
         plugin.getCooldownManager().setCooldown(player, key, cd);
         plugin.getBossBarManager().showActiveCountdown(player, "Altar Pining", BossBar.Color.YELLOW, 4);
 
-        // Altar Pining: Pulls everyone into you, celestial Excalibur descends, slam impact
+        // Announce to ALL players via BossBar
+        net.kyori.adventure.text.Component allBarTitle = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                .deserialize("<gradient:#FFD700:#FFFFFF><bold>⚔ " + player.getName() + " invokes Altar Pining!</bold></gradient>");
+        net.kyori.adventure.bossbar.BossBar allBar = net.kyori.adventure.bossbar.BossBar.bossBar(
+                allBarTitle, 1.0f, net.kyori.adventure.bossbar.BossBar.Color.YELLOW, net.kyori.adventure.bossbar.BossBar.Overlay.PROGRESS);
+        for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
+            online.showBossBar(allBar);
+        }
+        new BukkitRunnable() {
+            @Override public void run() {
+                for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
+                    online.hideBossBar(allBar);
+                }
+            }
+        }.runTaskLater(plugin, 80L);
+
+        // Altar Pining: Pulls everyone into altar center, celestial Excalibur descends, slam impact
+        // Player stays GROUNDED — no fling
         final Location altarCenter = player.getLocation().clone();
         altarCenter.getWorld().playSound(altarCenter, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.4f);
         altarCenter.getWorld().playSound(altarCenter, Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.8f);
@@ -193,8 +210,7 @@ public class Excalibur extends LegendaryWeapon {
         final Particle.DustOptions bladeGold = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 2.2f);
         final Particle.DustOptions bladeWhite = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
 
-        // Player ascends into the air to command the celestial descent
-        player.setVelocity(new Vector(0, 1.35, 0));
+        // No fling — player remains on ground
         player.setFallDistance(0);
 
         new BukkitRunnable() {
@@ -260,36 +276,26 @@ public class Excalibur extends LegendaryWeapon {
                     altarCenter.getWorld().playSound(swordTip, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 0.6f + (ticks * 0.05f));
                 }
 
-                // Phase 3: Player Plunge Dive (tick 13)
-                if (ticks == 13 && !slammed) {
-                    Vector dive = altarCenter.toVector().subtract(player.getLocation().toVector()).setY(0);
-                    if (dive.length() > 0.1) dive.normalize().multiply(0.8);
-                    dive.setY(-3.5);
-                    player.setVelocity(dive);
-                    player.setFallDistance(0);
-                }
-
-                // Phase 4: Divine Slam Impact (tick 16 or upon hitting ground)
-                if (!slammed && (ticks >= 16 || (ticks > 13 && player.isOnGround()))) {
+                // Phase 3: Divine Slam Impact (tick 16)
+                if (!slammed && ticks >= 16) {
                     slammed = true;
                     player.setFallDistance(0);
 
-                    // Celestial Excalibur & Player slam the ground
                     altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.75f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.BLOCK_ANVIL_LAND, 1.8f, 0.5f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 1.1f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.5f, 1.2f);
 
-                    altarCenter.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, altarCenter, 3);
-                    altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 160, 3.5, 0.8, 3.5, 0.35);
+                    // No EXPLOSION_EMITTER — just totem+holy pillars
+                    altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 180, 3.5, 0.8, 3.5, 0.35);
 
-                    // Rising holy light pillars
-                    for (double y = 0; y <= 6.0; y += 0.5) {
+                    // Rising holy light pillars (taller: 8 blocks)
+                    for (double y = 0; y <= 8.0; y += 0.4) {
                         altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 3, 0.2, 0.1, 0.2, 0.02);
                         altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(0, y, 0), 3, 0.15, 0.15, 0.15, 0, bladeGold);
                     }
 
-                    // Multi-wave expanding ground shockwave rings (waves at 2.5, 5.0, 7.5, 10.0 blocks)
+                    // Multi-wave expanding ground shockwave rings
                     for (int wave = 1; wave <= 4; wave++) {
                         final double waveRadius = wave * 2.5;
                         new BukkitRunnable() {
@@ -305,18 +311,17 @@ public class Excalibur extends LegendaryWeapon {
                         }.runTaskLater(plugin, wave * 2L);
                     }
 
-                    // Slam damage & 3-second pin/stun on all caught enemies
+                    // Slam: 2.5 hearts (5.0 HP) + 3s stun/pin — NO upward velocity
                     for (LivingEntity e : altarCenter.getWorld().getNearbyLivingEntities(altarCenter, 9.0, 5.0, 9.0)) {
                         if (e.equals(player)) continue;
-                        applyTrueDamage(e, 4.0, player); // 2 hearts true damage (4 HP)
-                        // Stun for 3 seconds (Slowness 255 + Jump boost 128 completely immobilizes)
+                        applyTrueDamage(e, 5.0, player); // 2.5 hearts
                         e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 255, false, false));
                         e.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 60, 128, false, false));
                         e.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
-                        e.setVelocity(new Vector(0, -0.6, 0)); // Pin firmly to ground
+                        e.setVelocity(new Vector(0, -0.3, 0)); // pin down, no fling
                     }
 
-                    player.sendMessage(Component.text("✦ Excalibur impales the altar! Caught enemies pinned & stunned!", NamedTextColor.GOLD));
+                    player.sendMessage(Component.text("✦ Excalibur impales the altar! Enemies pinned & stunned for 3s!", NamedTextColor.GOLD));
                     cancel();
                 }
 

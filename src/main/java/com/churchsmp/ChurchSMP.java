@@ -54,6 +54,7 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
             Bukkit.getPluginManager().registerEvents(new CombatListener(this), this);
             Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
+            Bukkit.getPluginManager().registerEvents(new com.churchsmp.listener.LegendaryPickupListener(this), this);
             Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
             Bukkit.getPluginManager().registerEvents(this.weaponMenuManager, this);
 

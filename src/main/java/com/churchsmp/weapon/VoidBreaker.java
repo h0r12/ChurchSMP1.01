@@ -53,10 +53,6 @@ public class VoidBreaker extends LegendaryWeapon {
 
     @Override
     public ItemStack createItem() {
-        return createItemWithEnchant(true); // Default to Density 6
-    }
-
-    public ItemStack createItemWithEnchant(boolean useDensity) {
         ItemStack item = new ItemStack(baseMaterial);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -64,17 +60,11 @@ public class VoidBreaker extends LegendaryWeapon {
             meta.lore(buildCleanLore(List.of("Voidfeels", "Rifted", "Bound"), "Fractured", "Crumble"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
-
-            // 1.21 Mace Enchantments: Wind Burst 3, Density 6 or Breach 6
+            // Always Density 6 (not Breach) as requested
             try {
                 meta.addEnchant(Enchantment.WIND_BURST, 3, true);
-                if (useDensity) {
-                    meta.addEnchant(Enchantment.DENSITY, 6, true);
-                } else {
-                    meta.addEnchant(Enchantment.BREACH, 6, true);
-                }
+                meta.addEnchant(Enchantment.DENSITY, 6, true);
             } catch (Throwable ignored) {}
-
             item.setItemMeta(meta);
         }
         return item;
@@ -131,7 +121,7 @@ public class VoidBreaker extends LegendaryWeapon {
         player.setVelocity(dash);
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
         player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 30, 0.4, 0.4, 0.4, 0.1);
-        player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
+        player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05, 0.5f);
 
         player.sendMessage(Component.text("✦ Bound Dash! Charges remaining: " + charges + "/3", NamedTextColor.LIGHT_PURPLE));
         return true;
@@ -155,7 +145,7 @@ public class VoidBreaker extends LegendaryWeapon {
             Vector launch = player.getEyeLocation().getDirection().normalize().multiply(2.2);
             player.setVelocity(launch);
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.5f, 1.4f);
-            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 25, 0.5, 0.5, 0.5, 0.05);
+            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 25, 0.5, 0.5, 0.5, 0.05, 0.5f);
             player.sendMessage(Component.text("✦ Rifted Crosshair Launch!", NamedTextColor.DARK_PURPLE));
             return;
         }
@@ -262,7 +252,7 @@ public class VoidBreaker extends LegendaryWeapon {
 
             for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 4.0)) {
                 if (e.equals(attacker)) continue;
-                e.damage(8.0, attacker);
+                e.damage(4.0, attacker); // 2 hearts (reduced from 8.0)
             }
             attacker.sendMessage(Component.text("✦ CRUMBLE 4th HIT AFTERSHOCK!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
         }

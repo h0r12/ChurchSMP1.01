@@ -9,6 +9,7 @@ import com.churchsmp.weapon.Sorrowess;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Phantom;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Trident;
 import org.bukkit.event.EventHandler;
@@ -20,6 +21,7 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Random;
 
@@ -37,24 +39,27 @@ public class CombatListener implements Listener {
         if (!(event.getDamager() instanceof Player attacker)) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        // Intercept attacks on Sorrowess illusion clones
-        if (event.getEntity() instanceof org.bukkit.entity.ArmorStand as && as.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, "sorrowess_clone"), org.bukkit.persistence.PersistentDataType.STRING)) {
-            event.setCancelled(true);
+        // Intercept attacks on Sorrowess illusion Phantom clones
+        if (event.getEntity() instanceof Phantom phantom) {
             LegendaryWeapon sw = plugin.getWeaponManager().getWeapon("sorrowess");
             if (sw instanceof Sorrowess sorrowess) {
-                sorrowess.multiplyClone(as, attacker);
+                // Check if this phantom is a sorrowess clone using the exposed key
+                if (phantom.getPersistentDataContainer().has(sorrowess.getCloneKey(), PersistentDataType.STRING)) {
+                    event.setCancelled(true);
+                    sorrowess.multiplyClone(phantom, attacker);
+                    return;
+                }
             }
-            return;
         }
 
-        // Fallen effect check on attacker: disables ChurchSMP gems and legends
+        // Fallen effect check on attacker
         if (plugin.getFallenManager().isFallen(attacker)) {
             attacker.sendMessage(Component.text("✦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
-            event.setDamage(event.getDamage() * 0.5); // enchants / damage halved
+            event.setDamage(event.getDamage() * 0.5);
             return;
         }
 
-        // Fallen effect check on victim: armor weakened by 60% (damage taken increased by 60%)
+        // Fallen effect check on victim: armor weakened by 60%
         if (plugin.getFallenManager().isFallen(target)) {
             event.setDamage(event.getDamage() * 1.6);
         }
@@ -70,7 +75,7 @@ public class CombatListener implements Listener {
                 return;
             }
 
-            // Weapon onHit passive
+            // Weapon onHit passive (also handles SawRay mark accumulation for LuminescenceSpear)
             weapon.onHit(attacker, target, event.getDamage());
         }
 

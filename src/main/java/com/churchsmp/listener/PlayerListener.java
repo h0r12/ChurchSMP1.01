@@ -1,6 +1,7 @@
 package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
+import com.churchsmp.weapon.Grim;
 import com.churchsmp.weapon.LegendaryWeapon;
 import com.churchsmp.weapon.Mayim;
 import com.churchsmp.weapon.Sorrowess;
@@ -38,6 +39,7 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         plugin.getSinGemManager().checkAndGiveFirstGem(player);
         Sorrowess.checkInventoryHearts(player, plugin);
+        checkGrimHearts(player);
     }
 
     @EventHandler
@@ -113,6 +115,7 @@ public class PlayerListener implements Listener {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
                 Sorrowess.checkInventoryHearts(player, plugin);
+                checkGrimHearts(player);
             }
         }, 1L);
     }
@@ -158,6 +161,7 @@ public class PlayerListener implements Listener {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     Sorrowess.checkInventoryHearts(player, plugin);
+                    checkGrimHearts(player);
                 }
             }, 1L);
         }
@@ -173,4 +177,40 @@ public class PlayerListener implements Listener {
         Mayim.restoreOffhand(event.getPlayer());
         plugin.getBossBarManager().removeBossBar(event.getPlayer());
     }
+
+    /**
+     * Grim Heart Passive: player has only 10 hearts (20 HP) when Grim is NOT in their inventory.
+     * If Grim IS in inventory, restore to 20 hearts (40 HP standard max).
+     */
+    private void checkGrimHearts(Player player) {
+        boolean hasGrim = false;
+        for (ItemStack it : player.getInventory().getContents()) {
+            if (it == null || !it.hasItemMeta()) continue;
+            String wid = it.getItemMeta().getPersistentDataContainer().get(
+                    new org.bukkit.NamespacedKey(plugin, "weapon_id"), org.bukkit.persistence.PersistentDataType.STRING);
+            if ("grim".equals(wid)) {
+                hasGrim = true;
+                break;
+            }
+        }
+
+        org.bukkit.attribute.AttributeInstance attr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (attr == null) return;
+
+        double current = attr.getBaseValue();
+        if (!hasGrim) {
+            // Penalty: 10 hearts (20 HP)
+            if (current > 20.0) {
+                attr.setBaseValue(20.0);
+                // Clamp current health too
+                if (player.getHealth() > 20.0) player.setHealth(20.0);
+            }
+        } else {
+            // Grim present: restore 20 hearts (40 HP)
+            if (current < 40.0) {
+                attr.setBaseValue(40.0);
+            }
+        }
+    }
 }
+
