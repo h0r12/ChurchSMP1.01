@@ -92,6 +92,13 @@ public abstract class LegendaryWeapon {
 
     public abstract boolean executeSecondary(Player player);
 
+    /**
+     * Optional custom active/charge status string for action bar (e.g. "1/3 5s(per charge)").
+     */
+    public String getCustomActiveStatus(Player player, boolean secondary) {
+        return null;
+    }
+
     public void onHit(Player attacker, LivingEntity target, double damage) {}
 
     public void onDamaged(Player victim, EntityDamageEvent event) {}

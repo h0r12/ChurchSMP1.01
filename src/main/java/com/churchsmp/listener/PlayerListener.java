@@ -212,5 +212,17 @@ public class PlayerListener implements Listener {
             }
         }
     }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onExpChange(org.bukkit.event.player.PlayerExpChangeEvent event) {
+        Player player = event.getPlayer();
+        if (plugin.getAlignmentManager().getAlignmentScore(player) > 0) {
+            double multiplier = plugin.getAlignmentManager().getExpMultiplier(player);
+            if (multiplier > 1.0) {
+                int bonus = (int) Math.round(event.getAmount() * (multiplier - 1.0));
+                event.setAmount(event.getAmount() + bonus);
+            }
+        }
+    }
 }
 

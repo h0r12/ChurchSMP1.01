@@ -40,7 +40,10 @@ public class ActionBarCooldownTask extends BukkitRunnable {
             String s1Key = weapon.getId() + "_primary";
             String s1Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getPrimaryAbilityName()) + "</bold></gradient>";
             String s1Status;
-            if (plugin.getCooldownManager().isActive(player, s1Key)) {
+            String customS1 = weapon.getCustomActiveStatus(player, false);
+            if (customS1 != null) {
+                s1Status = grad + "<bold>" + customS1 + "</bold></gradient>";
+            } else if (plugin.getCooldownManager().isActive(player, s1Key)) {
                 double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s1Key);
                 s1Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
             } else if (plugin.getCooldownManager().isOnCooldown(player, s1Key)) {
@@ -54,7 +57,10 @@ public class ActionBarCooldownTask extends BukkitRunnable {
             String s2Key = weapon.getId() + "_secondary";
             String s2Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getSecondaryAbilityName()) + "</bold></gradient>";
             String s2Status;
-            if (plugin.getCooldownManager().isActive(player, s2Key)) {
+            String customS2 = weapon.getCustomActiveStatus(player, true);
+            if (customS2 != null) {
+                s2Status = grad + "<bold>" + customS2 + "</bold></gradient>";
+            } else if (plugin.getCooldownManager().isActive(player, s2Key)) {
                 double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s2Key);
                 s2Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
             } else if (plugin.getCooldownManager().isOnCooldown(player, s2Key)) {

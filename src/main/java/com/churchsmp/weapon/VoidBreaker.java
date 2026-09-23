@@ -132,6 +132,19 @@ public class VoidBreaker extends LegendaryWeapon {
         return true;
     }
 
+    @Override
+    public String getCustomActiveStatus(Player player, boolean secondary) {
+        if (secondary) {
+            String boundKey = id + "_secondary";
+            if (plugin.getCooldownManager().isActive(player, boundKey)) {
+                int charges = boundCharges.getOrDefault(player.getUniqueId(), 0);
+                double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, boundKey);
+                return charges + "/3 " + String.format(java.util.Locale.US, "%.1f", rem) + "ꜱ(ᴘᴇʀ ᴄʜᴀʀɢᴇ)";
+            }
+        }
+        return null;
+    }
+
     public void handleDoubleJump(Player player) {
         long now = System.currentTimeMillis();
 

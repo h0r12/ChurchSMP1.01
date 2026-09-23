@@ -5,7 +5,6 @@ import com.churchsmp.alignment.Alignment;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -16,12 +15,11 @@ import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Item;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -30,7 +28,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,11 +35,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class LuminescenceSpear extends LegendaryWeapon {
 
-    // Dash has 1 charge (simple cooldown), no charge counter needed
     private final Map<UUID, Long> boltCooldown = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lightStealCooldown = new ConcurrentHashMap<>();
 
-    // SawRay: marks on a specific target, UUID of attacker -> UUID of marked target + count
+    // 5-hit attack counter for Orbital Lightning Bolt
+    private final Map<UUID, Integer> attackCounter = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean> orbitalReady = new ConcurrentHashMap<>();
+
+    // SawRay: marks on target, UUID of attacker -> UUID of marked target + count
     private final Map<UUID, UUID> markedTarget = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> markCount = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> sawReady = new ConcurrentHashMap<>();
@@ -69,7 +69,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            meta.lore(buildCleanLore(List.of("Bolt", "LightStealing", "BurningBones"), "Dash", "SawRay"));
+            meta.lore(buildCleanLore(List.of("Bolt", "LightStealing", "BurningBones", "Orbital Bolt"), "Dash", "SawRay"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
             meta.addEnchant(Enchantment.LOYALTY, 3, true);
@@ -85,21 +85,19 @@ public class LuminescenceSpear extends LegendaryWeapon {
         return item;
     }
 
-    // ─── PRIMARY: Dash (1 charge, 12s cooldown) ─────────────────────────────────
+    // ─── PRIMARY: Dash (20s cooldown) ─────────────────────────────────
     @Override
     public boolean executePrimary(Player player) {
         String key = id + "_primary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
-        int cd = plugin.getConfig().getInt("weapons.luminescence_spear.primary_cooldown", 12);
+        // 20s cooldown as requested
+        int cd = plugin.getConfig().getInt("weapons.luminescence_spear.primary_cooldown", 20);
         plugin.getCooldownManager().setCooldown(player, key, cd);
 
-        // Dash 6 blocks forward
         Vector dir = player.getLocation().getDirection().normalize();
         Location start = player.getLocation().clone();
-        Location end = start.clone().add(dir.clone().multiply(6.0));
 
-        // Check path for collisions and move player via velocity (smooth dash, not teleport)
         player.setVelocity(dir.clone().multiply(2.8).setY(0.25));
         player.playSound(start, Sound.ITEM_TRIDENT_RIPTIDE_1, 1.2f, 1.4f);
         player.playSound(start, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.0f, 1.8f);
@@ -107,14 +105,12 @@ public class LuminescenceSpear extends LegendaryWeapon {
         Particle.DustOptions goldDust = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.5f);
         Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.2f);
 
-        // Ground ring at start
         for (int d = 0; d < 360; d += 20) {
             double rad = Math.toRadians(d);
             start.getWorld().spawnParticle(Particle.DUST, start.clone().add(Math.cos(rad) * 1.0, 0.1, Math.sin(rad) * 1.0), 1, 0, 0, 0, 0, whiteDust);
             start.getWorld().spawnParticle(Particle.DUST, start.clone().add(Math.cos(rad) * 2.2, 0.1, Math.sin(rad) * 2.2), 1, 0, 0, 0, 0, goldDust);
         }
 
-        // Wavy electric trail + deal 2 hearts (4 HP) damage to entities in path
         Vector up = new Vector(0, 1, 0);
         Vector right = dir.clone().crossProduct(up).normalize();
         for (double dist = 0; dist <= 6.0; dist += 0.25) {
@@ -125,16 +121,11 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
             for (LivingEntity victim : p.getWorld().getNearbyLivingEntities(p, 1.5)) {
                 if (victim.equals(player)) continue;
-                // Deal 2 hearts (4 HP) dash impact damage
                 victim.damage(4.0, player);
-                // Mark with CrescentEclipse mark for SawRay
                 victim.getPersistentDataContainer().set(crescentMarkKey, PersistentDataType.STRING, player.getUniqueId().toString());
                 victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0, false, false));
-
-                // Apply disable effects
                 victim.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 100, 1));
 
-                // Foot circle at victim
                 Location vFeet = victim.getLocation();
                 for (int vd = 0; vd < 360; vd += 30) {
                     double vrad = Math.toRadians(vd);
@@ -145,17 +136,13 @@ public class LuminescenceSpear extends LegendaryWeapon {
             }
         }
 
-        player.sendMessage(Component.text("✦ Dash! (12s cooldown)", NamedTextColor.AQUA));
+        player.sendMessage(Component.text("✦ Dash! (20s cooldown)", NamedTextColor.AQUA));
         return true;
     }
 
     // ─── SECONDARY: SawRay ───────────────────────────────────────────────────────
-    // F-key activates SawRay mode — melee attacks on marked targets add marks;
-    // after 3 marks a charged Antimatter Saw spawns in front of player.
-    // Press F again to fire the saw.
     @Override
     public boolean executeSecondary(Player player) {
-        // If saw is ready and waiting, fire it
         if (Boolean.TRUE.equals(sawReady.get(player.getUniqueId()))) {
             fireSaw(player);
             return true;
@@ -164,7 +151,6 @@ public class LuminescenceSpear extends LegendaryWeapon {
         String key = id + "_secondary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
-        // Activate SawRay mode — marks will now accumulate on next melee attacks
         plugin.getBossBarManager().showActiveCountdown(player, "SawRay — Mark target 3x", BossBar.Color.BLUE, 15);
         plugin.getCooldownManager().setActiveDuration(player, key, 15);
         plugin.getCooldownManager().setCooldown(player, key, plugin.getConfig().getInt("weapons.luminescence_spear.secondary_cooldown", 130));
@@ -177,12 +163,11 @@ public class LuminescenceSpear extends LegendaryWeapon {
         return true;
     }
 
-    // Called by CombatListener when player hits with this weapon
     public void onMeleeHit(Player attacker, LivingEntity target) {
         long now = System.currentTimeMillis();
         String key = id + "_secondary";
 
-        // LightStealing: Throwing inflicts Darkness (60s CD)
+        // LightStealing: Darkness (60s CD)
         long lastSteal = lightStealCooldown.getOrDefault(attacker.getUniqueId(), 0L);
         if (now - lastSteal > 60000L) {
             lightStealCooldown.put(attacker.getUniqueId(), now);
@@ -191,19 +176,34 @@ public class LuminescenceSpear extends LegendaryWeapon {
             attacker.sendMessage(Component.text("✦ LightStealing inflicted Darkness!", NamedTextColor.GRAY));
         }
 
-        // SawRay mark accumulation (only if SawRay is active)
+        // Attack 5 times -> Orbital Lightning Bolt on next hit or throw
+        if (Boolean.TRUE.equals(orbitalReady.remove(attacker.getUniqueId()))) {
+            triggerOrbitalLightning(target.getLocation(), attacker, false);
+            attacker.sendMessage(Component.text("✦ Unleashed Orbital Lightning Bolt!", NamedTextColor.AQUA).decorate(TextDecoration.BOLD));
+        } else {
+            int currentHits = attackCounter.getOrDefault(attacker.getUniqueId(), 0) + 1;
+            if (currentHits >= 5) {
+                attackCounter.put(attacker.getUniqueId(), 0);
+                orbitalReady.put(attacker.getUniqueId(), true);
+                attacker.getWorld().playSound(attacker.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.6f);
+                attacker.sendMessage(Component.text("✦ Orbital Lightning Bolt Armed! Next hit or throw unleashes it!", NamedTextColor.AQUA).decorate(TextDecoration.BOLD));
+                plugin.getBossBarManager().showActiveCountdown(attacker, this, "Orbital Bolt Ready", 10);
+            } else {
+                attackCounter.put(attacker.getUniqueId(), currentHits);
+                attacker.sendMessage(Component.text("✦ Orbital Charge: [" + currentHits + "/5]", NamedTextColor.AQUA));
+            }
+        }
+
+        // SawRay mark accumulation
         if (!plugin.getCooldownManager().isActive(attacker, key)) return;
         if (sawReady.getOrDefault(attacker.getUniqueId(), false)) return;
 
-        // Check if target is marked
         String markerStr = target.getPersistentDataContainer().get(crescentMarkKey, PersistentDataType.STRING);
         if (markerStr == null || !markerStr.equals(attacker.getUniqueId().toString())) return;
 
-        // Accumulate marks
         int marks = markCount.getOrDefault(attacker.getUniqueId(), 0) + 1;
         markCount.put(attacker.getUniqueId(), marks);
 
-        // Visual mark indicator
         Location hitLoc = target.getLocation().add(0, 1.5, 0);
         Particle.DustOptions markDust = new Particle.DustOptions(Color.fromRGB(0, 0, 200), 1.3f);
         for (int d = 0; d < 360; d += 45) {
@@ -221,12 +221,10 @@ public class LuminescenceSpear extends LegendaryWeapon {
         }
     }
 
-    // Spawns the Antimatter Saw in front of the player
     private void chargeSaw(Player player) {
         sawReady.put(player.getUniqueId(), true);
         Location sawLoc = player.getEyeLocation().add(player.getLocation().getDirection().normalize().multiply(1.5));
 
-        // Saw item entity (spinning golden sword as placeholder)
         ItemStack sawItem = new ItemStack(Material.GOLDEN_SWORD);
         Item saw = player.getWorld().dropItem(sawLoc, sawItem);
         saw.setPickupDelay(Integer.MAX_VALUE);
@@ -238,7 +236,6 @@ public class LuminescenceSpear extends LegendaryWeapon {
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.5f, 2.0f);
         plugin.getBossBarManager().showActiveCountdown(player, "✦ Antimatter Saw — Press F to fire!", BossBar.Color.YELLOW, 8);
 
-        // Spinning particle effect around saw
         new BukkitRunnable() {
             int t = 0;
             @Override
@@ -267,7 +264,6 @@ public class LuminescenceSpear extends LegendaryWeapon {
         player.sendMessage(Component.text("✦ Antimatter Saw charged! Press F to fire!", NamedTextColor.AQUA).decorate(TextDecoration.BOLD));
     }
 
-    // Fires the saw forward
     private void fireSaw(Player player) {
         sawReady.remove(player.getUniqueId());
         Item saw = chargedSaw.remove(player.getUniqueId());
@@ -283,7 +279,6 @@ public class LuminescenceSpear extends LegendaryWeapon {
         Particle.DustOptions blueDust = new Particle.DustOptions(Color.fromRGB(0, 100, 255), 1.5f);
         Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.2f);
 
-        // Projectile simulation — travels 20 blocks forward, damages everything in path
         new BukkitRunnable() {
             double dist = 0;
             boolean hit = false;
@@ -297,7 +292,6 @@ public class LuminescenceSpear extends LegendaryWeapon {
                 dist += 0.6;
                 Location curr = fireLoc.clone().add(dir.clone().multiply(dist));
 
-                // Spinning saw particle trail
                 for (int i = 0; i < 3; i++) {
                     double angle = Math.toRadians(dist * 45 + i * 120);
                     curr.getWorld().spawnParticle(Particle.DUST, curr.clone().add(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0), 1, 0, 0, 0, 0, blueDust);
@@ -305,32 +299,24 @@ public class LuminescenceSpear extends LegendaryWeapon {
                 curr.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, curr, 2, 0.1, 0.1, 0.1, 0.08);
                 curr.getWorld().spawnParticle(Particle.DUST, curr, 2, 0.1, 0.1, 0.1, 0, whiteDust);
 
-                // Hit check
                 for (LivingEntity e : curr.getWorld().getNearbyLivingEntities(curr, 1.0)) {
                     if (e.equals(player)) continue;
                     hit = true;
 
-                    // 2 hearts (4 HP) total
+                    // 2 hearts total + CrescentEclipse mark
                     e.damage(4.0, player);
-                    // Apply CrescentEclipse mark
                     e.getPersistentDataContainer().set(crescentMarkKey, PersistentDataType.STRING, player.getUniqueId().toString());
                     e.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0));
                     e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1));
 
-                    // Impact burst
-                    curr.getWorld().playSound(curr, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 1.0f);
-                    curr.getWorld().spawnParticle(Particle.FLASH, curr, 1, Color.WHITE);
-                    curr.getWorld().spawnParticle(Particle.SONIC_BOOM, curr, 1);
-                    for (int d = 0; d < 360; d += 20) {
-                        double rad = Math.toRadians(d);
-                        curr.getWorld().spawnParticle(Particle.DUST, curr.clone().add(Math.cos(rad) * 1.5, 0.1, Math.sin(rad) * 1.5), 1, 0, 0, 0, 0, blueDust);
-                    }
-                    player.sendMessage(Component.text("✦ Antimatter Saw hit! CrescentEclipse mark applied.", NamedTextColor.BLUE));
+                    // SawRay releases the MINI version of the orbital lightning bolt (0.5 damage)
+                    triggerOrbitalLightning(e.getLocation(), player, true);
+
+                    player.sendMessage(Component.text("✦ Antimatter Saw hit! Mini Orbital Bolt unleashed!", NamedTextColor.BLUE));
                     cancel();
                     return;
                 }
 
-                // Wall check
                 if (curr.getBlock().getType().isSolid()) {
                     curr.getWorld().spawnParticle(Particle.DUST, curr, 10, 0.3, 0.3, 0.3, 0, blueDust);
                     cancel();
@@ -339,26 +325,75 @@ public class LuminescenceSpear extends LegendaryWeapon {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    // Called from CombatListener when trident projectile hits (legacy LightStealing hook)
+    /**
+     * Orbital Lightning Bolt:
+     * Full version (attack 5 times): does 1 damage (1.0 HP) to target and nearby entities.
+     * Mini version (SawRay release): does half damage (0.5 HP) to target and nearby entities.
+     */
+    public void triggerOrbitalLightning(Location targetLoc, Player attacker, boolean isMini) {
+        double height = isMini ? 12.0 : 28.0;
+        double damage = isMini ? 0.5 : 1.0; // 1 damage for full, half (0.5) for mini
+
+        Location top = targetLoc.clone().add(0, height, 0);
+        targetLoc.getWorld().playSound(targetLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, isMini ? 1.0f : 1.8f, isMini ? 1.4f : 1.0f);
+        targetLoc.getWorld().playSound(targetLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, isMini ? 0.8f : 1.4f, 1.6f);
+
+        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), isMini ? 1.2f : 2.0f);
+        Particle.DustOptions aquaDust = new Particle.DustOptions(Color.fromRGB(0, 220, 255), isMini ? 1.0f : 1.8f);
+
+        // Vertical lightning pillar descending from the sky
+        for (double y = 0; y <= height; y += 0.5) {
+            Location p = targetLoc.clone().add(0, y, 0);
+            p.getWorld().spawnParticle(Particle.DUST, p, isMini ? 1 : 2, 0.1, 0.05, 0.1, 0, whiteDust);
+            p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, p, isMini ? 1 : 2, 0.1, 0.1, 0.1, 0.02);
+            if (!isMini && (int) y % 6 == 0) {
+                p.getWorld().spawnParticle(Particle.SONIC_BOOM, p, 1);
+            }
+        }
+
+        // Ground shockwave
+        double ringRadius = isMini ? 2.5 : 4.5;
+        for (int d = 0; d < 360; d += 20) {
+            double rad = Math.toRadians(d);
+            targetLoc.getWorld().spawnParticle(Particle.DUST,
+                    targetLoc.clone().add(Math.cos(rad) * ringRadius, 0.1, Math.sin(rad) * ringRadius),
+                    1, 0, 0, 0, 0, aquaDust);
+        }
+
+        // Damage target and nearby
+        double range = isMini ? 3.0 : 5.0;
+        for (LivingEntity e : targetLoc.getWorld().getNearbyLivingEntities(targetLoc, range)) {
+            if (e.equals(attacker)) continue;
+            e.damage(damage, attacker);
+            e.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, e.getLocation().add(0, 1.0, 0), 4, 0.2, 0.2, 0.2, 0.05);
+        }
+    }
+
     public void onTridentThrowHit(Player thrower, LivingEntity target) {
         long now = System.currentTimeMillis();
         long lastSteal = lightStealCooldown.getOrDefault(thrower.getUniqueId(), 0L);
         if (now - lastSteal > 60000L) {
             lightStealCooldown.put(thrower.getUniqueId(), now);
+            plugin.getBossBarManager().showPassiveCooldown(thrower, this, "LightStealing", 60);
             target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
             thrower.sendMessage(Component.text("✦ LightStealing inflicted Darkness on target!", NamedTextColor.GRAY));
+        }
+
+        // Throw also triggers Orbital Lightning if charged!
+        if (Boolean.TRUE.equals(orbitalReady.remove(thrower.getUniqueId()))) {
+            triggerOrbitalLightning(target.getLocation(), thrower, false);
+            thrower.sendMessage(Component.text("✦ Trident Throw unleashed Orbital Lightning Bolt!", NamedTextColor.AQUA).decorate(TextDecoration.BOLD));
         }
     }
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
-        // Delegate to melee hit handler for SawRay mark accumulation
         onMeleeHit(attacker, target);
     }
 
     @Override
     public void onDamaged(Player victim, EntityDamageEvent event) {
-        // Bolt: Falling creates explosion based on fall distance (60s CD)
+        // Bolt: Falling creates explosion based on fall distance (60s CD) — TWICE AS MUCH DAMAGE
         if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
             long now = System.currentTimeMillis();
             long lastBolt = boltCooldown.getOrDefault(victim.getUniqueId(), 0L);
@@ -382,7 +417,8 @@ public class LuminescenceSpear extends LegendaryWeapon {
                         loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(Math.cos(rad) * 3.5, 0.2, Math.sin(rad) * 3.5), 2, 0, 0, 0, 0.05);
                     }
 
-                    double dmg = Math.min(6.0, 2.0 + (fallDist * 0.4));
+                    // "your slam do twice as much" -> doubled from before (max 12.0)
+                    double dmg = Math.min(12.0, (2.0 + (fallDist * 0.4)) * 2.0);
                     for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 5.0)) {
                         if (e.equals(victim)) continue;
                         e.damage(dmg, victim);

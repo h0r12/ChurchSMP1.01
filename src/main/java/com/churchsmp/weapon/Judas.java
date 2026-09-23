@@ -112,6 +112,17 @@ public class Judas extends LegendaryWeapon {
     }
 
     @Override
+    public String getCustomActiveStatus(Player player, boolean secondary) {
+        if (!secondary) {
+            int currentCharges = skullCharges.getOrDefault(player.getUniqueId(), 3);
+            if (currentCharges < 3 && currentCharges > 0) {
+                return currentCharges + "/3";
+            }
+        }
+        return null;
+    }
+
+    @Override
     public boolean executeSecondary(Player player) {
         String key = id + "_secondary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;

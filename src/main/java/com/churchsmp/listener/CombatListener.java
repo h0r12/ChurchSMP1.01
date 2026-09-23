@@ -36,7 +36,13 @@ public class CombatListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player attacker)) return;
+        Player attacker = null;
+        if (event.getDamager() instanceof Player p) {
+            attacker = p;
+        } else if (event.getDamager() instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof Player p) {
+            attacker = p;
+        }
+        if (attacker == null) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
         // Intercept attacks on Sorrowess illusion Phantom clones
@@ -75,16 +81,22 @@ public class CombatListener implements Listener {
                 return;
             }
 
-            // Weapon onHit passive (also handles SawRay mark accumulation for LuminescenceSpear)
+            // Weapon onHit passive
             weapon.onHit(attacker, target, event.getDamage());
         }
 
-        // Judas passives apply to every weapon attack
-        if (!(weapon instanceof Judas)) {
-            LegendaryWeapon judasW = plugin.getWeaponManager().getWeapon("judas");
-            if (judasW instanceof Judas judas) {
-                judas.triggerJudasPassives(attacker, target);
+        // Alignment Smite scaling: Smite deals more damage than Sharpness for positive alignment
+        if (plugin.getAlignmentManager().getAlignmentScore(attacker) > 0) {
+            if (item != null && item.containsEnchantment(org.bukkit.enchantments.Enchantment.SMITE)) {
+                double smiteBonus = plugin.getAlignmentManager().getSmiteBonusDamage(attacker);
+                event.setDamage(event.getDamage() + smiteBonus);
             }
+        }
+
+        // Judas passives apply to EVERYTHING (any weapon, projectiles, melee)
+        LegendaryWeapon judasW = plugin.getWeaponManager().getWeapon("judas");
+        if (judasW instanceof Judas judas) {
+            judas.triggerJudasPassives(attacker, target);
         }
 
         // Gem hit passives & multipliers

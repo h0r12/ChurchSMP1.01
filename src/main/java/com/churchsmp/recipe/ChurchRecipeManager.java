@@ -43,6 +43,49 @@ public class ChurchRecipeManager implements Listener {
 
         // Grim: requires Netherite Sword, Wither Skeleton Skull, and Sloth Gem
         registerWeaponRecipe("recipe_grim", "grim", SinGemType.SLOTH, Material.WITHER_SKELETON_SKULL, Material.NETHERITE_SWORD);
+
+        registerRelicRecipes();
+    }
+
+    private void registerRelicRecipes() {
+        // Impiety (Good / Holiness)
+        try {
+            NamespacedKey key = new NamespacedKey(plugin, "recipe_impiety");
+            try { Bukkit.removeRecipe(key); } catch (Throwable ignored) {}
+            ShapedRecipe recipe = new ShapedRecipe(key, com.churchsmp.item.RelicItem.createRelic(plugin, com.churchsmp.item.RelicItem.RelicType.IMPIETY));
+            recipe.shape(" G ", "TST", " D ");
+            recipe.setIngredient('G', Material.GOLD_BLOCK);
+            recipe.setIngredient('T', Material.TOTEM_OF_UNDYING);
+            recipe.setIngredient('S', Material.NETHER_STAR);
+            recipe.setIngredient('D', Material.DIAMOND_BLOCK);
+            Bukkit.addRecipe(recipe);
+        } catch (Throwable ignored) {}
+
+        // Iniquity (Evil / Sins)
+        try {
+            NamespacedKey key = new NamespacedKey(plugin, "recipe_iniquity");
+            try { Bukkit.removeRecipe(key); } catch (Throwable ignored) {}
+            ShapedRecipe recipe = new ShapedRecipe(key, com.churchsmp.item.RelicItem.createRelic(plugin, com.churchsmp.item.RelicItem.RelicType.INIQUITY));
+            recipe.shape(" W ", "NSN", " C ");
+            recipe.setIngredient('W', Material.WITHER_SKELETON_SKULL);
+            recipe.setIngredient('N', Material.NETHERITE_INGOT);
+            recipe.setIngredient('S', Material.NETHER_STAR);
+            recipe.setIngredient('C', Material.CRYING_OBSIDIAN);
+            Bukkit.addRecipe(recipe);
+        } catch (Throwable ignored) {}
+
+        // Obscura (Nullified / Neutrality)
+        try {
+            NamespacedKey key = new NamespacedKey(plugin, "recipe_obscura");
+            try { Bukkit.removeRecipe(key); } catch (Throwable ignored) {}
+            ShapedRecipe recipe = new ShapedRecipe(key, com.churchsmp.item.RelicItem.createRelic(plugin, com.churchsmp.item.RelicItem.RelicType.OBSCURA));
+            recipe.shape(" E ", "CSC", " O ");
+            recipe.setIngredient('E', Material.ECHO_SHARD);
+            recipe.setIngredient('C', Material.END_CRYSTAL);
+            recipe.setIngredient('S', Material.NETHER_STAR);
+            recipe.setIngredient('O', Material.OBSIDIAN);
+            Bukkit.addRecipe(recipe);
+        } catch (Throwable ignored) {}
     }
 
     private void registerWeaponRecipe(String recipeKeyStr, String weaponId, SinGemType gemType, Material coreMaterial, Material baseMaterial) {
