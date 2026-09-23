@@ -98,6 +98,7 @@ public class Grim extends LegendaryWeapon {
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             meta.getPersistentDataContainer().set(killCountKey, PersistentDataType.INTEGER, startingKills);
             applyStandardEnchants(meta);
+            meta.setCustomModelData(1007);
             item.setItemMeta(meta);
         }
         return item;
@@ -347,6 +348,11 @@ public class Grim extends LegendaryWeapon {
         if (attr != null) {
             attr.setBaseValue(attr.getBaseValue() + 2.0);
         }
+
+        // Soultaking passive: triggers on kill with 10s cooldown, grants 5s Regen + Absorption
+        plugin.getBossBarManager().showPassiveCooldown(player, this, "Soultaking", 10);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 100, 1));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 100, 0));
 
         // Soul harvesting visual
         Location loc = player.getLocation().add(0, 1.0, 0);

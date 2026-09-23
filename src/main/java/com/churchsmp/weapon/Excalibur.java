@@ -57,6 +57,7 @@ public class Excalibur extends LegendaryWeapon {
             meta.lore(buildCleanLore(List.of("Hopeful", "Wings"), "Acceleration Nova", "Altar Pining"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
+            meta.setCustomModelData(1001);
             item.setItemMeta(meta);
         }
         return item;

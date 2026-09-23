@@ -58,6 +58,7 @@ public class Judas extends LegendaryWeapon {
             meta.lore(buildCleanLore(List.of("Bloodlust", "Unfree", "Bite"), "Hemorrhaged", "Discipline"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
+            meta.setCustomModelData(1004);
             item.setItemMeta(meta);
         }
         return item;
@@ -229,6 +230,7 @@ public class Judas extends LegendaryWeapon {
 
         if (now - lastBite > 30000L && random.nextDouble() < 0.25) {
             biteCooldown.put(attacker.getUniqueId(), now);
+            plugin.getBossBarManager().showPassiveCooldown(attacker, this, "Bite", 30);
 
             target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, 1));
             target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 120, 0));

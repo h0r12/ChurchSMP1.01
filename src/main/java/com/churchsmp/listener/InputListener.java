@@ -132,14 +132,20 @@ public class InputListener implements Listener {
 
     private void triggerWeaponAbility(Player player, LegendaryWeapon weapon, boolean secondary) {
         if (!plugin.getAlignmentManager().canWield(player, weapon.getRequiredAlignment())) {
-            player.sendMessage(Component.text("âœ¦ Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
+            player.sendMessage(Component.text("✦ Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
             return;
         }
 
-        if (secondary) {
-            weapon.executeSecondary(player);
-        } else {
-            weapon.executePrimary(player);
+        String abilityName = secondary ? weapon.getSecondaryAbilityName() : weapon.getPrimaryAbilityName();
+        String cdKey = weapon.getId() + (secondary ? "_secondary" : "_primary");
+
+        boolean success = secondary ? weapon.executeSecondary(player) : weapon.executePrimary(player);
+        if (success) {
+            int cd = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+            if (cd > 0) {
+                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize(com.churchsmp.util.TextUtil.getAbilityUsedMessage(weapon, abilityName, cd)));
+            }
         }
     }
 }

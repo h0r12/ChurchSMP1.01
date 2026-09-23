@@ -78,6 +78,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
             NamespacedKey speedKey = new NamespacedKey(plugin, "spear_speed");
             meta.removeAttributeModifier(Attribute.ATTACK_SPEED);
             meta.addAttributeModifier(Attribute.ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.setCustomModelData(1002);
 
             item.setItemMeta(meta);
         }
@@ -185,6 +186,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
         long lastSteal = lightStealCooldown.getOrDefault(attacker.getUniqueId(), 0L);
         if (now - lastSteal > 60000L) {
             lightStealCooldown.put(attacker.getUniqueId(), now);
+            plugin.getBossBarManager().showPassiveCooldown(attacker, this, "LightStealing", 60);
             target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
             attacker.sendMessage(Component.text("✦ LightStealing inflicted Darkness!", NamedTextColor.GRAY));
         }
@@ -363,6 +365,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
             if (now - lastBolt > 60000L) {
                 boltCooldown.put(victim.getUniqueId(), now);
+                plugin.getBossBarManager().showPassiveCooldown(victim, this, "Bolt", 60);
                 float fallDist = victim.getFallDistance();
 
                 if (fallDist > 3.0f) {

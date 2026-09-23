@@ -149,22 +149,16 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("==========[ ChurchAdmin Commands ]==========", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
-        sender.sendMessage(Component.text("/churchadmin menu", NamedTextColor.YELLOW)
-                .append(Component.text(" - Opens the interactive Legendary Weapon menu", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin giveimpiety [player]", NamedTextColor.YELLOW)
-                .append(Component.text(" - Gives the Impiety right-click menu item", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin resetcooldown [player]", NamedTextColor.YELLOW)
-                .append(Component.text(" - Resets all ability cooldowns", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin setalignment <player> <alignment>", NamedTextColor.YELLOW)
-                .append(Component.text(" - Sets player's alignment (GOOD, EVIL, NULLIFIED)", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin giveweapon <player> <weapon_id>", NamedTextColor.YELLOW)
-                .append(Component.text(" - Spawns a legendary weapon", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin givegem <player> <gem_name>", NamedTextColor.YELLOW)
-                .append(Component.text(" - Spawns a Sin Relic gem", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/churchadmin reload", NamedTextColor.YELLOW)
-                .append(Component.text(" - Reloads configuration file", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("===========================================", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
+        net.kyori.adventure.text.minimessage.MiniMessage mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage();
+        sender.sendMessage(mm.deserialize(com.churchsmp.util.TextUtil.formatCommandHeader("CHURCHADMIN COMMANDS")));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("menu") + "</bold></gold> <white>-</white> <gray>Opens the interactive Legendary Weapon menu</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giveimpiety") + " [player]</bold></gold> <white>-</white> <gray>Gives the Impiety right-click menu item</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("resetcooldown") + " [player]</bold></gold> <white>-</white> <gray>Resets all ability cooldowns</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("setalignment") + " <player> <alignment></bold></gold> <white>-</white> <gray>Sets player's alignment (GOOD, EVIL, NULLIFIED)</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giveweapon") + " <player> <weapon_id></bold></gold> <white>-</white> <gray>Spawns a legendary weapon</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("givegem") + " <player> <gem_name></bold></gold> <white>-</white> <gray>Spawns a Sin Relic gem</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("reload") + "</bold></gold> <white>-</white> <gray>Reloads configuration file</gray>"));
+        sender.sendMessage(mm.deserialize("<gold>══════════════════════════════════════════</gold>"));
     }
 
     @Override

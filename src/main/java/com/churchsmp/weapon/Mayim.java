@@ -92,6 +92,7 @@ public class Mayim extends LegendaryWeapon {
             meta.lore(buildCleanLore(List.of("Finfuel", "Rust", "Honor"), "Cold", "Frostbite"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
+            meta.setCustomModelData(1003);
             item.setItemMeta(meta);
         }
         return item;

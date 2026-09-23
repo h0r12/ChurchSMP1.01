@@ -60,6 +60,32 @@ public abstract class LegendaryWeapon {
         return secondaryAbilityName;
     }
 
+    public net.kyori.adventure.bossbar.BossBar.Color getThemeBossBarColor() {
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
+            case "excalibur" -> net.kyori.adventure.bossbar.BossBar.Color.YELLOW;
+            case "luminescence_spear" -> net.kyori.adventure.bossbar.BossBar.Color.BLUE;
+            case "mayim" -> net.kyori.adventure.bossbar.BossBar.Color.BLUE;
+            case "judas" -> net.kyori.adventure.bossbar.BossBar.Color.RED;
+            case "sorrowess" -> net.kyori.adventure.bossbar.BossBar.Color.PURPLE;
+            case "voidbreaker" -> net.kyori.adventure.bossbar.BossBar.Color.PURPLE;
+            case "grim" -> net.kyori.adventure.bossbar.BossBar.Color.GREEN;
+            default -> net.kyori.adventure.bossbar.BossBar.Color.WHITE;
+        };
+    }
+
+    public String getThemeGradientTag() {
+        return switch (id.toLowerCase(java.util.Locale.ROOT)) {
+            case "excalibur" -> "<gradient:#FFFFFF:#FFD700:#55FFFF>";
+            case "luminescence_spear" -> "<gradient:#FFFFFF:#0055FF:#FFFFFF>";
+            case "mayim" -> "<gradient:#FFFFFF:#00DFFF:#FFFFFF>";
+            case "judas" -> "<gradient:#FF4444:#8B0000>";
+            case "sorrowess" -> "<gradient:#FF7F7F:#8B0000>";
+            case "voidbreaker" -> "<gradient:#8A2BE2:#D3D3D3:#4B0082>";
+            case "grim" -> "<gradient:#2E8B57:#556B2F:#004d00>";
+            default -> "<gradient:#FFFFFF:#FFD700>";
+        };
+    }
+
     public abstract ItemStack createItem();
 
     public abstract boolean executePrimary(Player player);

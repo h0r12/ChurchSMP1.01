@@ -65,6 +65,7 @@ public class VoidBreaker extends LegendaryWeapon {
                 meta.addEnchant(Enchantment.WIND_BURST, 3, true);
                 meta.addEnchant(Enchantment.DENSITY, 6, true);
             } catch (Throwable ignored) {}
+            meta.setCustomModelData(1006);
             item.setItemMeta(meta);
         }
         return item;
@@ -146,6 +147,7 @@ public class VoidBreaker extends LegendaryWeapon {
             }
 
             riftedCooldown.put(player.getUniqueId(), now);
+            plugin.getBossBarManager().showPassiveCooldown(player, this, "Rifted", (int) (cdDuration / 1000));
             Vector launch = player.getEyeLocation().getDirection().normalize().multiply(2.2);
             player.setVelocity(launch);
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.5f, 1.4f);
@@ -159,6 +161,7 @@ public class VoidBreaker extends LegendaryWeapon {
         if (now - lastDJ < 5000L) return;
 
         doubleJumpCooldown.put(player.getUniqueId(), now);
+        plugin.getBossBarManager().showPassiveCooldown(player, this, "Voidfeels", 5);
         player.setVelocity(new Vector(player.getVelocity().getX(), 0.9, player.getVelocity().getZ()));
         player.playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.2f, 1.2f);
         player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 15, 0.3, 0.1, 0.3, 0.05);

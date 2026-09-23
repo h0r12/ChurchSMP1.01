@@ -66,6 +66,7 @@ public class Sorrowess extends LegendaryWeapon {
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
             meta.addEnchant(Enchantment.RIPTIDE, 7, true);
+            meta.setCustomModelData(1005);
             item.setItemMeta(meta);
         }
         return item;
