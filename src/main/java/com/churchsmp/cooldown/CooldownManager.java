@@ -38,6 +38,17 @@ public class CooldownManager {
     }
 
     /**
+     * Convenience alias for setActiveDuration.
+     */
+    public void setActive(Player player, String abilityKey, long seconds) {
+        setActiveDuration(player, abilityKey, seconds);
+    }
+
+    public void setActive(Player player, String abilityKey, int seconds) {
+        setActiveDuration(player, abilityKey, seconds);
+    }
+
+    /**
      * Check if an ability is currently in its active state.
      */
     public boolean isActive(Player player, String abilityKey) {

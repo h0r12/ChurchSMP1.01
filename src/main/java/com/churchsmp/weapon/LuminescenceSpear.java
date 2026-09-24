@@ -70,10 +70,13 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
     @Override
     public ItemStack createItem() {
-        ItemStack item = super.createItem();
+        ItemStack item = new ItemStack(baseMaterial);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setUnbreakable(true);
+            meta.displayName(displayName);
+            meta.lore(buildCleanLore(List.of("BurningBones", "Bolt", "LightStealing"), "Dash", "SawRay"));
+            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
+            applyStandardEnchants(meta);
             meta.addEnchant(Enchantment.LOYALTY, 3, true);
 
             // Trident damage equivalent to Netherite Sword Sharpness 7 (+12.0 base damage modifier)
@@ -169,7 +172,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
         plugin.getBossBarManager().showActiveCountdown(player, "SawRay — Mark target 3x", BossBar.Color.BLUE, 15);
-        plugin.getCooldownManager().setActive(player, key, 15);
+        plugin.getCooldownManager().setActiveDuration(player, key, 15);
         markCount.put(player.getUniqueId(), 0);
         markedTarget.remove(player.getUniqueId());
 
