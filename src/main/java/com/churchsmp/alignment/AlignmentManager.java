@@ -50,17 +50,26 @@ public class AlignmentManager {
      * Sets the player's alignment score (-100 to +100).
      */
     public void setAlignmentScore(Player player, int score) {
+        setAlignmentScore(player, score, true);
+    }
+
+    /**
+     * Sets the player's alignment score (-100 to +100) with optional chat notification.
+     */
+    public void setAlignmentScore(Player player, int score, boolean notify) {
         int clamped = Math.max(-100, Math.min(100, score));
         player.getPersistentDataContainer().set(alignmentScoreKey, PersistentDataType.INTEGER, clamped);
 
         Alignment align = getAlignment(player);
         player.getPersistentDataContainer().set(alignmentKey, PersistentDataType.STRING, align.name());
 
-        String scoreStr = (clamped > 0 ? "+" + clamped : String.valueOf(clamped));
-        Component msg = MiniMessage.miniMessage().deserialize(
-                "<gold>✦ <white>" + TextUtil.toSmallCaps("Alignment Score") + ": </white><yellow><bold>" + scoreStr + "</bold></yellow> "
-        ).append(align.getFormattedComponent());
-        player.sendMessage(msg);
+        if (notify) {
+            String scoreStr = (clamped > 0 ? "+" + clamped : String.valueOf(clamped));
+            Component msg = MiniMessage.miniMessage().deserialize(
+                    "<gold>✦ <white>" + TextUtil.toSmallCaps("Alignment Score") + ": </white><yellow><bold>" + scoreStr + "</bold></yellow> "
+            ).append(align.getFormattedComponent());
+            player.sendMessage(msg);
+        }
     }
 
     /**

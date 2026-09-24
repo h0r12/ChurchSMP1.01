@@ -99,30 +99,11 @@ public class InputListener implements Listener {
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
-        // Check if Relic item (Iniquity, Impiety, Obscura) is right-clicked (single use, consumed)
+        // Check if Relic item (Iniquity, Impiety, Obscura) is right-clicked to choose path weapon
         com.churchsmp.item.RelicItem.RelicType relic = com.churchsmp.item.RelicItem.getRelicType(mainHand, plugin);
         if (relic != null) {
             event.setCancelled(true);
-            mainHand.subtract(1);
-
-            plugin.getAlignmentManager().setAlignmentScore(player, relic.getTargetScore());
-
-            if (relic == com.churchsmp.item.RelicItem.RelicType.IMPIETY) {
-                player.getWorld().playSound(player.getLocation(), org.bukkit.Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.8f);
-                player.getWorld().spawnParticle(org.bukkit.Particle.TOTEM_OF_UNDYING, player.getLocation().add(0, 1, 0), 60, 0.5, 0.8, 0.5, 0.2);
-                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
-                        "<gradient:#FFFFFF:#FFD700><bold>✦ ᴜꜱᴇᴅ [ɪᴍᴘɪᴇᴛʏ]! ʏᴏᴜʀ ᴀʟɪɢɴᴍᴇɴᴛ ɪꜱ ɴᴏᴡ ɢᴏᴏᴅ (+100). ɢᴏᴏᴅ ᴡᴇᴀᴘᴏɴꜱ ᴜɴʟᴏᴄᴋᴇᴅ.</bold></gradient>"));
-            } else if (relic == com.churchsmp.item.RelicItem.RelicType.INIQUITY) {
-                player.getWorld().playSound(player.getLocation(), org.bukkit.Sound.ENTITY_WITHER_SPAWN, 1.2f, 0.8f);
-                player.getWorld().spawnParticle(org.bukkit.Particle.SOUL_FIRE_FLAME, player.getLocation().add(0, 1, 0), 60, 0.5, 0.8, 0.5, 0.1);
-                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
-                        "<gradient:#FF0000:#8B0000><bold>✦ ᴜꜱᴇᴅ [ɪɴɪǫᴜɪᴛʏ]! ʏᴏᴜʀ ᴀʟɪɢɴᴍᴇɴᴛ ɪꜱ ɴᴏᴡ ᴇᴠɪʟ (-100). ᴇᴠɪʟ ᴡᴇᴀᴘᴏɴꜱ ᴜɴʟᴏᴄᴋᴇᴅ.</bold></gradient>"));
-            } else {
-                player.getWorld().playSound(player.getLocation(), org.bukkit.Sound.ENTITY_WARDEN_SONIC_BOOM, 1.2f, 1.5f);
-                player.getWorld().spawnParticle(org.bukkit.Particle.PORTAL, player.getLocation().add(0, 1, 0), 80, 0.6, 0.8, 0.6, 0.5);
-                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
-                        "<gradient:#4B0082:#00CED1><bold>✦ ᴜꜱᴇᴅ [ᴏʙꜱᴄᴜʀᴀ]! ʏᴏᴜʀ ᴀʟɪɢɴᴍᴇɴᴛ ɪꜱ ɴᴏᴡ ɴᴜʟʟɪғɪᴇᴅ (0). ɴᴜʟʟɪғɪᴇᴅ ᴡᴇᴀᴘᴏɴꜱ ᴜɴʟᴏᴄᴋᴇᴅ.</bold></gradient>"));
-            }
+            plugin.getWeaponChoiceManager().openChoiceMenu(player, relic);
             return;
         }
 

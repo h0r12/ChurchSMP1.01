@@ -7,12 +7,17 @@ import com.churchsmp.cooldown.ActionBarCooldownTask;
 import com.churchsmp.cooldown.BossBarManager;
 import com.churchsmp.cooldown.CooldownManager;
 import com.churchsmp.effect.FallenEffectManager;
+import com.churchsmp.event.ChurchEventManager;
 import com.churchsmp.gem.SinGemAbilityExecutor;
 import com.churchsmp.gem.SinGemManager;
+import com.churchsmp.listener.AlignmentListener;
 import com.churchsmp.listener.CombatListener;
 import com.churchsmp.listener.InputListener;
 import com.churchsmp.listener.PlayerListener;
+import com.churchsmp.menu.WeaponChoiceManager;
+import com.churchsmp.menu.WeaponMenuManager;
 import com.churchsmp.recipe.ChurchRecipeManager;
+import com.churchsmp.ritual.ForsakingRitualManager;
 import com.churchsmp.weapon.WeaponManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -29,7 +34,11 @@ public class ChurchSMP extends JavaPlugin {
     private SinGemAbilityExecutor gemAbilityExecutor;
     private WeaponManager weaponManager;
     private ChurchRecipeManager recipeManager;
-    private com.churchsmp.menu.WeaponMenuManager weaponMenuManager;
+    private WeaponMenuManager weaponMenuManager;
+    private WeaponChoiceManager weaponChoiceManager;
+    private AlignmentListener alignmentListener;
+    private ChurchEventManager churchEventManager;
+    private ForsakingRitualManager forsakingRitualManager;
 
     @Override
     public void onEnable() {
@@ -49,6 +58,10 @@ public class ChurchSMP extends JavaPlugin {
             this.weaponManager = new WeaponManager(this);
             this.recipeManager = new ChurchRecipeManager(this);
             this.weaponMenuManager = new com.churchsmp.menu.WeaponMenuManager(this);
+            this.weaponChoiceManager = new WeaponChoiceManager(this);
+            this.alignmentListener = new AlignmentListener(this);
+            this.churchEventManager = new ChurchEventManager(this);
+            this.forsakingRitualManager = new ForsakingRitualManager(this);
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
@@ -57,6 +70,10 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(new com.churchsmp.listener.LegendaryPickupListener(this), this);
             Bukkit.getPluginManager().registerEvents(this.recipeManager, this);
             Bukkit.getPluginManager().registerEvents(this.weaponMenuManager, this);
+            Bukkit.getPluginManager().registerEvents(this.weaponChoiceManager, this);
+            Bukkit.getPluginManager().registerEvents(this.alignmentListener, this);
+            Bukkit.getPluginManager().registerEvents(this.churchEventManager, this);
+            Bukkit.getPluginManager().registerEvents(this.forsakingRitualManager, this);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -126,6 +143,9 @@ public class ChurchSMP extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (churchEventManager != null) {
+            churchEventManager.stopCurrentEvent();
+        }
         Bukkit.getScheduler().cancelTasks(this);
         getLogger().info("ChurchSMP has been disabled.");
     }
@@ -166,7 +186,19 @@ public class ChurchSMP extends JavaPlugin {
         return recipeManager;
     }
 
-    public com.churchsmp.menu.WeaponMenuManager getWeaponMenuManager() {
+    public WeaponMenuManager getWeaponMenuManager() {
         return weaponMenuManager;
+    }
+
+    public WeaponChoiceManager getWeaponChoiceManager() {
+        return weaponChoiceManager;
+    }
+
+    public ChurchEventManager getChurchEventManager() {
+        return churchEventManager;
+    }
+
+    public ForsakingRitualManager getForsakingRitualManager() {
+        return forsakingRitualManager;
     }
 }

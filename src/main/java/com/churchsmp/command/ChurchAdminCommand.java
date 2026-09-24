@@ -138,6 +138,65 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Component.text("Gave Impiety weapon selector to " + target.getName() + "!", NamedTextColor.GREEN));
                 target.sendMessage(Component.text("✦ You received the Impiety weapon selector. Right-click to open!", NamedTextColor.GOLD));
             }
+            case "givecore" -> {
+                Player target = (args.length > 1) ? Bukkit.getPlayer(args[1]) : (sender instanceof Player p ? p : null);
+                if (target == null) {
+                    sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+                    return true;
+                }
+                target.getInventory().addItem(com.churchsmp.item.LiminalCoreItem.createCore(plugin));
+                sender.sendMessage(Component.text("Gave Liminal Event Core to " + target.getName() + "!", NamedTextColor.GREEN));
+                target.sendMessage(Component.text("✦ You received a Liminal Event Core!", NamedTextColor.GOLD));
+            }
+            case "giverelic" -> {
+                if (args.length < 3) {
+                    sender.sendMessage(Component.text("Usage: /churchadmin giverelic <player> <iniquity|impiety|obscura>", NamedTextColor.RED));
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+                    return true;
+                }
+                try {
+                    com.churchsmp.item.RelicItem.RelicType type = com.churchsmp.item.RelicItem.RelicType.valueOf(args[2].toUpperCase(Locale.ROOT));
+                    target.getInventory().addItem(com.churchsmp.item.RelicItem.createRelic(plugin, type));
+                    sender.sendMessage(Component.text("Gave ", NamedTextColor.GREEN).append(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(type.getDisplayName())).append(Component.text(" to " + target.getName())));
+                } catch (IllegalArgumentException e) {
+                    sender.sendMessage(Component.text("Invalid relic type! Choose from: iniquity, impiety, obscura", NamedTextColor.RED));
+                }
+            }
+            case "forsake" -> {
+                Player target = (args.length > 1) ? Bukkit.getPlayer(args[1]) : (sender instanceof Player p ? p : null);
+                if (target == null) {
+                    sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+                    return true;
+                }
+                plugin.getForsakingRitualManager().startRitual(target);
+                sender.sendMessage(Component.text("Initiated the Forsaking Ritual for " + target.getName() + "!", NamedTextColor.GREEN));
+            }
+            case "event" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(Component.text("Usage: /churchadmin event <bloodmoon|inquisition|stop>", NamedTextColor.RED));
+                    return true;
+                }
+                String eventSub = args[1].toLowerCase(Locale.ROOT);
+                switch (eventSub) {
+                    case "bloodmoon" -> {
+                        plugin.getChurchEventManager().startEvent(com.churchsmp.event.ChurchEventManager.EventType.BLOOD_MOON, 20 * 60 * 15);
+                        sender.sendMessage(Component.text("Started Blood Moon event!", NamedTextColor.DARK_RED));
+                    }
+                    case "inquisition" -> {
+                        plugin.getChurchEventManager().startEvent(com.churchsmp.event.ChurchEventManager.EventType.HOLY_INQUISITION, 20 * 60 * 15);
+                        sender.sendMessage(Component.text("Started Holy Inquisition event!", NamedTextColor.GOLD));
+                    }
+                    case "stop" -> {
+                        plugin.getChurchEventManager().stopCurrentEvent();
+                        sender.sendMessage(Component.text("Stopped active server event.", NamedTextColor.YELLOW));
+                    }
+                    default -> sender.sendMessage(Component.text("Unknown event type! Use bloodmoon, inquisition, or stop.", NamedTextColor.RED));
+                }
+            }
             case "reload" -> {
                 plugin.reloadConfig();
                 sender.sendMessage(Component.text("ChurchSMP config reloaded successfully!", NamedTextColor.GREEN));
@@ -152,6 +211,10 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
         net.kyori.adventure.text.minimessage.MiniMessage mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage();
         sender.sendMessage(mm.deserialize(com.churchsmp.util.TextUtil.formatCommandHeader("CHURCHADMIN COMMANDS")));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("menu") + "</bold></gold> <white>-</white> <gray>Opens the interactive Legendary Weapon menu</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("givecore") + " [player]</bold></gold> <white>-</white> <gray>Gives a Liminal Event Core</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giverelic") + " <player> <type></bold></gold> <white>-</white> <gray>Gives a Liminal Path relic selector (iniquity, impiety, obscura)</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("forsake") + " [player]</bold></gold> <white>-</white> <gray>Triggers the 360° Forsaking Path Ritual</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("event") + " <bloodmoon|inquisition|stop></bold></gold> <white>-</white> <gray>Controls automated server events</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giveimpiety") + " [player]</bold></gold> <white>-</white> <gray>Gives the Impiety right-click menu item</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("resetcooldown") + " [player]</bold></gold> <white>-</white> <gray>Resets all ability cooldowns</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("setalignment") + " <player> <alignment></bold></gold> <white>-</white> <gray>Sets player's alignment (GOOD, EVIL, NULLIFIED)</gray>"));
@@ -164,12 +227,18 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            return filter(List.of("menu", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "reload", "help"), args[0]);
+            return filter(List.of("menu", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "reload", "help"), args[0]);
         }
         if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("event")) {
+                return filter(List.of("bloodmoon", "inquisition", "stop"), args[1]);
+            }
             return null; // suggest player names
         }
         if (args.length == 3) {
+            if (args[0].equalsIgnoreCase("giverelic")) {
+                return filter(Arrays.stream(com.churchsmp.item.RelicItem.RelicType.values()).map(t -> t.name().toLowerCase(Locale.ROOT)).toList(), args[2]);
+            }
             if (args[0].equalsIgnoreCase("setalignment")) {
                 return filter(Arrays.stream(Alignment.values()).map(Enum::name).toList(), args[2]);
             }
