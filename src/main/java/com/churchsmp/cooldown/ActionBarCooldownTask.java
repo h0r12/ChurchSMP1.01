@@ -1,6 +1,7 @@
 package com.churchsmp.cooldown;
 
 import com.churchsmp.ChurchSMP;
+import com.churchsmp.gem.SinGemType;
 import com.churchsmp.util.TextUtil;
 import com.churchsmp.weapon.LegendaryWeapon;
 import net.kyori.adventure.text.Component;
@@ -30,49 +31,90 @@ public class ActionBarCooldownTask extends BukkitRunnable {
             ItemStack mainHand = player.getInventory().getItemInMainHand();
             LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);
 
-            if (weapon == null) {
+            if (weapon != null) {
+                String grad = weapon.getThemeGradientTag();
+
+                // Skill 1 Status
+                String s1Key = weapon.getId() + "_primary";
+                String s1Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getPrimaryAbilityName()) + "</bold></gradient>";
+                String s1Status;
+                String customS1 = weapon.getCustomActiveStatus(player, false);
+                if (customS1 != null) {
+                    s1Status = grad + "<bold>" + customS1 + "</bold></gradient>";
+                } else if (plugin.getCooldownManager().isActive(player, s1Key)) {
+                    double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s1Key);
+                    s1Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
+                } else if (plugin.getCooldownManager().isOnCooldown(player, s1Key)) {
+                    double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s1Key);
+                    s1Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
+                } else {
+                    s1Status = readyStr;
+                }
+
+                // Skill 2 Status
+                String s2Key = weapon.getId() + "_secondary";
+                String s2Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getSecondaryAbilityName()) + "</bold></gradient>";
+                String s2Status;
+                String customS2 = weapon.getCustomActiveStatus(player, true);
+                if (customS2 != null) {
+                    s2Status = grad + "<bold>" + customS2 + "</bold></gradient>";
+                } else if (plugin.getCooldownManager().isActive(player, s2Key)) {
+                    double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s2Key);
+                    s2Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
+                } else if (plugin.getCooldownManager().isOnCooldown(player, s2Key)) {
+                    double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s2Key);
+                    s2Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
+                } else {
+                    s2Status = readyStr;
+                }
+
+                String formatted = "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
+                player.sendActionBar(miniMessage.deserialize(formatted));
                 continue;
             }
 
-            String grad = weapon.getThemeGradientTag();
+            // Gem Action Bar Cooldown when holding an attuned / effective gem in hand
+            SinGemType gem = plugin.getGemAbilityExecutor().getEffectiveGem(player);
+            if (gem != null) {
+                String grad = gem.getThemeGradientTag();
 
-            // Skill 1 Status
-            String s1Key = weapon.getId() + "_primary";
-            String s1Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getPrimaryAbilityName()) + "</bold></gradient>";
-            String s1Status;
-            String customS1 = weapon.getCustomActiveStatus(player, false);
-            if (customS1 != null) {
-                s1Status = grad + "<bold>" + customS1 + "</bold></gradient>";
-            } else if (plugin.getCooldownManager().isActive(player, s1Key)) {
-                double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s1Key);
-                s1Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
-            } else if (plugin.getCooldownManager().isOnCooldown(player, s1Key)) {
-                double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s1Key);
-                s1Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
-            } else {
-                s1Status = readyStr;
+                // Skill 1 Status
+                String s1Key = gem.getPrimaryCooldownKey();
+                String s1Name = grad + "<bold>" + TextUtil.toSmallCaps(gem.getPrimaryAbilityName()) + "</bold></gradient>";
+                String s1Status;
+                String customS1 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, false);
+                if (customS1 != null) {
+                    s1Status = grad + "<bold>" + customS1 + "</bold></gradient>";
+                } else if (plugin.getCooldownManager().isActive(player, s1Key)) {
+                    double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s1Key);
+                    s1Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
+                } else if (plugin.getCooldownManager().isOnCooldown(player, s1Key)) {
+                    double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s1Key);
+                    s1Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
+                } else {
+                    s1Status = readyStr;
+                }
+
+                // Skill 2 Status
+                String s2Key = gem.getSecondaryCooldownKey();
+                String s2Name = grad + "<bold>" + TextUtil.toSmallCaps(gem.getSecondaryAbilityName()) + "</bold></gradient>";
+                String s2Status;
+                String customS2 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, true);
+                if (customS2 != null) {
+                    s2Status = grad + "<bold>" + customS2 + "</bold></gradient>";
+                } else if (plugin.getCooldownManager().isActive(player, s2Key)) {
+                    double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s2Key);
+                    s2Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
+                } else if (plugin.getCooldownManager().isOnCooldown(player, s2Key)) {
+                    double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s2Key);
+                    s2Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
+                } else {
+                    s2Status = readyStr;
+                }
+
+                String formatted = "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
+                player.sendActionBar(miniMessage.deserialize(formatted));
             }
-
-            // Skill 2 Status
-            String s2Key = weapon.getId() + "_secondary";
-            String s2Name = grad + "<bold>" + TextUtil.toSmallCaps(weapon.getSecondaryAbilityName()) + "</bold></gradient>";
-            String s2Status;
-            String customS2 = weapon.getCustomActiveStatus(player, true);
-            if (customS2 != null) {
-                s2Status = grad + "<bold>" + customS2 + "</bold></gradient>";
-            } else if (plugin.getCooldownManager().isActive(player, s2Key)) {
-                double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, s2Key);
-                s2Status = grad + "<bold>ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)</bold></gradient>";
-            } else if (plugin.getCooldownManager().isOnCooldown(player, s2Key)) {
-                double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, s2Key);
-                s2Status = grad + "<bold>" + String.format(Locale.US, "%.1f", rem) + "ꜱ</bold></gradient>";
-            } else {
-                s2Status = readyStr;
-            }
-
-            String formatted = "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
-            Component component = miniMessage.deserialize(formatted);
-            player.sendActionBar(component);
         }
     }
 }

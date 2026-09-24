@@ -74,6 +74,11 @@ public class LuminescenceSpear extends LegendaryWeapon {
             applyStandardEnchants(meta);
             meta.addEnchant(Enchantment.LOYALTY, 3, true);
 
+            // Netherite Sword Sharpness 7 damage (12.0 attribute bonus = 13.0 total attack damage)
+            NamespacedKey dmgKey = new NamespacedKey(plugin, "spear_damage");
+            meta.removeAttributeModifier(Attribute.ATTACK_DAMAGE);
+            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+
             // BurningBones: attack speed of sword (1.6)
             NamespacedKey speedKey = new NamespacedKey(plugin, "spear_speed");
             meta.removeAttributeModifier(Attribute.ATTACK_SPEED);

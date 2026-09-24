@@ -105,6 +105,27 @@ public class SinGemManager {
     }
 
     /**
+     * Gets the SinGemType held by the player in either main hand or offhand.
+     */
+    public SinGemType getHeldGem(Player player) {
+        if (player == null) return null;
+        SinGemType main = getGemType(player.getInventory().getItemInMainHand());
+        if (main != null) return main;
+        return getGemType(player.getInventory().getItemInOffHand());
+    }
+
+    /**
+     * Checks if the player is holding the specified SinGemType in either main hand or offhand.
+     */
+    public boolean isHoldingGem(Player player, SinGemType gem) {
+        if (player == null || gem == null) return false;
+        SinGemType main = getGemType(player.getInventory().getItemInMainHand());
+        if (main == gem) return true;
+        SinGemType off = getGemType(player.getInventory().getItemInOffHand());
+        return off == gem;
+    }
+
+    /**
      * Permanently attunes a player to a sin gem type.
      */
     public boolean attune(Player player, SinGemType type) {

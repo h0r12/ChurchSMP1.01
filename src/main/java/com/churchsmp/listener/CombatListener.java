@@ -8,6 +8,8 @@ import com.churchsmp.weapon.LuminescenceSpear;
 import com.churchsmp.weapon.Sorrowess;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Phantom;
 import org.bukkit.entity.Player;
@@ -21,7 +23,9 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.Random;
 
@@ -69,6 +73,26 @@ public class CombatListener implements Listener {
             }
         }
 
+        // Gloom on target: accelerates armor durability drain
+        if (sw instanceof Sorrowess sorrowess && sorrowess.hasGloom(target)) {
+            if (target instanceof Player victimPlayer) {
+                ItemStack[] armor = victimPlayer.getInventory().getArmorContents();
+                boolean drained = false;
+                for (ItemStack piece : armor) {
+                    if (piece != null && piece.getType() != Material.AIR) {
+                        if (piece.getItemMeta() instanceof Damageable dmgMeta && !dmgMeta.isUnbreakable()) {
+                            dmgMeta.setDamage(dmgMeta.getDamage() + 3);
+                            piece.setItemMeta(dmgMeta);
+                            drained = true;
+                        }
+                    }
+                }
+                if (drained) {
+                    target.getWorld().playSound(target.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.8f, 0.6f);
+                }
+            }
+        }
+
         // Fallen effect check on attacker
         if (plugin.getFallenManager().isFallen(attacker)) {
             attacker.sendMessage(Component.text("✦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
@@ -90,6 +114,27 @@ public class CombatListener implements Listener {
                 event.setCancelled(true);
                 attacker.sendMessage(Component.text("✦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
                 return;
+            }
+
+            // Trident damage equivalent to Netherite Sword Sharpness 7 (minimum 13.0 damage)
+            if (weapon instanceof Sorrowess || weapon instanceof LuminescenceSpear) {
+                if (event.getDamage() < 13.0) {
+                    event.setDamage(13.0);
+                }
+            }
+
+            // Sorrowess Gloom Crit Tracking: every 5 crit hits put enemy on gloom
+            if (weapon instanceof Sorrowess sorrowess) {
+                boolean isCrit = attacker.getFallDistance() > 0.0F
+                        && !attacker.isOnGround()
+                        && !attacker.isClimbing()
+                        && !attacker.isInWater()
+                        && !attacker.hasPotionEffect(PotionEffectType.BLINDNESS)
+                        && attacker.getVehicle() == null
+                        && attacker.getAttackCooldown() > 0.9F;
+                if (isCrit) {
+                    sorrowess.handleCritHit(attacker, target);
+                }
             }
 
             // Weapon onHit passive

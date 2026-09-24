@@ -117,7 +117,6 @@ public class InputListener implements Listener {
             if (!plugin.getSinGemManager().isAttuned(player)) {
                 event.setCancelled(true);
                 plugin.getSinGemManager().attune(player, gemItem);
-                mainHand.subtract(1);
                 return;
             }
         }

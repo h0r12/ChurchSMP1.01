@@ -2,9 +2,12 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.TextUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -13,11 +16,14 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -28,6 +34,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -39,9 +46,51 @@ public class Sorrowess extends LegendaryWeapon {
     // Mirror clones: Player UUID -> List of active humanoid clones
     private final Map<UUID, List<LivingEntity>> activeClones = new ConcurrentHashMap<>();
     private final Random random = new Random();
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
     // PDC key to identify Sorrowess clones
     private final NamespacedKey cloneKey;
+
+    // Gloom tracking
+    public static class GloomData {
+        private final UUID victimId;
+        private int stacks;
+        private double reductionPercent; // 0.10, 0.20, 0.25 (max)
+        private long expireTime;
+
+        public GloomData(UUID victimId) {
+            this.victimId = victimId;
+            this.stacks = 1;
+            this.reductionPercent = 0.10;
+            this.expireTime = System.currentTimeMillis() + 30000L;
+        }
+
+        public void addStack() {
+            this.stacks++;
+            if (this.stacks == 2) {
+                this.reductionPercent = 0.20;
+            } else if (this.stacks >= 3) {
+                this.reductionPercent = 0.25; // maxed at 25%
+            }
+            this.expireTime = System.currentTimeMillis() + 30000L;
+        }
+
+        public double getReductionPercent() {
+            return reductionPercent;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expireTime;
+        }
+
+        public long getRemainingSeconds() {
+            return Math.max(0, (expireTime - System.currentTimeMillis()) / 1000L);
+        }
+    }
+
+    private final Map<UUID, Integer> critHitCounters = new ConcurrentHashMap<>();
+    private final Map<UUID, GloomData> activeGloom = new ConcurrentHashMap<>();
+    private final NamespacedKey gloomArmorKey;
 
     public Sorrowess(ChurchSMP plugin) {
         super(plugin,
@@ -53,6 +102,8 @@ public class Sorrowess extends LegendaryWeapon {
                 "Grief Shards",
                 "Bloody Rain");
         this.cloneKey = new NamespacedKey(plugin, "sorrowess_clone");
+        this.gloomArmorKey = new NamespacedKey(plugin, "sorrowess_gloom_armor");
+        startGloomTicker();
     }
 
     @Override
@@ -61,10 +112,21 @@ public class Sorrowess extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            meta.lore(buildCleanLore(List.of("Forming", "Brave"), "Grief Shards", "Bloody Rain"));
+            meta.lore(buildCleanLore(List.of("Forming", "Brave", "Gloom"), "Grief Shards", "Bloody Rain"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
             meta.addEnchant(Enchantment.RIPTIDE, 7, true);
+
+            // Netherite Sword Sharpness 7 damage (12.0 attribute bonus = 13.0 total attack damage)
+            NamespacedKey dmgKey = new NamespacedKey(plugin, "sorrowess_damage");
+            meta.removeAttributeModifier(Attribute.ATTACK_DAMAGE);
+            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+
+            // Attack speed of sword (1.6)
+            NamespacedKey speedKey = new NamespacedKey(plugin, "sorrowess_speed");
+            meta.removeAttributeModifier(Attribute.ATTACK_SPEED);
+            meta.addAttributeModifier(Attribute.ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+
             meta.setCustomModelData(1005);
             item.setItemMeta(meta);
         }
@@ -434,5 +496,116 @@ public class Sorrowess extends LegendaryWeapon {
                 }
             }.runTaskLater(plugin, 60L);
         }
+    }
+
+    private void startGloomTicker() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (activeGloom.isEmpty()) return;
+                Iterator<Map.Entry<UUID, GloomData>> it = activeGloom.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<UUID, GloomData> entry = it.next();
+                    UUID victimId = entry.getKey();
+                    GloomData gloom = entry.getValue();
+
+                    Entity entity = Bukkit.getEntity(victimId);
+                    if (entity == null || !entity.isValid() || entity.isDead() || gloom.isExpired()) {
+                        if (entity instanceof LivingEntity le) {
+                            removeGloomArmorModifier(le);
+                            if (entity instanceof Player p && p.isOnline()) {
+                                p.sendMessage(miniMessage.deserialize("<gray>✦ " + TextUtil.toSmallCaps("The Gloom lifts; your armor has stabilized.") + " ✦</gray>"));
+                            }
+                        }
+                        it.remove();
+                        continue;
+                    }
+
+                    if (entity instanceof LivingEntity le) {
+                        Location loc = le.getLocation();
+                        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.3, 0), 2, 0.25, 0.35, 0.25, 0.02);
+                        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 0.8, 0), 2, 0.3, 0.4, 0.3, 0,
+                                new Particle.DustOptions(Color.fromRGB(48, 25, 52), 1.2f));
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 10L, 10L);
+    }
+
+    public void handleCritHit(Player attacker, LivingEntity target) {
+        UUID aId = attacker.getUniqueId();
+        int count = critHitCounters.getOrDefault(aId, 0) + 1;
+        critHitCounters.put(aId, count);
+
+        // Visual crit feedback with Sorrowess particles
+        target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
+
+        if (count % 5 == 0) {
+            applyGloom(attacker, target);
+        }
+    }
+
+    public void applyGloom(Player attacker, LivingEntity target) {
+        UUID victimId = target.getUniqueId();
+        GloomData gloom = activeGloom.get(victimId);
+        if (gloom == null) {
+            gloom = new GloomData(victimId);
+            activeGloom.put(victimId, gloom);
+        } else {
+            gloom.addStack();
+        }
+
+        applyGloomArmorModifier(target, gloom.getReductionPercent());
+
+        Location loc = target.getLocation();
+        loc.getWorld().playSound(loc, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
+        loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_AMBIENT, 0.8f, 0.7f);
+        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.5, 0), 25, 0.5, 0.6, 0.5, 0.05);
+        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 1.0, 0), 20, 0.4, 0.5, 0.4, 0,
+                new Particle.DustOptions(Color.fromRGB(75, 0, 130), 1.5f));
+
+        int pct = (int) (gloom.getReductionPercent() * 100);
+        attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Inflicted Gloom on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(30s).") + " ✦</dark_purple>"));
+        if (target instanceof Player victimPlayer) {
+            victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(30s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
+        }
+    }
+
+    private void applyGloomArmorModifier(LivingEntity target, double reductionPercent) {
+        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.ARMOR);
+        if (attr != null) {
+            attr.removeModifier(gloomArmorKey);
+            double totalArmor = attr.getValue();
+            if (totalArmor > 0) {
+                double reductionAmount = totalArmor * reductionPercent;
+                org.bukkit.attribute.AttributeModifier mod = new org.bukkit.attribute.AttributeModifier(
+                        gloomArmorKey,
+                        -reductionAmount,
+                        org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER
+                );
+                attr.addTransientModifier(mod);
+            }
+        }
+    }
+
+    public void removeGloomArmorModifier(LivingEntity target) {
+        if (target == null) return;
+        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.ARMOR);
+        if (attr != null) {
+            attr.removeModifier(gloomArmorKey);
+        }
+    }
+
+    public boolean hasGloom(LivingEntity target) {
+        if (target == null) return false;
+        GloomData data = activeGloom.get(target.getUniqueId());
+        return data != null && !data.isExpired();
+    }
+
+    public double getGloomReduction(LivingEntity target) {
+        if (target == null) return 0.0;
+        GloomData data = activeGloom.get(target.getUniqueId());
+        if (data == null || data.isExpired()) return 0.0;
+        return data.getReductionPercent();
     }
 }

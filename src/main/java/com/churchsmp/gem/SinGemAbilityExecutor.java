@@ -64,6 +64,21 @@ public class SinGemAbilityExecutor {
         startTickingLoops();
     }
 
+    public SinGemType getEffectiveGem(Player player) {
+        if (player == null) return null;
+        SinGemType held = plugin.getSinGemManager().getHeldGem(player);
+        if (held == null) return null;
+        SinGemType attuned = plugin.getSinGemManager().getAttunedGem(player);
+        if (attuned != null) {
+            return (attuned == held) ? attuned : null;
+        }
+        return held;
+    }
+
+    public boolean hasGemInHand(Player player, SinGemType gem) {
+        return plugin.getSinGemManager().isHoldingGem(player, gem);
+    }
+
     private void startTickingLoops() {
         // Pride charges accumulator (every 20 ticks = 1 sec)
         // Sloth Hunger applicator
@@ -71,8 +86,12 @@ public class SinGemAbilityExecutor {
             @Override
             public void run() {
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
-                    if (gem == null) continue;
+                    SinGemType gem = getEffectiveGem(player);
+                    if (gem == null) {
+                        prideCharges.put(player.getUniqueId(), 0);
+                        prideLastLocations.remove(player.getUniqueId());
+                        continue;
+                    }
 
                     // PRIDE: Holding sneak stationary gives +1 charge/sec up to 5
                     if (gem == SinGemType.PRIDE) {
@@ -113,7 +132,7 @@ public class SinGemAbilityExecutor {
      * Triggered on Sneak + Left Click (Attack / Air Swing)
      */
     public boolean handleSneakLMB(Player player) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
@@ -153,7 +172,7 @@ public class SinGemAbilityExecutor {
      * Triggered on LMB Attack (Melee hit without sneak)
      */
     public boolean handleLMBAttack(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
@@ -208,7 +227,7 @@ public class SinGemAbilityExecutor {
      * Triggered on RMB (Right Click without sneak)
      */
     public boolean handleRMB(Player player) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
@@ -248,7 +267,7 @@ public class SinGemAbilityExecutor {
      * Triggered on Sneak + RMB
      */
     public boolean handleSneakRMB(Player player) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
@@ -1075,7 +1094,7 @@ public class SinGemAbilityExecutor {
     // -------------------------------------------------------------------------
 
     public void onPlayerHitEntity(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
         if (gem == null) return;
 
         // Wrath Bloodfeast & BloodPrice & Fury
@@ -1112,7 +1131,7 @@ public class SinGemAbilityExecutor {
     }
 
     public void onPlayerDamaged(Player player, EntityDamageEvent event) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        SinGemType gem = getEffectiveGem(player);
 
         // Narcissus Clone Hit Intercept
         if (handleCloneDamage(player, event.getDamage())) {
@@ -1145,7 +1164,7 @@ public class SinGemAbilityExecutor {
     }
 
     public void onPlayerKill(Player killer, LivingEntity victim) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(killer);
+        SinGemType gem = getEffectiveGem(killer);
         if (gem == null) return;
 
         if (gem == SinGemType.WRATH) {
@@ -1153,6 +1172,43 @@ public class SinGemAbilityExecutor {
         } else if (gem == SinGemType.PRIDE) {
             checkTombstoneKill(killer);
         }
+    }
+
+    public String getCustomActiveStatus(Player player, SinGemType gem, boolean secondary) {
+        if (player == null || gem == null) return null;
+        UUID uuid = player.getUniqueId();
+        if (!secondary) {
+            if (gem == SinGemType.WRATH) {
+                if (isFuryActive(player)) {
+                    Long end = furyEndTimes.get(uuid);
+                    if (end != null) {
+                        double rem = Math.max(0, (end - System.currentTimeMillis()) / 1000.0);
+                        return "ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)";
+                    }
+                }
+            } else if (gem == SinGemType.PRIDE) {
+                int charges = prideCharges.getOrDefault(uuid, 0);
+                if (charges > 0) {
+                    return charges + "/5 ᴄʜᴀʀɢᴇꜱ";
+                }
+            }
+        } else {
+            if (gem == SinGemType.WRATH) {
+                int stacks = revengeStacks.getOrDefault(uuid, 0);
+                if (stacks > 0) {
+                    return stacks + "/2 ꜱᴛᴀᴄᴋꜱ";
+                }
+            } else if (gem == SinGemType.SLOTH) {
+                if (isStasisActive(player)) {
+                    Long end = delayedStasisEndTimes.get(uuid);
+                    if (end != null) {
+                        double rem = Math.max(0, (end - System.currentTimeMillis()) / 1000.0);
+                        return "ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)";
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     public double getDamageMultiplier(Player player) {
