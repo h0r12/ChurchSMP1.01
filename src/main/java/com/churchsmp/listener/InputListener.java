@@ -139,6 +139,19 @@ public class InputListener implements Listener {
 
         // Sorrowess Riptide (regardless of water/rain with 15s cooldown)
         if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+            String cdKey = sorrowess.getId() + "_riptide";
+            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+                // If offhand item is present, do NOT cancel event so offhand item can be used
+                ItemStack offHand = player.getInventory().getItemInOffHand();
+                if (offHand != null && offHand.getType() != Material.AIR) {
+                    return;
+                }
+                int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                event.setCancelled(true);
+                return;
+            }
             event.setCancelled(true);
             sorrowess.executeRiptide(player);
             return;

@@ -67,7 +67,6 @@ public class Grim extends LegendaryWeapon {
                         for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 5.0)) {
                             if (e.equals(player)) continue;
                             e.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 40, 0));
-                            e.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 40, 0));
                             e.getWorld().spawnParticle(Particle.SOUL, e.getLocation().add(0, 1.0, 0), 3, 0.2, 0.3, 0.2, 0.02);
                         }
                     }

@@ -52,20 +52,24 @@ public class Sorrowess extends LegendaryWeapon {
     // PDC key to identify Sorrowess clones
     private final NamespacedKey cloneKey;
 
-    // Gloom tracking: inflicts for 1 stack (10% armor reduction & durability drain for 30s)
+    // Gloom tracking: stacks per hit (10% armor reduction per stack up to 30%) lasting for 20s
     public static class GloomData {
         private final UUID victimId;
-        private final int stacks = 1;
-        private final double reductionPercent = 0.10;
+        private int stacks = 1;
+        private double reductionPercent = 0.10;
         private long expireTime;
 
         public GloomData(UUID victimId) {
             this.victimId = victimId;
-            this.expireTime = System.currentTimeMillis() + 30000L;
+            this.stacks = 1;
+            this.reductionPercent = 0.10;
+            this.expireTime = System.currentTimeMillis() + 20000L;
         }
 
-        public void refresh() {
-            this.expireTime = System.currentTimeMillis() + 30000L;
+        public void addStack() {
+            this.stacks = Math.min(3, this.stacks + 1);
+            this.reductionPercent = this.stacks * 0.10;
+            this.expireTime = System.currentTimeMillis() + 20000L;
         }
 
         public int getStacks() {
@@ -154,23 +158,17 @@ public class Sorrowess extends LegendaryWeapon {
         plugin.getCooldownManager().setCooldown(player, key, cd);
 
         player.playSound(player.getLocation(), Sound.ENTITY_ALLAY_HURT, 1.2f, 0.5f);
-
-        Material[] whiteItems = new Material[]{
-                Material.SUGAR, Material.QUARTZ, Material.FEATHER, Material.SNOWBALL, Material.WHITE_WOOL
-        };
+        player.playSound(player.getLocation(), Sound.ITEM_FIRECHARGE_USE, 1.0f, 1.4f);
 
         final LivingEntity finalTarget = target;
-        Location spawnLoc = player.getEyeLocation();
+        Location spawnLoc = player.getEyeLocation().clone();
 
-        Particle.DustOptions purpleDust = new Particle.DustOptions(Color.fromRGB(147, 50, 180), 1.3f);
-        Particle.DustOptions redDust = new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.3f);
+        Particle.DustOptions brightRed = new Particle.DustOptions(Color.fromRGB(255, 20, 20), 1.5f);
+        Particle.DustOptions darkRed = new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.3f);
 
         for (int i = 0; i < 5; i++) {
-            Material whiteMat = whiteItems[random.nextInt(whiteItems.length)];
-            ItemStack whiteItem = new ItemStack(whiteMat);
-            org.bukkit.entity.Item itemEntity = player.getWorld().dropItem(spawnLoc, whiteItem);
-            itemEntity.setPickupDelay(99999);
             final int index = i;
+            final Location currentLoc = spawnLoc.clone().add((random.nextDouble() - 0.5) * 0.4, (random.nextDouble() - 0.5) * 0.4, (random.nextDouble() - 0.5) * 0.4);
 
             new BukkitRunnable() {
                 int ticks = 0;
@@ -178,36 +176,32 @@ public class Sorrowess extends LegendaryWeapon {
                 @Override
                 public void run() {
                     ticks++;
-                    if (!itemEntity.isValid() || !finalTarget.isValid() || ticks > 35) {
-                        itemEntity.remove();
+                    if (!player.isOnline() || !finalTarget.isValid() || ticks > 35) {
                         cancel();
                         return;
                     }
 
-                    Location itemLoc = itemEntity.getLocation();
-                    Particle.DustOptions trailDust = (ticks % 2 == 0) ? purpleDust : redDust;
+                    // Pure red particle trail
+                    Particle.DustOptions trailDust = (ticks % 2 == 0) ? brightRed : darkRed;
+                    double spiralAngle = ticks * 0.5;
+                    Vector spiralOffset = new Vector(Math.cos(spiralAngle) * 0.3, Math.sin(spiralAngle) * 0.3, 0);
 
-                    // Dual spiral spirit particles around the flying shard
-                    double spiralAngle = ticks * 0.45;
-                    Vector spiralOffset = new Vector(Math.cos(spiralAngle) * 0.35, Math.sin(spiralAngle) * 0.35, 0);
-                    itemLoc.getWorld().spawnParticle(Particle.DUST, itemLoc.clone().add(spiralOffset), 1, 0, 0, 0, 0, trailDust);
-                    itemLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, itemLoc.clone().subtract(spiralOffset), 1, 0, 0, 0, 0.01);
-                    itemLoc.getWorld().spawnParticle(Particle.END_ROD, itemLoc, 1, 0.01, 0.01, 0.01, 0.01);
-                    itemLoc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, itemLoc, 1, 0, 0, 0, 0);
+                    currentLoc.getWorld().spawnParticle(Particle.DUST, currentLoc.clone().add(spiralOffset), 2, 0, 0, 0, 0, trailDust);
+                    currentLoc.getWorld().spawnParticle(Particle.DUST, currentLoc.clone().subtract(spiralOffset), 1, 0, 0, 0, 0, darkRed);
+                    currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0.02, 0.02, 0.02, 0.01);
 
-                    Vector dir = finalTarget.getLocation().add(0, 1.0, 0).toVector().subtract(itemEntity.getLocation().toVector()).normalize().multiply(1.2);
-                    itemEntity.setVelocity(dir);
+                    Vector dir = finalTarget.getLocation().add(0, 1.0, 0).toVector().subtract(currentLoc.toVector()).normalize().multiply(1.25);
+                    currentLoc.add(dir);
 
-                    if (itemEntity.getLocation().distance(finalTarget.getLocation().add(0, 1.0, 0)) < 1.5) {
+                    if (currentLoc.distance(finalTarget.getLocation().add(0, 1.0, 0)) < 1.4) {
                         Location hitLoc = finalTarget.getLocation().add(0, 1.0, 0);
-                        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1, Color.WHITE);
-                        hitLoc.getWorld().spawnParticle(Particle.SONIC_BOOM, hitLoc, 1);
-                        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 15, 0.3, 0.3, 0.3, 0.05);
-                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 16, 0.4, 0.4, 0.4, 0, redDust);
+                        hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.2f, 1.4f);
+                        hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1, Color.RED);
+                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 18, 0.35, 0.35, 0.35, 0, brightRed);
+                        hitLoc.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, hitLoc, 2, 0.2, 0.2, 0.2, 0.05);
 
-                        itemEntity.remove();
-                        // Total damage capped to 2.5 hearts (5.0 HP) -> 1.0 HP per shard
-                        double newHp = finalTarget.getHealth() - 1.0;
+                        // Reduced damage: 0.4 HP per shard (2.0 HP = 1 heart total across all 5 shards)
+                        double newHp = finalTarget.getHealth() - 0.4;
                         if (newHp <= 0) {
                             finalTarget.setHealth(0);
                             finalTarget.damage(1.0, player);
@@ -246,9 +240,11 @@ public class Sorrowess extends LegendaryWeapon {
                     cancel();
                     return;
                 }
-                target.damage(0.5, attacker);
+                // Bleedout reduced: 0.25 HP per tick for 4 ticks (1.0 HP = 0.5 hearts total)
+                target.damage(0.25, attacker);
                 Location loc = target.getLocation().add(0, 1.0, 0);
-                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 2);
+                target.getWorld().spawnParticle(Particle.DUST, loc, 6, 0.2, 0.3, 0.2, 0, bloodDust);
+                target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 1);
             }
         }.runTaskTimer(plugin, 15L, 15L);
     }
@@ -317,13 +313,24 @@ public class Sorrowess extends LegendaryWeapon {
                     arenaCenter.getWorld().spawnParticle(Particle.DUST, arenaCenter.clone().add(-6, 0.1, d), 1, 0, 0, 0, 0, purpleDust);
                 }
 
-                // Raining red particles
-                for (int r = 0; r < 8; r++) {
+                // Dense blood-crimson particles and runes at player's and clones' feet
+                for (int d = 0; d < 360; d += 30) {
+                    double rad = Math.toRadians(d + (ticks * 5));
+                    arenaCenter.getWorld().spawnParticle(Particle.DUST,
+                            arenaCenter.clone().add(Math.cos(rad) * 1.5, 0.05, Math.sin(rad) * 1.5),
+                            1, 0, 0, 0, 0, redDust);
+                    arenaCenter.getWorld().spawnParticle(Particle.DUST,
+                            arenaCenter.clone().add(Math.cos(rad) * 2.8, 0.05, Math.sin(rad) * 2.8),
+                            1, 0, 0, 0, 0, purpleDust);
+                }
+                arenaCenter.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, arenaCenter.clone().add(0, 0.1, 0), 2, 0.5, 0.05, 0.5, 0.01);
+
+                // Raining red blood mist (no water droplets)
+                for (int r = 0; r < 10; r++) {
                     double rx = (random.nextDouble() - 0.5) * 12.0;
                     double rz = (random.nextDouble() - 0.5) * 12.0;
                     Location rainLoc = arenaCenter.clone().add(rx, 5.5, rz);
                     rainLoc.getWorld().spawnParticle(Particle.DUST, rainLoc, 2, 0.2, 0.2, 0.2, 0, redDust);
-                    rainLoc.getWorld().spawnParticle(Particle.DRIPPING_WATER, rainLoc, 1);
                 }
 
                 ticks -= 4;
@@ -391,7 +398,7 @@ public class Sorrowess extends LegendaryWeapon {
                     nearby.getWorld().spawnParticle(Particle.SWEEP_ATTACK, nearby.getLocation().add(0, 1.0, 0), 1);
                     nearby.getWorld().spawnParticle(Particle.CRIT, nearby.getLocation().add(0, 1.0, 0), 10, 0.3, 0.3, 0.3, 0.1);
 
-                    // Inflict Gloom (1 stack) on Riptide strike
+                    // Inflict Gloom on Riptide strike
                     applyGloom(player, nearby);
                 }
             }
@@ -400,14 +407,16 @@ public class Sorrowess extends LegendaryWeapon {
         return true;
     }
 
-    // Spawns a humanoid clone that mirrors the player's appearance and behavior with realistic AI
+    // Spawns a humanoid clone: armless and no nametag as requested
     private void spawnClone(Player owner, Location loc, Vector dir, List<LivingEntity> cloneList) {
         if (cloneList.size() >= 16) return; // hard cap
 
         CloneUtil.CloneConfig cfg = new CloneUtil.CloneConfig();
         cfg.owner = owner;
         cfg.location = loc;
-        cfg.displayName = owner.name();
+        cfg.displayName = null;
+        cfg.showNameTag = false;
+        cfg.hasArms = false;
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
         cfg.durationTicks = 400;
@@ -418,9 +427,8 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.attackRange = 3.2;
         cfg.attackDamage = 1.0;
         cfg.jumpCrit = true;
-        cfg.mainHandOverride = owner.getInventory().getItemInMainHand() != null && owner.getInventory().getItemInMainHand().getType() != Material.AIR
-                ? owner.getInventory().getItemInMainHand().clone()
-                : new ItemStack(Material.TRIDENT);
+        cfg.mainHandOverride = null;
+        cfg.offHandOverride = null;
         cfg.onTick = z -> {
             Location cLoc = z.getLocation();
             cLoc.getWorld().spawnParticle(Particle.DUST, cLoc.clone().add(0, 0.1, 0), 1, 0, 0, 0, 0,
@@ -553,9 +561,9 @@ public class Sorrowess extends LegendaryWeapon {
 
                     if (entity instanceof LivingEntity le) {
                         Location loc = le.getLocation();
-                        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.3, 0), 2, 0.25, 0.35, 0.25, 0.02);
-                        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 0.8, 0), 2, 0.3, 0.4, 0.3, 0,
-                                new Particle.DustOptions(Color.fromRGB(48, 25, 52), 1.2f));
+                        loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, 1.2, 0), 2, 0.3, 0.4, 0.3, 0.05);
+                        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 0.8, 0), 3, 0.3, 0.4, 0.3, 0,
+                                new Particle.DustOptions(Color.fromRGB(220, 20, 40), 1.3f));
                     }
                 }
             }
@@ -563,9 +571,8 @@ public class Sorrowess extends LegendaryWeapon {
     }
 
     public void handleCritHit(Player attacker, LivingEntity target) {
-        // Visual crit feedback with Sorrowess particles
+        // Visual crit feedback with Sorrowess particles (onHit applies Gloom once)
         target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
-        applyGloom(attacker, target);
     }
 
     @Override
@@ -581,23 +588,57 @@ public class Sorrowess extends LegendaryWeapon {
             gloom = new GloomData(victimId);
             activeGloom.put(victimId, gloom);
         } else {
-            gloom.refresh();
+            gloom.addStack();
         }
 
         applyGloomArmorModifier(target, gloom.getReductionPercent());
 
         Location loc = target.getLocation();
-        loc.getWorld().playSound(loc, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.0f, 0.7f);
-        loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_AMBIENT, 0.6f, 0.8f);
-        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.5, 0), 20, 0.4, 0.5, 0.4, 0.04);
-        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 1.0, 0), 16, 0.3, 0.4, 0.3, 0,
-                new Particle.DustOptions(Color.fromRGB(75, 0, 130), 1.4f));
 
-        if (isNew) {
-            attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Inflicted Gloom (1 stack) on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by 10% (30s).") + " ✦</dark_purple>"));
-            if (target instanceof Player victimPlayer) {
-                victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by 10% (30s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
+        // Big bright orbital lighting red thunder
+        loc.getWorld().playSound(loc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.4f, 1.2f);
+        loc.getWorld().playSound(loc, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.0f);
+
+        Particle.DustOptions brightRed = new Particle.DustOptions(Color.fromRGB(255, 0, 0), 2.2f);
+        Particle.DustOptions veinRed = new Particle.DustOptions(Color.fromRGB(220, 20, 40), 1.5f);
+
+        // Vertical red lightning thunder pillar descending from sky
+        for (double y = 0; y <= 14.0; y += 0.5) {
+            loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, y, 0), 2, 0.05, 0.05, 0.05, 0, brightRed);
+            loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.02);
+        }
+
+        // Big bright orbital lightning rings around torso
+        for (int d = 0; d < 360; d += 20) {
+            double rad = Math.toRadians(d);
+            loc.getWorld().spawnParticle(Particle.DUST,
+                    loc.clone().add(Math.cos(rad) * 1.6, 1.1, Math.sin(rad) * 1.6),
+                    1, 0, 0, 0, 0, brightRed);
+            loc.getWorld().spawnParticle(Particle.DUST,
+                    loc.clone().add(Math.cos(rad) * 1.2, 1.5 + Math.sin(rad * 3) * 0.35, Math.sin(rad) * 1.2),
+                    1, 0, 0, 0, 0, veinRed);
+        }
+
+        // Expanding veins with tiny windbursts at tips
+        for (int branch = 0; branch < 6; branch++) {
+            double baseAngle = branch * (Math.PI / 3.0);
+            Location veinPt = loc.clone().add(0, 0.2, 0);
+            for (double dist = 0.4; dist <= 3.0; dist += 0.45) {
+                double jitter = baseAngle + ((random.nextDouble() - 0.5) * 0.45);
+                veinPt.add(Math.cos(jitter) * 0.45, 0, Math.sin(jitter) * 0.45);
+                loc.getWorld().spawnParticle(Particle.DUST, veinPt, 1, 0, 0, 0, 0, veinRed);
             }
+            try {
+                loc.getWorld().spawnParticle(Particle.WIND_BURST, veinPt, 1);
+            } catch (Throwable ignored) {
+                loc.getWorld().spawnParticle(Particle.CLOUD, veinPt, 2, 0.1, 0.1, 0.1, 0.02);
+            }
+        }
+
+        int pct = (int) (gloom.getReductionPercent() * 100);
+        attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Gloom Stack (" + gloom.getStacks() + "/3) on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(20s).") + " ✦</dark_purple>"));
+        if (target instanceof Player victimPlayer) {
+            victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(20s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
         }
     }
 

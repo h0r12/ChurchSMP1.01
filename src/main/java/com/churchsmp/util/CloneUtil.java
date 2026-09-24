@@ -46,6 +46,8 @@ public class CloneUtil {
         public double attackRange = 3.2;
         public double attackDamage = 1.0;
         public boolean jumpCrit = true;
+        public boolean showNameTag = true;
+        public boolean hasArms = true;
         public BiConsumer<Zombie, LivingEntity> onAttack;
         public Consumer<Zombie> onTick;
         public Consumer<Zombie> onDespawn;
@@ -68,12 +70,15 @@ public class CloneUtil {
             z.setSilent(true);
             z.setCanPickupItems(false);
 
-            if (config.displayName != null) {
+            if (config.displayName != null && config.showNameTag) {
                 z.customName(config.displayName);
                 z.setCustomNameVisible(true);
-            } else {
+            } else if (config.showNameTag) {
                 z.customName(config.owner.name());
                 z.setCustomNameVisible(true);
+            } else {
+                z.customName(null);
+                z.setCustomNameVisible(false);
             }
 
             if (config.tagKey != null && config.tagValue != null) {
@@ -96,13 +101,17 @@ public class CloneUtil {
                 z.getEquipment().setHelmet(head);
             }
 
-            if (config.chestplateOverride != null) {
-                z.getEquipment().setChestplate(config.chestplateOverride.clone());
-            } else {
-                ItemStack cp = config.owner.getInventory().getChestplate();
-                if (cp != null && cp.getType() != Material.AIR) {
-                    z.getEquipment().setChestplate(cp.clone());
+            if (config.hasArms) {
+                if (config.chestplateOverride != null) {
+                    z.getEquipment().setChestplate(config.chestplateOverride.clone());
+                } else {
+                    ItemStack cp = config.owner.getInventory().getChestplate();
+                    if (cp != null && cp.getType() != Material.AIR) {
+                        z.getEquipment().setChestplate(cp.clone());
+                    }
                 }
+            } else {
+                z.getEquipment().setChestplate(null);
             }
 
             if (config.leggingsOverride != null) {
@@ -123,23 +132,28 @@ public class CloneUtil {
                 }
             }
 
-            // Equip mainhand & offhand
-            if (config.mainHandOverride != null) {
-                z.getEquipment().setItemInMainHand(config.mainHandOverride.clone());
-            } else {
-                ItemStack mainHand = config.owner.getInventory().getItemInMainHand();
-                if (mainHand != null && mainHand.getType() != Material.AIR) {
-                    z.getEquipment().setItemInMainHand(mainHand.clone());
+            // Equip mainhand & offhand (only if hasArms is true)
+            if (config.hasArms) {
+                if (config.mainHandOverride != null) {
+                    z.getEquipment().setItemInMainHand(config.mainHandOverride.clone());
+                } else {
+                    ItemStack mainHand = config.owner.getInventory().getItemInMainHand();
+                    if (mainHand != null && mainHand.getType() != Material.AIR) {
+                        z.getEquipment().setItemInMainHand(mainHand.clone());
+                    }
                 }
-            }
 
-            if (config.offHandOverride != null) {
-                z.getEquipment().setItemInOffHand(config.offHandOverride.clone());
-            } else {
-                ItemStack offHand = config.owner.getInventory().getItemInOffHand();
-                if (offHand != null && offHand.getType() != Material.AIR) {
-                    z.getEquipment().setItemInOffHand(offHand.clone());
+                if (config.offHandOverride != null) {
+                    z.getEquipment().setItemInOffHand(config.offHandOverride.clone());
+                } else {
+                    ItemStack offHand = config.owner.getInventory().getItemInOffHand();
+                    if (offHand != null && offHand.getType() != Material.AIR) {
+                        z.getEquipment().setItemInOffHand(offHand.clone());
+                    }
                 }
+            } else {
+                z.getEquipment().setItemInMainHand(null);
+                z.getEquipment().setItemInOffHand(null);
             }
 
             // Zero drop chance

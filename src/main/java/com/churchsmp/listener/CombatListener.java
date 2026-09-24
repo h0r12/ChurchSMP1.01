@@ -6,6 +6,7 @@ import com.churchsmp.weapon.Judas;
 import com.churchsmp.weapon.LegendaryWeapon;
 import com.churchsmp.weapon.LuminescenceSpear;
 import com.churchsmp.weapon.Sorrowess;
+import com.churchsmp.weapon.VoidBreaker;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
@@ -121,6 +122,14 @@ public class CombatListener implements Listener {
                 if (event.getDamage() < 13.0) {
                     event.setDamage(13.0);
                 }
+            }
+
+            // Voidbreaker (Mace) damage boost: ensure it hits hard (minimum 12.0 base damage + 3.0 bonus damage)
+            if (weapon instanceof VoidBreaker) {
+                if (event.getDamage() < 12.0) {
+                    event.setDamage(12.0);
+                }
+                event.setDamage(event.getDamage() + 3.0);
             }
 
             // Sorrowess Gloom Crit Tracking: every 5 crit hits put enemy on gloom
