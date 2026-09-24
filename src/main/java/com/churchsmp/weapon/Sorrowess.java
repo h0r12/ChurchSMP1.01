@@ -16,7 +16,6 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Phantom;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemFlag;
@@ -37,8 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Sorrowess extends LegendaryWeapon {
 
-    // Mirror clones: Player UUID -> List of active Phantom clones
-    private final Map<UUID, List<Phantom>> activeClones = new ConcurrentHashMap<>();
+    // Mirror clones: Player UUID -> List of active humanoid clones
+    private final Map<UUID, List<LivingEntity>> activeClones = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
     // PDC key to identify Sorrowess clones
@@ -128,8 +127,14 @@ public class Sorrowess extends LegendaryWeapon {
 
                     Location itemLoc = itemEntity.getLocation();
                     Particle.DustOptions trailDust = (ticks % 2 == 0) ? purpleDust : redDust;
-                    itemLoc.getWorld().spawnParticle(Particle.DUST, itemLoc, 2, 0.05, 0.05, 0.05, 0, trailDust);
-                    itemLoc.getWorld().spawnParticle(Particle.END_ROD, itemLoc, 1, 0.02, 0.02, 0.02, 0.01);
+
+                    // Dual spiral spirit particles around the flying shard
+                    double spiralAngle = ticks * 0.45;
+                    Vector spiralOffset = new Vector(Math.cos(spiralAngle) * 0.35, Math.sin(spiralAngle) * 0.35, 0);
+                    itemLoc.getWorld().spawnParticle(Particle.DUST, itemLoc.clone().add(spiralOffset), 1, 0, 0, 0, 0, trailDust);
+                    itemLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, itemLoc.clone().subtract(spiralOffset), 1, 0, 0, 0, 0.01);
+                    itemLoc.getWorld().spawnParticle(Particle.END_ROD, itemLoc, 1, 0.01, 0.01, 0.01, 0.01);
+                    itemLoc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, itemLoc, 1, 0, 0, 0, 0);
 
                     Vector dir = finalTarget.getLocation().add(0, 1.0, 0).toVector().subtract(itemEntity.getLocation().toVector()).normalize().multiply(1.2);
                     itemEntity.setVelocity(dir);
@@ -137,7 +142,9 @@ public class Sorrowess extends LegendaryWeapon {
                     if (itemEntity.getLocation().distance(finalTarget.getLocation().add(0, 1.0, 0)) < 1.5) {
                         Location hitLoc = finalTarget.getLocation().add(0, 1.0, 0);
                         hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1, Color.WHITE);
-                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 8, 0.3, 0.3, 0.3, 0, redDust);
+                        hitLoc.getWorld().spawnParticle(Particle.SONIC_BOOM, hitLoc, 1);
+                        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 15, 0.3, 0.3, 0.3, 0.05);
+                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 16, 0.4, 0.4, 0.4, 0, redDust);
 
                         itemEntity.remove();
                         // Total damage capped to 2.5 hearts (5.0 HP) -> 1.0 HP per shard
@@ -200,14 +207,14 @@ public class Sorrowess extends LegendaryWeapon {
         player.playSound(player.getLocation(), Sound.WEATHER_RAIN, 1.5f, 0.8f);
         player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 1.2f, 1.0f);
 
-        Location arenaCenter = player.getLocation().clone();
+        Location spawnCenter = player.getLocation().clone();
         Particle.DustOptions redDust = new Particle.DustOptions(Color.fromRGB(200, 0, 20), 1.4f);
         Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
         Particle.DustOptions purpleDust = new Particle.DustOptions(Color.fromRGB(128, 0, 128), 1.2f);
 
         // Spawn 4 illusion clones in 4 cardinal directions
-        List<Phantom> clones = activeClones.computeIfAbsent(player.getUniqueId(), k -> new ArrayList<>());
-        for (Phantom old : clones) {
+        List<LivingEntity> clones = activeClones.computeIfAbsent(player.getUniqueId(), k -> new ArrayList<>());
+        for (LivingEntity old : clones) {
             if (old.isValid()) old.remove();
         }
         clones.clear();
@@ -215,19 +222,19 @@ public class Sorrowess extends LegendaryWeapon {
         double[] angles = {0, 90, 180, 270};
         for (double deg : angles) {
             double rad = Math.toRadians(deg);
-            Vector dir = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.16);
-            Location spawn = arenaCenter.clone().add(Math.cos(rad) * 2.0, 0, Math.sin(rad) * 2.0);
+            Vector dir = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.18);
+            Location spawn = spawnCenter.clone().add(Math.cos(rad) * 2.0, 0, Math.sin(rad) * 2.0);
             spawnClone(player, spawn, dir, clones);
         }
 
-        // Arena loop: 20s with rain effects and boundary
+        // Arena loop: 20s with rain effects and boundary FOLLOWING THE PLAYER
         new BukkitRunnable() {
             int ticks = 200;
 
             @Override
             public void run() {
                 if (!player.isOnline() || ticks <= 0) {
-                    for (Phantom c : clones) {
+                    for (LivingEntity c : clones) {
                         if (c.isValid()) c.remove();
                     }
                     clones.clear();
@@ -235,12 +242,15 @@ public class Sorrowess extends LegendaryWeapon {
                     return;
                 }
 
+                // Domain dynamically follows the player
+                Location arenaCenter = player.getLocation();
+
                 // White "sun" orb at top of arena
                 Location sunLoc = arenaCenter.clone().add(0, 6.5, 0);
                 sunLoc.getWorld().spawnParticle(Particle.END_ROD, sunLoc, 4, 0.4, 0.4, 0.4, 0.02);
                 sunLoc.getWorld().spawnParticle(Particle.DUST, sunLoc, 6, 0.5, 0.5, 0.5, 0, whiteDust);
 
-                // 12×12 boundary on ground
+                // 12×12 boundary on ground following player
                 for (int d = -6; d <= 6; d += 3) {
                     arenaCenter.getWorld().spawnParticle(Particle.DUST, arenaCenter.clone().add(d, 0.1, 6), 1, 0, 0, 0, 0, purpleDust);
                     arenaCenter.getWorld().spawnParticle(Particle.DUST, arenaCenter.clone().add(d, 0.1, -6), 1, 0, 0, 0, 0, purpleDust);
@@ -261,22 +271,43 @@ public class Sorrowess extends LegendaryWeapon {
             }
         }.runTaskTimer(plugin, 0L, 4L);
 
-        player.sendMessage(Component.text("✦ Bloody Rain! 4 illusion clones summoned in 12×12 arena.", NamedTextColor.LIGHT_PURPLE));
+        player.sendMessage(Component.text("✦ Bloody Rain! 4 illusion clones summoned in mobile arena.", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
-    // Spawns a Phantom clone that walks along the given direction path
-    private void spawnClone(Player owner, Location loc, Vector dir, List<Phantom> cloneList) {
+    // Spawns a humanoid clone that wears the player's skull and armor
+    private void spawnClone(Player owner, Location loc, Vector dir, List<LivingEntity> cloneList) {
         if (cloneList.size() >= 16) return; // hard cap
 
-        Phantom clone = loc.getWorld().spawn(loc, Phantom.class, ph -> {
-            ph.setSize(0); // smallest phantom
-            ph.setCustomNameVisible(true);
-            ph.customName(owner.name());
-            ph.setSilent(true);
-            ph.getPersistentDataContainer().set(cloneKey, PersistentDataType.STRING, owner.getUniqueId().toString());
-            ph.setRemoveWhenFarAway(false);
-            ph.setAI(false); // we control movement manually
+        org.bukkit.entity.Zombie clone = loc.getWorld().spawn(loc, org.bukkit.entity.Zombie.class, z -> {
+            z.setAdult();
+            z.setSilent(true);
+            z.setCanPickupItems(false);
+            z.customName(owner.name());
+            z.setCustomNameVisible(true);
+            z.getPersistentDataContainer().set(cloneKey, PersistentDataType.STRING, owner.getUniqueId().toString());
+
+            // Equip exact player skin skull and armor
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            if (head.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skull) {
+                skull.setOwningPlayer(owner);
+                head.setItemMeta(skull);
+            }
+            z.getEquipment().setHelmet(head);
+            z.getEquipment().setChestplate(owner.getInventory().getChestplate());
+            z.getEquipment().setLeggings(owner.getInventory().getLeggings());
+            z.getEquipment().setBoots(owner.getInventory().getBoots());
+            z.getEquipment().setItemInMainHand(new ItemStack(Material.TRIDENT));
+
+            z.getEquipment().setHelmetDropChance(0.0f);
+            z.getEquipment().setChestplateDropChance(0.0f);
+            z.getEquipment().setLeggingsDropChance(0.0f);
+            z.getEquipment().setBootsDropChance(0.0f);
+            z.getEquipment().setItemInMainHandDropChance(0.0f);
+
+            z.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 12000, 0, false, false));
+            z.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 12000, 1, false, false));
+            z.setAI(false);
         });
         cloneList.add(clone);
 
@@ -311,13 +342,13 @@ public class Sorrowess extends LegendaryWeapon {
         }.runTaskTimer(plugin, 2L, 2L);
     }
 
-    // Called from CombatListener when a clone Phantom is attacked
-    public void multiplyClone(Phantom hitClone, LivingEntity attacker) {
+    // Called from CombatListener when a clone is attacked
+    public void multiplyClone(LivingEntity hitClone, LivingEntity attacker) {
         String ownerStr = hitClone.getPersistentDataContainer().get(cloneKey, PersistentDataType.STRING);
         if (ownerStr == null) return;
         UUID ownerId = UUID.fromString(ownerStr);
         Player owner = plugin.getServer().getPlayer(ownerId);
-        List<Phantom> clones = activeClones.get(ownerId);
+        List<LivingEntity> clones = activeClones.get(ownerId);
         if (clones == null) return;
 
         Location hitLoc = hitClone.getLocation();
@@ -340,7 +371,7 @@ public class Sorrowess extends LegendaryWeapon {
             double[] dirs = {0, 90, 180, 270};
             for (double deg : dirs) {
                 double rad = Math.toRadians(deg);
-                Vector v = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.16);
+                Vector v = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.18);
                 Location spawn = hitLoc.clone().add(Math.cos(rad) * 0.8, 0, Math.sin(rad) * 0.8);
                 spawnClone(owner, spawn, v, clones);
             }

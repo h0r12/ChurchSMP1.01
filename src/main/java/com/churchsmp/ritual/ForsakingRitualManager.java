@@ -1,9 +1,8 @@
 package com.churchsmp.ritual;
 
 import com.churchsmp.ChurchSMP;
-import com.churchsmp.alignment.Alignment;
+import com.churchsmp.gem.SinGemType;
 import com.churchsmp.util.TextUtil;
-import com.churchsmp.weapon.LegendaryWeapon;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -37,17 +36,17 @@ public class ForsakingRitualManager implements Listener {
     private static class RitualSession {
         final Player player;
         final List<Item> items;
-        final List<LegendaryWeapon> weapons;
+        final List<SinGemType> gems;
         BukkitTask task;
         Item focusedItem = null;
-        LegendaryWeapon focusedWeapon = null;
+        SinGemType focusedGem = null;
         double rotation = 0;
         int ticks = 0;
 
-        RitualSession(Player player, List<Item> items, List<LegendaryWeapon> weapons) {
+        RitualSession(Player player, List<Item> items, List<SinGemType> gems) {
             this.player = player;
             this.items = items;
-            this.weapons = weapons;
+            this.gems = gems;
         }
     }
 
@@ -84,36 +83,34 @@ public class ForsakingRitualManager implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_BELL_USE, 1.5f, 0.8f);
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 1.4f);
 
-        Component title = miniMessage.deserialize("<gold>✦ <gradient:#FFD700:#FFFFFF><bold>" + TextUtil.toSmallCaps("Choose Your Destiny") + "</bold></gradient> <gold>✦</gold>");
-        Component subtitle = miniMessage.deserialize("<yellow>" + TextUtil.toSmallCaps("Aim crosshair at an orbiting relic & Click to Claim") + "</yellow>");
+        Component title = miniMessage.deserialize("<gold>✦ <gradient:#FFD700:#FFFFFF><bold>" + TextUtil.toSmallCaps("Choose Your Sin Gem") + "</bold></gradient> <gold>✦</gold>");
+        Component subtitle = miniMessage.deserialize("<yellow>" + TextUtil.toSmallCaps("Aim crosshair at an orbiting gem & Click to Attune") + "</yellow>");
         player.showTitle(Title.title(title, subtitle, Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(5), Duration.ofMillis(500))));
 
-        // 3. Spawn all 7 Legendary Relics floating in a halo around the player
+        // 3. Spawn all 7 Sin Gems floating in a halo around the player
         Location center = player.getLocation().add(0, 1.2, 0);
-        List<String> weaponIds = List.of("excalibur", "luminescence_spear", "mayim", "judas", "sorrowess", "voidbreaker", "grim");
+        SinGemType[] gemTypes = SinGemType.values();
         List<Item> haloItems = new ArrayList<>();
-        List<LegendaryWeapon> haloWeapons = new ArrayList<>();
+        List<SinGemType> haloGems = new ArrayList<>();
 
-        for (int i = 0; i < weaponIds.size(); i++) {
-            LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(weaponIds.get(i));
-            if (weapon == null) continue;
-
-            double angle = (2 * Math.PI / weaponIds.size()) * i;
+        for (int i = 0; i < gemTypes.length; i++) {
+            SinGemType gem = gemTypes[i];
+            double angle = (2 * Math.PI / gemTypes.length) * i;
             Location itemLoc = center.clone().add(Math.cos(angle) * 2.8, 0, Math.sin(angle) * 2.8);
 
-            Item item = player.getWorld().dropItem(itemLoc, weapon.createItem());
+            Item item = player.getWorld().dropItem(itemLoc, plugin.getSinGemManager().createGemItem(gem));
             item.setGravity(false);
             item.setPickupDelay(Integer.MAX_VALUE);
             item.setCanMobPickup(false);
             item.setVelocity(new Vector(0, 0, 0));
             item.setCustomNameVisible(true);
-            item.customName(weapon.getDisplayName());
+            item.customName(gem.getFormattedName());
 
             haloItems.add(item);
-            haloWeapons.add(weapon);
+            haloGems.add(gem);
         }
 
-        RitualSession session = new RitualSession(player, haloItems, haloWeapons);
+        RitualSession session = new RitualSession(player, haloItems, haloGems);
         activeRituals.put(player.getUniqueId(), session);
 
         // 4. Smooth slow orbit & crosshair raycast detection loop
@@ -145,7 +142,7 @@ public class ForsakingRitualManager implements Listener {
                 Vector lookDir = eye.getDirection().normalize();
 
                 Item bestItem = null;
-                LegendaryWeapon bestWeapon = null;
+                SinGemType bestGem = null;
                 double bestDot = 0.93; // tight targeting cone (~21 degrees)
 
                 for (int i = 0; i < session.items.size(); i++) {
@@ -156,16 +153,16 @@ public class ForsakingRitualManager implements Listener {
                     if (dot > bestDot) {
                         bestDot = dot;
                         bestItem = it;
-                        bestWeapon = session.weapons.get(i);
+                        bestGem = session.gems.get(i);
                     }
                 }
 
-                // Focused on a weapon
-                if (bestWeapon != null && bestItem != null) {
-                    session.focusedWeapon = bestWeapon;
+                // Focused on a gem
+                if (bestGem != null && bestItem != null) {
+                    session.focusedGem = bestGem;
                     session.focusedItem = bestItem;
 
-                    // Particle beam from player toward focused weapon
+                    // Particle beam from player toward focused gem
                     Location beamStart = eye.clone().add(lookDir.clone().multiply(0.6));
                     Vector beamVec = bestItem.getLocation().toVector().subtract(beamStart.toVector());
                     int steps = 5;
@@ -181,17 +178,16 @@ public class ForsakingRitualManager implements Listener {
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.4f, 1.8f);
                     }
 
-                    player.sendActionBar(miniMessage.deserialize(
-                            "<gold>✦ <yellow><bold>FOCUSED:</bold></yellow> " +
-                            bestWeapon.getDisplayName() +
-                            " <dark_gray>•</dark_gray> <white><bold>[CLICK]</bold></white> <green>to Claim!</green> ✦</gold>"
-                    ));
+                    Component actionMsg = miniMessage.deserialize("<gold>✦ <yellow><bold>FOCUSED:</bold></yellow> </gold>")
+                            .append(bestGem.getFormattedName())
+                            .append(miniMessage.deserialize(" <dark_gray>•</dark_gray> <white><bold>[CLICK]</bold></white> <green>to Attune!</green> ✦</gold>"));
+                    player.sendActionBar(actionMsg);
                 } else {
-                    session.focusedWeapon = null;
+                    session.focusedGem = null;
                     session.focusedItem = null;
 
                     player.sendActionBar(miniMessage.deserialize(
-                            "<gray>✦ <yellow>" + TextUtil.toSmallCaps("Aim crosshair at an orbiting relic & Click to Claim") + "</yellow> ✦</gray>"
+                            "<gray>✦ <yellow>" + TextUtil.toSmallCaps("Aim crosshair at an orbiting gem & Click to Attune") + "</yellow> ✦</gray>"
                     ));
                 }
 
@@ -245,21 +241,21 @@ public class ForsakingRitualManager implements Listener {
     }
 
     private void handleSelectionAttempt(Player player, RitualSession session) {
-        if (session.focusedWeapon != null && session.focusedItem != null) {
-            // Weapon chosen!
+        if (session.focusedGem != null && session.focusedItem != null) {
+            // Gem chosen!
             activeRituals.remove(player.getUniqueId());
             session.task.cancel();
-            finishRitualChoice(player, session, session.focusedWeapon, session.focusedItem);
+            finishRitualChoice(player, session, session.focusedGem, session.focusedItem);
         } else {
-            // Not focused on any weapon
+            // Not focused on any gem
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
             player.sendActionBar(miniMessage.deserialize(
-                    "<red>✦ <bold>" + TextUtil.toSmallCaps("Aim directly at an orbiting relic with your crosshair!") + "</bold> ✦</red>"
+                    "<red>✦ <bold>" + TextUtil.toSmallCaps("Aim directly at an orbiting gem with your crosshair!") + "</bold> ✦</red>"
             ));
         }
     }
 
-    private void finishRitualChoice(Player player, RitualSession session, LegendaryWeapon chosenWeapon, Item chosenItem) {
+    private void finishRitualChoice(Player player, RitualSession session, SinGemType chosenGem, Item chosenItem) {
         // Tag as completed in PDC
         player.getPersistentDataContainer().set(forsakingKey, PersistentDataType.BOOLEAN, true);
 
@@ -272,7 +268,7 @@ public class ForsakingRitualManager implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.5f, 0.7f);
         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.5f);
 
-        // Shatter all unchosen relics into smoke and fragments
+        // Shatter all unchosen gems into smoke and fragments
         for (Item item : session.items) {
             if (item.equals(chosenItem)) continue;
             if (item.isValid()) {
@@ -284,7 +280,7 @@ public class ForsakingRitualManager implements Listener {
             }
         }
 
-        // Chosen relic rises upward and centers above player's head
+        // Chosen gem rises upward and centers above player's head
         if (chosenItem.isValid()) {
             chosenItem.setGravity(false);
             new BukkitRunnable() {
@@ -294,7 +290,7 @@ public class ForsakingRitualManager implements Listener {
                     t++;
                     if (t > 30 || !player.isOnline() || !chosenItem.isValid()) {
                         chosenItem.remove();
-                        deliverWeapon(player, chosenWeapon);
+                        deliverGem(player, chosenGem);
                         cancel();
                         return;
                     }
@@ -309,40 +305,44 @@ public class ForsakingRitualManager implements Listener {
                 }
             }.runTaskTimer(plugin, 0L, 1L);
         } else {
-            deliverWeapon(player, chosenWeapon);
+            deliverGem(player, chosenGem);
         }
     }
 
-    private void deliverWeapon(Player player, LegendaryWeapon chosenWeapon) {
+    private void deliverGem(Player player, SinGemType chosenGem) {
         player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.6f, 1.2f);
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
         player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1.5, 0), 3, Color.WHITE);
 
+        // Attune the player
+        plugin.getSinGemManager().attune(player, chosenGem);
+
         // Deliver item to player inventory
-        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(chosenWeapon.createItem());
+        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(plugin.getSinGemManager().createGemItem(chosenGem));
         for (ItemStack left : overflow.values()) {
             player.getWorld().dropItem(player.getLocation(), left);
         }
 
-        // Set player's initial alignment based on chosen relic
-        String wid = chosenWeapon.getId();
-        if (wid.equals("judas") || wid.equals("sorrowess") || wid.equals("grim")) {
-            plugin.getAlignmentManager().setAlignment(player, Alignment.EVIL);
-        } else if (wid.equals("excalibur") || wid.equals("luminescence_spear") || wid.equals("mayim")) {
-            plugin.getAlignmentManager().setAlignment(player, Alignment.GOOD);
-        } else {
-            plugin.getAlignmentManager().setAlignment(player, Alignment.NULLIFIED);
+        // Broadcast to all players on server
+        Component broadcastMsg = miniMessage.deserialize("<gold>✦ <yellow>" + player.getName() + "</yellow> <gray>has completed the Forsaking Ritual and attuned to </gray></gold>")
+                .append(chosenGem.getFormattedName())
+                .append(miniMessage.deserialize("<gold>! ✦</gold>"));
+        Bukkit.broadcast(broadcastMsg);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.playSound(p.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.7f, 1.2f);
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.6f, 1.0f);
         }
 
         // Cinematic resolution title
         Component title = miniMessage.deserialize("<gold>✦ <gradient:#FFD700:#FFFFFF><bold>" + TextUtil.toSmallCaps("Destiny Sealed") + "</bold></gradient> <gold>✦</gold>");
-        player.showTitle(Title.title(title, chosenWeapon.getDisplayName(), Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))));
+        player.showTitle(Title.title(title, chosenGem.getFormattedName(), Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))));
 
-        // Starter lore & guide in chat
+        // Starter lore & guide in chat with proper component appending (NO TextComponentImpl bug!)
         player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
-        player.sendMessage(miniMessage.deserialize("<gold>✦ <white><bold>" + TextUtil.toSmallCaps("Forsaking Sealed") + ":</bold></white> " + chosenWeapon.getDisplayName() + "</gold>"));
-        player.sendMessage(Component.text("  You have bound your soul to this legendary relic.", NamedTextColor.GRAY));
-        player.sendMessage(miniMessage.deserialize("  <gray>Type <yellow>/church guide</yellow> " + TextUtil.toSmallCaps("to view abilities, passives & alignment!") + "</gray>"));
+        player.sendMessage(miniMessage.deserialize("<gold>✦ <white><bold>" + TextUtil.toSmallCaps("Forsaking Sealed") + ":</bold></white> </gold>")
+                .append(chosenGem.getFormattedName()));
+        player.sendMessage(Component.text("  You have permanently attuned your soul to this Relic Gem.", NamedTextColor.GRAY));
+        player.sendMessage(miniMessage.deserialize("  <gray>Type <yellow>/church guide</yellow> <white>" + TextUtil.toSmallCaps("to view your abilities and passives!") + "</white></gray>"));
         player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
     }
 

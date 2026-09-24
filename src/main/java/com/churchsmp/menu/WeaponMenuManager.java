@@ -203,10 +203,10 @@ public class WeaponMenuManager implements Listener {
         ItemStack filler = createFiller();
         for (int i = 0; i < 27; i++) inv.setItem(i, filler);
 
-        inv.setItem(10, createRecipeItem("Iniquity", Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, "Wither Skull + Netherite Ingot + Crying Obsidian + Nether Star"));
-        inv.setItem(12, createRecipeItem("Impiety", Material.RECOVERY_COMPASS, "Gold Block + Totem + Diamond Block + Nether Star"));
-        inv.setItem(14, createRecipeItem("Obscura", Material.ECHO_SHARD, "Echo Shard + End Crystal + Obsidian + Nether Star"));
-        inv.setItem(16, createRecipeItem("Weapons", Material.CRAFTING_TABLE, "Formed using Sin Relic Gems + Core Ingredients"));
+        inv.setItem(10, createRecipeItem("Iniquity", Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, "Wither Skull + Netherite Ingots + Liminal Core + Crying Obsidian"));
+        inv.setItem(12, createRecipeItem("Impiety", Material.RECOVERY_COMPASS, "Gold Block + Totems of Undying + Liminal Core + Diamond Block"));
+        inv.setItem(14, createRecipeItem("Obscura", Material.ECHO_SHARD, "Echo Shard + End Crystals + Liminal Core + Obsidian"));
+        inv.setItem(16, createRecipeItem("Weapons", Material.CRAFTING_TABLE, "Top: Sin Gem | Mid: Core Catalyst | Bottom: Base Weapon"));
 
         inv.setItem(22, createBackButton());
 

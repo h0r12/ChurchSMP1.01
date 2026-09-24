@@ -155,6 +155,16 @@ public class WeaponChoiceManager implements Listener {
         // Set player's alignment score according to relic path
         plugin.getAlignmentManager().setAlignmentScore(player, holder.getRelicType().getTargetScore());
 
+        // Broadcast choice to everyone with sound alert
+        Component broadcast = miniMessage.deserialize("<gold>✦ <yellow>" + player.getName() + "</yellow> <gray>has chosen the legendary relic </gray></gold>")
+                .append(weapon.getDisplayName())
+                .append(miniMessage.deserialize("<gold>! ✦</gold>"));
+        Bukkit.broadcast(broadcast);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.playSound(p.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.7f, 1.2f);
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.6f, 1.0f);
+        }
+
         player.closeInventory();
 
         // Run the epic overhead spinning/orbiting weapon chosen animation
@@ -201,9 +211,9 @@ public class WeaponChoiceManager implements Listener {
                         player.getInventory().addItem(weapon.createItem());
                         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
                         player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1, 0), 2, Color.WHITE);
-                        player.sendMessage(miniMessage.deserialize(
-                                weapon.getThemeGradientTag() + "<bold>✦ ʏᴏᴜ ʜᴀᴠᴇ ᴄʜᴏꜱᴇɴ [" + TextUtil.toSmallCaps(weapon.getId().replace('_', ' ')) + "]! ʏᴏᴜʀ ᴘᴀᴛʜ ɪꜱ ꜱᴇᴀʟᴇᴅ.</bold></gradient>"
-                        ));
+                        player.sendMessage(miniMessage.deserialize("<gold>✦ <white><bold>" + TextUtil.toSmallCaps("You have chosen") + ": </bold></white></gold>")
+                                .append(weapon.getDisplayName())
+                                .append(miniMessage.deserialize("<gold>! <gray>" + TextUtil.toSmallCaps("Your path is sealed.") + "</gray> ✦</gold>")));
                     }
                     cancel();
                     return;

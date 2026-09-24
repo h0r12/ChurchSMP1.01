@@ -78,21 +78,6 @@ public class VoidBreaker extends LegendaryWeapon {
     @Override
     public boolean executePrimary(Player player) {
         String key = id + "_primary";
-        if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
-
-        int cd = plugin.getConfig().getInt("weapons.voidbreaker.primary_cooldown", 75);
-        plugin.getCooldownManager().setCooldown(player, key, cd);
-        plugin.getBossBarManager().showActiveCountdown(player, "Fractured Strike Armed", BossBar.Color.PURPLE, 15);
-
-        fracturedArmed.put(player.getUniqueId(), true);
-        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
-        player.sendMessage(Component.text("âœ¦ Fractured armed! Your next strike inflicts the devastating Fallen debuff & stuns for 2s.", NamedTextColor.DARK_PURPLE));
-        return true;
-    }
-
-    @Override
-    public boolean executeSecondary(Player player) {
-        String key = id + "_secondary";
         long now = System.currentTimeMillis();
 
         // Check active duration
@@ -107,7 +92,7 @@ public class VoidBreaker extends LegendaryWeapon {
 
         int charges = boundCharges.getOrDefault(player.getUniqueId(), 3);
         if (charges <= 0) {
-            player.sendMessage(Component.text("âœ¦ Bound: Out of dash charges! Land a mace hit to gain +1 charge.", NamedTextColor.RED));
+            player.sendMessage(Component.text("✦ Bound: Out of dash charges! Land a mace hit to gain +1 charge.", NamedTextColor.RED));
             return false;
         }
 
@@ -121,8 +106,8 @@ public class VoidBreaker extends LegendaryWeapon {
         charges--;
         boundCharges.put(player.getUniqueId(), charges);
 
-        // Perform dash
-        Vector dash = player.getLocation().getDirection().normalize().multiply(1.7).setY(0.2);
+        // Perform dash directly towards crosshair (full 3D direction, works in air!)
+        Vector dash = player.getEyeLocation().getDirection().normalize().multiply(1.85);
         player.setVelocity(dash);
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
         player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 30, 0.4, 0.4, 0.4, 0.1);
@@ -133,9 +118,24 @@ public class VoidBreaker extends LegendaryWeapon {
     }
 
     @Override
+    public boolean executeSecondary(Player player) {
+        String key = id + "_secondary";
+        if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
+
+        int cd = plugin.getConfig().getInt("weapons.voidbreaker.secondary_cooldown", 75);
+        plugin.getCooldownManager().setCooldown(player, key, cd);
+        plugin.getBossBarManager().showActiveCountdown(player, "Fractured Strike Armed", BossBar.Color.PURPLE, 15);
+
+        fracturedArmed.put(player.getUniqueId(), true);
+        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
+        player.sendMessage(Component.text("✦ Fractured armed! Your next strike inflicts the devastating Fallen debuff & stuns for 2s.", NamedTextColor.DARK_PURPLE));
+        return true;
+    }
+
+    @Override
     public String getCustomActiveStatus(Player player, boolean secondary) {
-        if (secondary) {
-            String boundKey = id + "_secondary";
+        if (!secondary) {
+            String boundKey = id + "_primary";
             if (plugin.getCooldownManager().isActive(player, boundKey)) {
                 int charges = boundCharges.getOrDefault(player.getUniqueId(), 0);
                 double rem = plugin.getCooldownManager().getActiveRemainingSeconds(player, boundKey);
@@ -229,52 +229,69 @@ public class VoidBreaker extends LegendaryWeapon {
                         target.getLocation().add(rx, 0.05, rz), 1, 0, 0, 0, 0, dustColor);
             }
         } else {
-            // 4th hit: Double damage with aftershock explosion
+            // 4th hit: Seismic shockwave detonates after 2 seconds (40 ticks)!
             crumbleHits.put(attacker.getUniqueId(), 0);
+            Location shockwaveLoc = target.getLocation().clone();
 
-            // Big dust burst at target's feet FIRST before the explosion
-            Location feet = target.getLocation();
-            Particle.DustOptions bigDust = new Particle.DustOptions(
-                    org.bukkit.Color.fromRGB(90, 90, 90), 2.5f);
-            feet.getWorld().spawnParticle(Particle.DUST, feet.add(0, 0.1, 0), 60, 1.2, 0.1, 1.2, 0, bigDust);
-            feet.getWorld().spawnParticle(Particle.BLOCK, feet, 40,
-                    1.5, 0.2, 1.5, 0.2, Material.GRAVEL.createBlockData());
+            attacker.sendMessage(Component.text("✦ Crumble: 4th hit landed! Seismic shockwave erupting in 2s!", NamedTextColor.LIGHT_PURPLE));
+            target.sendMessage(Component.text("⚠ Seismic shockwave building beneath your feet!", NamedTextColor.RED));
+            shockwaveLoc.getWorld().playSound(shockwaveLoc, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.4f, 0.6f);
 
-            // Expanding dust ring at feet
-            for (int i = 0; i < 24; i++) {
-                double angle = (2 * Math.PI / 24) * i;
-                double rx = Math.cos(angle) * 1.5;
-                double rz = Math.sin(angle) * 1.5;
-                feet.getWorld().spawnParticle(Particle.DUST,
-                        target.getLocation().add(rx, 0.1, rz), 2, 0, 0, 0, 0, bigDust);
-            }
+            // 2-second charging particle animation
+            new org.bukkit.scheduler.BukkitRunnable() {
+                int t = 0;
+                final double maceDamage = Math.max(14.0, damage * 1.5);
 
-            // Then the actual explosion + damage
-            target.damage(damage, attacker); // Double hit
+                @Override
+                public void run() {
+                    t += 2;
+                    if (t < 40) {
+                        // Pulsing warning ground particles
+                        double pulseRadius = 0.5 + (t * 0.05);
+                        for (int d = 0; d < 360; d += 30) {
+                            double rad = Math.toRadians(d);
+                            Location p = shockwaveLoc.clone().add(Math.cos(rad) * pulseRadius, 0.1, Math.sin(rad) * pulseRadius);
+                            shockwaveLoc.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0,
+                                    new Particle.DustOptions(org.bukkit.Color.fromRGB(80, 80, 80), 1.4f));
+                        }
+                        if (t % 10 == 0) {
+                            shockwaveLoc.getWorld().playSound(shockwaveLoc, Sound.BLOCK_HEAVY_CORE_STEP, 1.0f, 0.8f + (t * 0.02f));
+                        }
+                        return;
+                    }
 
-            Location loc = target.getLocation();
-            loc.getWorld().playSound(loc, Sound.BLOCK_HEAVY_CORE_FALL, 2.0f, 0.6f);
-            loc.getWorld().playSound(loc, Sound.BLOCK_ANVIL_LAND, 1.6f, 0.7f);
+                    // Detonation after 2 seconds (40 ticks)!
+                    shockwaveLoc.getWorld().playSound(shockwaveLoc, Sound.BLOCK_HEAVY_CORE_FALL, 2.0f, 0.5f);
+                    shockwaveLoc.getWorld().playSound(shockwaveLoc, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 0.7f);
+                    shockwaveLoc.getWorld().playSound(shockwaveLoc, Sound.BLOCK_ANVIL_LAND, 1.6f, 0.6f);
+                    shockwaveLoc.getWorld().spawnParticle(Particle.SONIC_BOOM, shockwaveLoc.clone().add(0, 0.5, 0), 1);
 
-            // Ground shockwave rings and heavy debris without explosion particles (Theme: white, black, gray)
-            Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 2.2f);
-            Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.8f);
+                    Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(30, 30, 30), 2.2f);
+                    Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.8f);
 
-            for (double r = 1.0; r <= 3.5; r += 0.8) {
-                for (int d = 0; d < 360; d += 15) {
-                    double rad = Math.toRadians(d);
-                    Location p = loc.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
-                    loc.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 2.0) ? shockDustLight : shockDustDark);
+                    for (double r = 1.0; r <= 4.5; r += 0.8) {
+                        for (int d = 0; d < 360; d += 15) {
+                            double rad = Math.toRadians(d);
+                            Location p = shockwaveLoc.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
+                            shockwaveLoc.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 2.2) ? shockDustLight : shockDustDark);
+                        }
+                    }
+                    shockwaveLoc.getWorld().spawnParticle(Particle.BLOCK, shockwaveLoc.clone().add(0, 0.5, 0), 50, 1.8, 0.5, 1.8, 0.15, Material.GRAVEL.createBlockData());
+                    shockwaveLoc.getWorld().spawnParticle(Particle.BLOCK, shockwaveLoc.clone().add(0, 0.5, 0), 30, 1.5, 0.4, 1.5, 0.1, Material.COBBLESTONE.createBlockData());
+
+                    for (LivingEntity e : shockwaveLoc.getWorld().getNearbyLivingEntities(shockwaveLoc, 4.5)) {
+                        if (e.equals(attacker)) continue;
+                        e.damage(maceDamage, attacker);
+                        Vector kb = e.getLocation().toVector().subtract(shockwaveLoc.toVector()).normalize().multiply(0.9).setY(0.45);
+                        e.setVelocity(kb);
+                    }
+
+                    if (attacker.isOnline()) {
+                        attacker.sendMessage(Component.text("✦ CRUMBLE SEISMIC SHOCKWAVE DETONATED!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
+                    }
+                    cancel();
                 }
-            }
-            loc.getWorld().spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 40, 1.5, 0.5, 1.5, 0.15, Material.GRAVEL.createBlockData());
-            loc.getWorld().spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 25, 1.2, 0.4, 1.2, 0.1, Material.COBBLESTONE.createBlockData());
-
-            for (LivingEntity e : loc.getWorld().getNearbyLivingEntities(loc, 4.0)) {
-                if (e.equals(attacker)) continue;
-                e.damage(4.0, attacker); // 2 hearts (reduced from 8.0)
-            }
-            attacker.sendMessage(Component.text("✦ CRUMBLE 4th HIT AFTERSHOCK!", NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
+            }.runTaskTimer(plugin, 0L, 2L);
         }
     }
 

@@ -54,6 +54,12 @@ public class InputListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
+        if (plugin.getGemAbilityExecutor().isSealed(player)) {
+            event.setCancelled(true);
+            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>✦ Your offhand is sealed by Taxing Ray! ✦</red>"));
+            return;
+        }
+
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
         // Check if holding a legendary weapon
@@ -62,13 +68,6 @@ public class InputListener implements Listener {
             event.setCancelled(true);
             triggerWeaponAbility(player, weapon, player.isSneaking());
             return;
-        }
-
-        // Check if holding a sin gem
-        SinGemType gem = plugin.getSinGemManager().getGemType(mainHand);
-        if (gem != null) {
-            event.setCancelled(true);
-            plugin.getGemAbilityExecutor().triggerGemAbility(player);
         }
     }
 
@@ -83,6 +82,11 @@ public class InputListener implements Listener {
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
 
         Player player = event.getPlayer();
+        if (plugin.getGemAbilityExecutor().isSealed(player)) {
+            event.setCancelled(true);
+            return;
+        }
+
         Block clicked = event.getClickedBlock();
 
         // If clicking an interactive block (chest, door, etc.), don't intercept!
@@ -115,19 +119,43 @@ public class InputListener implements Listener {
                 plugin.getSinGemManager().attune(player, gemItem);
                 mainHand.subtract(1);
                 return;
-            } else {
-                // Attuned player activating gem
-                event.setCancelled(true);
-                plugin.getGemAbilityExecutor().triggerGemAbility(player);
-                return;
             }
         }
 
-        // Grim Scythe right-click throw (mouse button activation for regular abilities has been removed)
+        // Grim Scythe right-click throw
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);
-        if (weapon instanceof com.churchsmp.weapon.Grim grim) {
+        if (weapon instanceof com.churchsmp.weapon.Grim grim && !player.isSneaking()) {
             event.setCancelled(true);
             grim.throwScythe(player);
+            return;
+        }
+
+        // Gem RMB and Sneak + RMB abilities
+        if (player.isSneaking()) {
+            if (plugin.getGemAbilityExecutor().handleSneakRMB(player)) {
+                event.setCancelled(true);
+            }
+        } else {
+            if (plugin.getGemAbilityExecutor().handleRMB(player)) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onLeftClick(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        Player player = event.getPlayer();
+        if (player.isSneaking()) {
+            plugin.getGemAbilityExecutor().handleSneakLMB(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onArmSwing(org.bukkit.event.player.PlayerAnimationEvent event) {
+        Player player = event.getPlayer();
+        if (player.isSneaking()) {
+            plugin.getGemAbilityExecutor().handleSneakLMB(player);
         }
     }
 

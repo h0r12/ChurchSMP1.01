@@ -45,16 +45,27 @@ public class CombatListener implements Listener {
         if (attacker == null) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
-        // Intercept attacks on Sorrowess illusion Phantom clones
-        if (event.getEntity() instanceof Phantom phantom) {
-            LegendaryWeapon sw = plugin.getWeaponManager().getWeapon("sorrowess");
-            if (sw instanceof Sorrowess sorrowess) {
-                // Check if this phantom is a sorrowess clone using the exposed key
-                if (phantom.getPersistentDataContainer().has(sorrowess.getCloneKey(), PersistentDataType.STRING)) {
-                    event.setCancelled(true);
-                    sorrowess.multiplyClone(phantom, attacker);
-                    return;
-                }
+        // Mirror of Shame: reflected outgoing damage
+        if (plugin.getGemAbilityExecutor().isInsideShameChamber(attacker.getUniqueId())) {
+            event.setCancelled(true);
+            attacker.damage(event.getDamage());
+            attacker.sendMessage(Component.text("✦ Your attack was reflected back onto you by Mirror of Shame!", NamedTextColor.RED));
+            return;
+        }
+
+        // Narcissus clone hit intercept
+        if (plugin.getGemAbilityExecutor().handleCloneDamage(target, event.getDamage())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        // Intercept attacks on Sorrowess illusion clones
+        LegendaryWeapon sw = plugin.getWeaponManager().getWeapon("sorrowess");
+        if (sw instanceof Sorrowess sorrowess) {
+            if (target.getPersistentDataContainer().has(sorrowess.getCloneKey(), PersistentDataType.STRING)) {
+                event.setCancelled(true);
+                sorrowess.multiplyClone(target, attacker);
+                return;
             }
         }
 
@@ -93,18 +104,18 @@ public class CombatListener implements Listener {
             }
         }
 
-        // Judas passives apply to EVERYTHING (any weapon, projectiles, melee)
+        // Judas passives apply to attacker's attacks if they possess Judas
         LegendaryWeapon judasW = plugin.getWeaponManager().getWeapon("judas");
-        if (judasW instanceof Judas judas) {
+        if (judasW instanceof Judas judas && plugin.getWeaponManager().hasWeapon(attacker, "judas")) {
             judas.triggerJudasPassives(attacker, target);
         }
 
         // Gem hit passives & multipliers
-        plugin.getGemAbilityExecutor().onPlayerHitEntity(attacker, target);
-        double multiplier = plugin.getGemAbilityExecutor().getDamageMultiplier(attacker);
-        if (multiplier != 1.0) {
-            event.setDamage(event.getDamage() * multiplier);
+        plugin.getGemAbilityExecutor().onPlayerHitEntity(attacker, target, event);
+        if (!attacker.isSneaking()) {
+            plugin.getGemAbilityExecutor().handleLMBAttack(attacker, target, event);
         }
+        plugin.getGemAbilityExecutor().checkTetherDamage(attacker, event.getDamage());
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -117,7 +128,7 @@ public class CombatListener implements Listener {
             weapon.onDamaged(player, event);
         }
 
-        plugin.getGemAbilityExecutor().onPlayerDamaged(player);
+        plugin.getGemAbilityExecutor().onPlayerDamaged(player, event);
     }
 
     @EventHandler
@@ -161,5 +172,7 @@ public class CombatListener implements Listener {
         if (weapon instanceof Grim grim) {
             grim.addKill(killer, weaponItem);
         }
+
+        plugin.getGemAbilityExecutor().onPlayerKill(killer, event.getEntity());
     }
 }

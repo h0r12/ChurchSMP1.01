@@ -111,6 +111,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
             start.getWorld().spawnParticle(Particle.DUST, start.clone().add(Math.cos(rad) * 2.2, 0.1, Math.sin(rad) * 2.2), 1, 0, 0, 0, 0, goldDust);
         }
 
+        java.util.Set<java.util.UUID> hitVictims = new java.util.HashSet<>();
         Vector up = new Vector(0, 1, 0);
         Vector right = dir.clone().crossProduct(up).normalize();
         for (double dist = 0; dist <= 6.0; dist += 0.25) {
@@ -121,10 +122,15 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
             for (LivingEntity victim : p.getWorld().getNearbyLivingEntities(p, 1.5)) {
                 if (victim.equals(player)) continue;
+                if (!hitVictims.add(victim.getUniqueId())) continue; // Hit and mark only once!
+
                 victim.damage(4.0, player);
                 victim.getPersistentDataContainer().set(crescentMarkKey, PersistentDataType.STRING, player.getUniqueId().toString());
                 victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0, false, false));
                 victim.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 100, 1));
+
+                // Mark with exactly ONE orbital lightning bolt
+                triggerOrbitalLightning(victim.getLocation(), player, true);
 
                 Location vFeet = victim.getLocation();
                 for (int vd = 0; vd < 360; vd += 30) {
@@ -132,7 +138,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
                     vFeet.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, vFeet.clone().add(Math.cos(vrad) * 0.9, 0.1, Math.sin(vrad) * 0.9), 1, 0, 0, 0, 0);
                 }
 
-                player.sendMessage(Component.text("✦ Dash hit! Target marked with CrescentEclipse.", NamedTextColor.YELLOW));
+                player.sendMessage(Component.text("✦ Dash hit! Target marked with Orbital Lightning Bolt.", NamedTextColor.YELLOW));
             }
         }
 

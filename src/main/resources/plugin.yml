@@ -8,9 +8,13 @@ author: ChurchSMP Team
 commands:
   church:
     description: ChurchSMP guide, alignment, and information
-    usage: /<command> [guide|info|reroll]
+    usage: /<command> [guide|info|reroll|ritual]
     permission: churchsmp.use
     aliases: [csmp]
+  ritual:
+    description: Preload items into offhand Relic slot for Greed
+    usage: /<command>
+    permission: churchsmp.use
   churchadmin:
     description: Administrative commands for ChurchSMP
     usage: /<command> [help|resetcooldown|setalignment|giveweapon|givegem|reload]

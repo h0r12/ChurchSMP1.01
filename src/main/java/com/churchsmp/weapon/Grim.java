@@ -104,6 +104,9 @@ public class Grim extends LegendaryWeapon {
         return item;
     }
 
+    private final Map<UUID, Boolean> isChargingThrow = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean> isChargingSonic = new ConcurrentHashMap<>();
+
     public void throwScythe(Player player) {
         // Alignment check
         if (!plugin.getAlignmentManager().canWield(player, requiredAlignment)) {
@@ -111,98 +114,184 @@ public class Grim extends LegendaryWeapon {
             return;
         }
 
-        // If HollowedOut is armed -> fires a sonic boom blast!
-        if (Boolean.TRUE.equals(hollowedOutArmed.remove(player.getUniqueId()))) {
-            Location eye = player.getEyeLocation();
-            Vector dir = eye.getDirection().normalize();
+        UUID uuid = player.getUniqueId();
 
-            player.getWorld().playSound(eye, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1.0f);
-            player.getWorld().playSound(eye, Sound.ENTITY_WITHER_SHOOT, 1.2f, 0.6f);
+        // 1. If HollowedOut is armed -> Charges and fires a dark Sonic Boom!
+        if (Boolean.TRUE.equals(hollowedOutArmed.get(uuid))) {
+            if (Boolean.TRUE.equals(isChargingSonic.get(uuid))) return;
 
-            Particle.DustOptions darkGreen = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 2.0f);
-            Particle.DustOptions grayGreen = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
+            isChargingSonic.put(uuid, true);
+            player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.2f, 0.8f);
 
-            Location curr = eye.clone();
-            for (int i = 0; i < 20; i++) {
-                curr.add(dir.clone().multiply(0.8));
-                curr.getWorld().spawnParticle(Particle.DUST, curr, 3, 0.1, 0.1, 0.1, 0, darkGreen);
-                curr.getWorld().spawnParticle(Particle.DUST, curr, 2, 0.1, 0.1, 0.1, 0, grayGreen);
-                curr.getWorld().spawnParticle(Particle.SMOKE, curr, 1, 0.05, 0.05, 0.05, 0.01);
-                if (i % 4 == 0) {
-                    curr.getWorld().spawnParticle(Particle.SONIC_BOOM, curr, 1);
+            // Charge for 40 ticks (2.0 seconds)
+            new BukkitRunnable() {
+                int ticks = 0;
+                final int totalChargeTicks = 40;
+
+                @Override
+                public void run() {
+                    ticks++;
+                    if (!player.isOnline() || !isHoldingGrim(player) || !Boolean.TRUE.equals(hollowedOutArmed.get(uuid))) {
+                        isChargingSonic.remove(uuid);
+                        cancel();
+                        return;
+                    }
+
+                    int pct = (ticks * 100) / totalChargeTicks;
+                    player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                            .deserialize("<gradient:#4B0082:#9400D3><bold>✦ CHARGING SONIC BOOM [" + pct + "%] ✦</bold></gradient>"));
+
+                    Location eye = player.getEyeLocation();
+                    eye.getWorld().spawnParticle(Particle.SOUL, eye.clone().add(eye.getDirection().multiply(0.8)), 2, 0.1, 0.1, 0.1, 0.02);
+
+                    if (ticks % 8 == 0) {
+                        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.8f, 0.8f + (ticks * 0.02f));
+                    }
+
+                    if (ticks >= totalChargeTicks) {
+                        isChargingSonic.remove(uuid);
+                        hollowedOutArmed.remove(uuid);
+
+                        // Fire Sonic Boom!
+                        Vector dir = eye.getDirection().normalize();
+                        player.getWorld().playSound(eye, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1.0f);
+                        player.getWorld().playSound(eye, Sound.ENTITY_WITHER_SHOOT, 1.2f, 0.6f);
+
+                        Particle.DustOptions darkGreen = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 2.0f);
+                        Particle.DustOptions grayGreen = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
+
+                        Location curr = eye.clone();
+                        int stunDurationTicks = totalChargeTicks / 2; // Halved charge time = 20 ticks (1s)
+
+                        for (int i = 0; i < 20; i++) {
+                            curr.add(dir.clone().multiply(0.8));
+                            curr.getWorld().spawnParticle(Particle.DUST, curr, 3, 0.1, 0.1, 0.1, 0, darkGreen);
+                            curr.getWorld().spawnParticle(Particle.DUST, curr, 2, 0.1, 0.1, 0.1, 0, grayGreen);
+                            curr.getWorld().spawnParticle(Particle.SMOKE, curr, 1, 0.05, 0.05, 0.05, 0.01);
+                            if (i % 4 == 0) {
+                                curr.getWorld().spawnParticle(Particle.SONIC_BOOM, curr, 1);
+                            }
+
+                            for (LivingEntity target : curr.getWorld().getNearbyLivingEntities(curr, 1.5, e -> !e.equals(player))) {
+                                target.damage(8.0, player);
+                                target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
+                                // Stun target for halved the charge time (20 ticks = 1 second)
+                                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, stunDurationTicks, 255));
+                                target.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, stunDurationTicks, 200));
+                                failedActionTarget.put(target.getUniqueId(), System.currentTimeMillis() + 15000L);
+                            }
+                        }
+
+                        player.sendMessage(Component.text("✦ HollowedOut unleashed a dark Sonic Boom! Targets stunned for 1s!", NamedTextColor.DARK_GREEN));
+                        cancel();
+                    }
                 }
-
-                for (LivingEntity target : curr.getWorld().getNearbyLivingEntities(curr, 1.5, e -> !e.equals(player))) {
-                    target.damage(8.0, player);
-                    target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
-                    target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 1));
-                    failedActionTarget.put(target.getUniqueId(), System.currentTimeMillis() + 15000L);
-                }
-            }
-
-            player.sendMessage(Component.text("✦ HollowedOut unleashed a dark Sonic Boom blast!", NamedTextColor.DARK_GREEN));
+            }.runTaskTimer(plugin, 0L, 1L);
             return;
         }
 
-        // Soultaking throw: 40s cooldown
+        // 2. Soultaking throw: check cooldown
         String cdKey = "grim_soultaking";
         if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+            double remaining = plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey);
+            player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                    .deserialize("<red>✦ Scythe Throw on cooldown: " + String.format(java.util.Locale.US, "%.1f", remaining) + "s ✦</red>"));
             return;
         }
-        plugin.getCooldownManager().setCooldown(player, cdKey, 40);
 
-        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.2f, 0.8f);
-        player.swingMainHand();
+        if (Boolean.TRUE.equals(isChargingThrow.get(uuid))) return;
 
-        Vector dir = player.getEyeLocation().getDirection().normalize().multiply(1.4);
-        Location startLoc = player.getEyeLocation();
+        isChargingThrow.put(uuid, true);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, 0, false, false));
 
-        Particle.DustOptions scytheDust = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 1.8f);
-        Particle.DustOptions scytheGray = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
-
+        // Charge for 30 ticks (1.5 seconds)
         new BukkitRunnable() {
-            int step = 0;
-            Location current = startLoc.clone();
+            int ticks = 0;
+            final int totalChargeTicks = 30;
 
             @Override
             public void run() {
-                step++;
-                if (step > 25) {
+                ticks++;
+                if (!player.isOnline() || !isHoldingGrim(player)) {
+                    isChargingThrow.remove(uuid);
                     cancel();
                     return;
                 }
 
-                current.add(dir);
-                // Scythe spinning visual (dark green and gray green)
-                for (double angle = 0; angle < 360; angle += 60) {
-                    double rad = Math.toRadians(angle + (step * 30));
-                    Vector offset = new Vector(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, 0);
-                    current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset), 1, 0, 0, 0, 0, scytheDust);
-                    current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset.multiply(0.5)), 1, 0, 0, 0, 0, scytheGray);
+                int pct = (ticks * 100) / totalChargeTicks;
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gradient:#006400:#2E8B57><bold>✦ CHARGING SCYTHE THROW [" + pct + "%] ✦</bold></gradient>"));
+
+                Location pLoc = player.getLocation().add(0, 0.5, 0);
+                pLoc.getWorld().spawnParticle(Particle.DUST, pLoc, 3, 0.4, 0.1, 0.4, 0,
+                        new Particle.DustOptions(Color.fromRGB(0, 77, 0), 1.3f));
+
+                if (ticks % 6 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.7f, 1.0f + (ticks * 0.02f));
                 }
-                current.getWorld().spawnParticle(Particle.SMOKE, current, 2, 0.1, 0.1, 0.1, 0.02);
 
-                for (LivingEntity target : current.getWorld().getNearbyLivingEntities(current, 1.5, e -> !e.equals(player))) {
-                    // Steal 2 hearts (4.0 HP), blind, teleport behind target
-                    target.damage(4.0, player);
-                    player.setHealth(Math.min(player.getMaxHealth(), player.getHealth() + 4.0));
-                    target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
+                if (ticks >= totalChargeTicks) {
+                    isChargingThrow.remove(uuid);
 
-                    Vector behindVec = target.getLocation().getDirection().normalize().multiply(-1.5);
-                    Location behind = target.getLocation().add(behindVec);
-                    behind.setDirection(target.getLocation().getDirection());
-                    player.teleport(behind);
+                    // Set cooldown for throw (40s)
+                    plugin.getCooldownManager().setCooldown(player, cdKey, 40);
+                    plugin.getBossBarManager().showPassiveCooldown(player, Grim.this, "Soultaking Throw", 40);
 
-                    player.getWorld().playSound(behind, Sound.ENTITY_ENDERMAN_TELEPORT, 1.5f, 0.8f);
-                    target.getWorld().playSound(target.getLocation(), Sound.ENTITY_VEX_HURT, 1.2f, 0.5f);
-                    target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 20, 0.4, 0.5, 0.4, 0.05);
+                    player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1.2f, 0.8f);
+                    player.swingMainHand();
 
-                    player.sendMessage(Component.text("✦ Soultaking: Stole 2 hearts and phased behind " + target.getName() + "!", NamedTextColor.DARK_GREEN));
+                    Vector dir = player.getEyeLocation().getDirection().normalize().multiply(1.4);
+                    Location startLoc = player.getEyeLocation();
+
+                    Particle.DustOptions scytheDust = new Particle.DustOptions(Color.fromRGB(0, 77, 0), 1.8f);
+                    Particle.DustOptions scytheGray = new Particle.DustOptions(Color.fromRGB(85, 107, 47), 1.5f);
+
+                    new BukkitRunnable() {
+                        int step = 0;
+                        Location current = startLoc.clone();
+
+                        @Override
+                        public void run() {
+                            step++;
+                            if (step > 25) {
+                                cancel();
+                                return;
+                            }
+
+                            current.add(dir);
+                            for (double angle = 0; angle < 360; angle += 60) {
+                                double rad = Math.toRadians(angle + (step * 30));
+                                Vector offset = new Vector(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, 0);
+                                current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset), 1, 0, 0, 0, 0, scytheDust);
+                                current.getWorld().spawnParticle(Particle.DUST, current.clone().add(offset.multiply(0.5)), 1, 0, 0, 0, 0, scytheGray);
+                            }
+                            current.getWorld().spawnParticle(Particle.SMOKE, current, 2, 0.1, 0.1, 0.1, 0.02);
+
+                            for (LivingEntity target : current.getWorld().getNearbyLivingEntities(current, 1.5, e -> !e.equals(player))) {
+                                target.damage(4.0, player);
+                                player.setHealth(Math.min(player.getMaxHealth(), player.getHealth() + 4.0));
+                                target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0));
+
+                                Vector behindVec = target.getLocation().getDirection().normalize().multiply(-1.5);
+                                Location behind = target.getLocation().add(behindVec);
+                                behind.setDirection(target.getLocation().getDirection());
+                                player.teleport(behind);
+
+                                player.getWorld().playSound(behind, Sound.ENTITY_ENDERMAN_TELEPORT, 1.5f, 0.8f);
+                                target.getWorld().playSound(target.getLocation(), Sound.ENTITY_VEX_HURT, 1.2f, 0.5f);
+                                target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 20, 0.4, 0.5, 0.4, 0.05);
+
+                                player.sendMessage(Component.text("✦ Soultaking: Stole 2 hearts and phased behind " + target.getName() + "!", NamedTextColor.DARK_GREEN));
+                                cancel();
+                                return;
+                            }
+                        }
+                    }.runTaskTimer(plugin, 1L, 1L);
+
                     cancel();
-                    return;
                 }
             }
-        }.runTaskTimer(plugin, 1L, 1L);
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     @Override

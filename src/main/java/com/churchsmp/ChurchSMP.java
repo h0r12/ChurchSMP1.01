@@ -111,6 +111,15 @@ public class ChurchSMP extends JavaPlugin {
                 };
                 fallbackAdmin.setPermission("churchsmp.admin");
                 commandMap.register("churchsmp", fallbackAdmin);
+
+                org.bukkit.command.Command fallbackRitual = new org.bukkit.command.Command("ritual", "Preload items into offhand Relic slot for Greed", "/ritual", java.util.List.of()) {
+                    @Override
+                    public boolean execute(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String label, @org.jetbrains.annotations.NotNull String[] args) {
+                        return churchCommand.onCommand(sender, this, label, args);
+                    }
+                };
+                fallbackRitual.setPermission("churchsmp.use");
+                commandMap.register("churchsmp", fallbackRitual);
             } catch (Throwable t) {
                 getLogger().warning("Direct CommandMap registration notice: " + t.getMessage());
             }
@@ -121,6 +130,11 @@ public class ChurchSMP extends JavaPlugin {
                 if (c != null) {
                     c.setExecutor(churchCommand);
                     c.setTabCompleter(churchCommand);
+                }
+                var r = getCommand("ritual");
+                if (r != null) {
+                    r.setExecutor(churchCommand);
+                    r.setTabCompleter(churchCommand);
                 }
                 var ca = getCommand("churchadmin");
                 if (ca != null) {

@@ -37,9 +37,12 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        plugin.getSinGemManager().checkAndGiveFirstGem(player);
+        org.bukkit.attribute.AttributeInstance attr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (attr != null && attr.getBaseValue() >= 40.0) {
+            attr.setBaseValue(20.0);
+            if (player.getHealth() > 20.0) player.setHealth(20.0);
+        }
         Sorrowess.checkInventoryHearts(player, plugin);
-        checkGrimHearts(player);
     }
 
     @EventHandler
@@ -92,6 +95,12 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
         Player player = event.getPlayer();
+        if (plugin.getGemAbilityExecutor().isSealed(player)) {
+            event.setCancelled(true);
+            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>✦ Your hotbar is sealed by Taxing Ray! ✦</red>"));
+            return;
+        }
+
         ItemStack previous = player.getInventory().getItem(event.getPreviousSlot());
         ItemStack current = player.getInventory().getItem(event.getNewSlot());
 
@@ -115,7 +124,6 @@ public class PlayerListener implements Listener {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
                 Sorrowess.checkInventoryHearts(player, plugin);
-                checkGrimHearts(player);
             }
         }, 1L);
     }
@@ -161,7 +169,6 @@ public class PlayerListener implements Listener {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     Sorrowess.checkInventoryHearts(player, plugin);
-                    checkGrimHearts(player);
                 }
             }, 1L);
         }
@@ -178,41 +185,6 @@ public class PlayerListener implements Listener {
         plugin.getBossBarManager().removeBossBar(event.getPlayer());
     }
 
-    /**
-     * Grim Heart Passive: player has only 10 hearts (20 HP) when Grim is NOT in their inventory.
-     * If Grim IS in inventory, restore to 20 hearts (40 HP standard max).
-     */
-    private void checkGrimHearts(Player player) {
-        boolean hasGrim = false;
-        for (ItemStack it : player.getInventory().getContents()) {
-            if (it == null || !it.hasItemMeta()) continue;
-            String wid = it.getItemMeta().getPersistentDataContainer().get(
-                    new org.bukkit.NamespacedKey(plugin, "weapon_id"), org.bukkit.persistence.PersistentDataType.STRING);
-            if ("grim".equals(wid)) {
-                hasGrim = true;
-                break;
-            }
-        }
-
-        org.bukkit.attribute.AttributeInstance attr = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-        if (attr == null) return;
-
-        double current = attr.getBaseValue();
-        if (!hasGrim) {
-            // Penalty: 10 hearts (20 HP)
-            if (current > 20.0) {
-                attr.setBaseValue(20.0);
-                // Clamp current health too
-                if (player.getHealth() > 20.0) player.setHealth(20.0);
-            }
-        } else {
-            // Grim present: restore 20 hearts (40 HP)
-            if (current < 40.0) {
-                attr.setBaseValue(40.0);
-            }
-        }
-    }
-
     @EventHandler(priority = EventPriority.NORMAL)
     public void onExpChange(org.bukkit.event.player.PlayerExpChangeEvent event) {
         Player player = event.getPlayer();
@@ -221,6 +193,36 @@ public class PlayerListener implements Listener {
             if (multiplier > 1.0) {
                 int bonus = (int) Math.round(event.getAmount() * (multiplier - 1.0));
                 event.setAmount(event.getAmount() + bonus);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onConsume(org.bukkit.event.player.PlayerItemConsumeEvent event) {
+        Player player = event.getPlayer();
+        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        if (gem == com.churchsmp.gem.SinGemType.GLUTTONY) {
+            plugin.getGemAbilityExecutor().handleGluttonyFood(player, event.getItem(), event);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onInteractEntity(org.bukkit.event.player.PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        if (gem == com.churchsmp.gem.SinGemType.SLOTH) {
+            org.bukkit.entity.Entity entity = event.getRightClicked();
+            if (entity instanceof org.bukkit.entity.Villager) {
+                event.setCancelled(true);
+                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>✦ [HEAVY RHYTHM] Sloth forbids villager trading! ✦</blue>"));
+                return;
+            }
+            if (entity instanceof org.bukkit.entity.Animals) {
+                ItemStack held = player.getInventory().getItemInMainHand();
+                if (held != null && held.getType().isEdible()) {
+                    event.setCancelled(true);
+                    player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>✦ [HEAVY RHYTHM] Sloth forbids animal breeding! ✦</blue>"));
+                }
             }
         }
     }
