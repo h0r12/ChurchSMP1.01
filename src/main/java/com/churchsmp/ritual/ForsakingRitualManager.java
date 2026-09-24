@@ -517,12 +517,6 @@ public class ForsakingRitualManager implements Listener {
         // Attune the player
         plugin.getSinGemManager().attune(player, chosenGem);
 
-        // Deliver item to player inventory
-        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(plugin.getSinGemManager().createGemItem(chosenGem));
-        for (ItemStack left : overflow.values()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), left);
-        }
-
         // Broadcast to all players on server
         Component broadcastMsg = miniMessage.deserialize("<gold>✦ <yellow>" + player.getName() + "</yellow> <gray>has completed the Forsaking Ritual and attuned to </gray></gold>")
                 .append(chosenGem.getFormattedName())

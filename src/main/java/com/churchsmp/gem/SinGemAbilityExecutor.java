@@ -1,6 +1,7 @@
 package com.churchsmp.gem;
 
 import com.churchsmp.ChurchSMP;
+import com.churchsmp.util.CloneUtil;
 import com.churchsmp.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -813,34 +814,50 @@ public class SinGemAbilityExecutor {
     // -------------------------------------------------------------------------
     private void activateNarcissusMirror(Player player, LivingEntity target) {
         Location tLoc = (target != null) ? target.getLocation() : player.getLocation().add(player.getEyeLocation().getDirection().multiply(2.5));
-        World world = (target != null) ? target.getWorld() : player.getWorld();
         player.playSound(tLoc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.2f, 1.2f);
+        player.playSound(tLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.0f, 1.4f);
+
+        NamespacedKey lustKey = new NamespacedKey(plugin, "lust_clone");
 
         for (int i = 0; i < 2; i++) {
             double angle = (Math.PI * i) + (Math.PI / 4.0);
             Location spawnLoc = tLoc.clone().add(Math.cos(angle) * 2.0, 0, Math.sin(angle) * 2.0);
 
-            Zombie clone = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
-            clone.setAdult();
-            clone.setAI(false);
-            clone.setInvulnerable(false);
-            clone.setSilent(true);
-            clone.setCustomNameVisible(true);
-            clone.customName(miniMessage.deserialize("<pink>✦ " + player.getName() + "'s Reflection ✦</pink>"));
+            CloneUtil.CloneConfig cfg = new CloneUtil.CloneConfig();
+            cfg.owner = player;
+            cfg.location = spawnLoc;
+            cfg.displayName = miniMessage.deserialize("<pink>✦ " + player.getName() + "'s Reflection ✦</pink>");
+            cfg.tagKey = lustKey;
+            cfg.tagValue = player.getUniqueId().toString();
+            cfg.durationTicks = 120; // 6 seconds
+            cfg.movementSpeed = 0.32;
+            cfg.formationOffset = new Vector(Math.cos(angle) * 2.0, 0, Math.sin(angle) * 2.0);
+            cfg.followOwner = (target == null);
+            cfg.syncSneak = true;
+            cfg.attackRange = 3.2;
+            cfg.attackDamage = 0.5;
+            cfg.jumpCrit = true;
+            cfg.onTick = z -> {
+                Location cLoc = z.getLocation().add(0, 1.0, 0);
+                z.getWorld().spawnParticle(Particle.HEART, cLoc, 1, 0.2, 0.2, 0.2, 0.01);
+                z.getWorld().spawnParticle(Particle.DUST, cLoc, 1, 0.2, 0.2, 0.2, 0,
+                        new Particle.DustOptions(Color.fromRGB(255, 105, 180), 1.0f));
+            };
+            cfg.onDespawn = z -> {
+                lustCloneIds.remove(z.getUniqueId());
+                cloneOwnerMap.remove(z.getUniqueId());
+                z.getWorld().spawnParticle(Particle.BLOCK, z.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.AMETHYST_BLOCK.createBlockData());
+            };
 
-            lustCloneIds.add(clone.getUniqueId());
-            cloneOwnerMap.put(clone.getUniqueId(), player.getUniqueId());
-
-            clone.getWorld().spawnParticle(Particle.HEART, clone.getLocation().add(0, 1.0, 0), 5, 0.3, 0.3, 0.3, 0.02);
-
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                lustCloneIds.remove(clone.getUniqueId());
-                cloneOwnerMap.remove(clone.getUniqueId());
-                if (clone.isValid()) {
-                    clone.getWorld().spawnParticle(Particle.BLOCK, clone.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.AMETHYST_BLOCK.createBlockData());
-                    clone.remove();
+            Zombie clone = CloneUtil.spawnRealisticClone(plugin, cfg);
+            if (clone != null) {
+                lustCloneIds.add(clone.getUniqueId());
+                cloneOwnerMap.put(clone.getUniqueId(), player.getUniqueId());
+                if (target != null) {
+                    clone.setTarget(target);
                 }
-            }, 120L); // 6 seconds
+                clone.getWorld().spawnParticle(Particle.HEART, clone.getLocation().add(0, 1.0, 0), 8, 0.3, 0.3, 0.3, 0.02);
+            }
         }
         player.sendMessage(miniMessage.deserialize("<pink>✦ [NARCISSUS MIRROR] <white>" + TextUtil.toSmallCaps("Summoned 2 reflections! Attacks on them heal you 50%.") + " ✦</white></pink>"));
     }
@@ -991,43 +1008,49 @@ public class SinGemAbilityExecutor {
         Location cloneLoc = player.getLocation().add(dir.multiply(2.5));
 
         player.playSound(player.getLocation(), Sound.ENTITY_VEX_CHARGE, 1.2f, 0.8f);
+        player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.0f, 0.7f);
 
-        // Spawn a shadowy stand/clone visual for 3s
-        ArmorStand stand = (ArmorStand) player.getWorld().spawnEntity(cloneLoc, EntityType.ARMOR_STAND);
-        stand.setVisible(false);
-        stand.setGravity(false);
-        stand.setMarker(true);
+        NamespacedKey envyKey = new NamespacedKey(plugin, "envy_shadow_clone");
 
-        new BukkitRunnable() {
-            int ticks = 60; // 3 seconds
-            @Override
-            public void run() {
-                if (ticks <= 0 || !stand.isValid()) {
-                    stand.remove();
-                    cancel();
-                    return;
+        CloneUtil.CloneConfig cfg = new CloneUtil.CloneConfig();
+        cfg.owner = player;
+        cfg.location = cloneLoc;
+        cfg.displayName = miniMessage.deserialize("<dark_aqua>✦ " + player.getName() + "'s Shadow ✦</dark_aqua>");
+        cfg.tagKey = envyKey;
+        cfg.tagValue = player.getUniqueId().toString();
+        cfg.durationTicks = 60; // 3 seconds
+        cfg.movementSpeed = 0.28;
+        cfg.formationOffset = dir.clone().multiply(2.5);
+        cfg.followOwner = false;
+        cfg.syncSneak = true;
+        cfg.attackRange = 3.0;
+        cfg.attackDamage = 0.5;
+        cfg.jumpCrit = false;
+        cfg.onTick = clone -> {
+            Location sLoc = clone.getLocation().add(0, 1.0, 0);
+            clone.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, sLoc, 4, 0.25, 0.5, 0.25, 0.02);
+            clone.getWorld().spawnParticle(Particle.LARGE_SMOKE, sLoc, 3, 0.2, 0.4, 0.2, 0.01);
+
+            // Check looking-at by enemies
+            for (Player enemy : clone.getWorld().getPlayers()) {
+                if (enemy.equals(player)) continue;
+                Vector toClone = clone.getLocation().toVector().subtract(enemy.getEyeLocation().toVector()).normalize();
+                if (enemy.getEyeLocation().getDirection().dot(toClone) > 0.8) {
+                    enemy.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 120, 0, false, false));
+                    enemy.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 120, 1, false, false));
+                    enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 120, 1, false, false));
+
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 120, 1, false, false));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 120, 0, false, false));
                 }
-
-                stand.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, stand.getLocation().add(0, 1.0, 0), 8, 0.3, 0.6, 0.3, 0.02);
-                stand.getWorld().spawnParticle(Particle.LARGE_SMOKE, stand.getLocation().add(0, 1.0, 0), 4, 0.2, 0.5, 0.2, 0.01);
-
-                // Check looking-at by enemies
-                for (Player enemy : stand.getWorld().getPlayers()) {
-                    if (enemy.equals(player)) continue;
-                    Vector toStand = stand.getLocation().toVector().subtract(enemy.getEyeLocation().toVector()).normalize();
-                    if (enemy.getEyeLocation().getDirection().dot(toStand) > 0.8) {
-                        enemy.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 120, 0, false, false));
-                        enemy.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 120, 1, false, false));
-                        enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 120, 1, false, false));
-
-                        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 120, 1, false, false));
-                        player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 120, 0, false, false));
-                    }
-                }
-
-                ticks -= 4;
             }
-        }.runTaskTimer(plugin, 0L, 4L);
+        };
+        cfg.onDespawn = clone -> {
+            clone.getWorld().spawnParticle(Particle.LARGE_SMOKE, clone.getLocation().add(0, 1.0, 0), 15, 0.3, 0.5, 0.3, 0.05);
+            clone.getWorld().spawnParticle(Particle.SOUL, clone.getLocation().add(0, 1.0, 0), 8, 0.3, 0.5, 0.3, 0.02);
+        };
+
+        CloneUtil.spawnRealisticClone(plugin, cfg);
 
         player.sendMessage(miniMessage.deserialize("<dark_aqua>✦ [SHADOW COVET] <white>" + TextUtil.toSmallCaps("Shadow clone spawned! Foes looking at it have stats stolen.") + " ✦</white></dark_aqua>"));
     }

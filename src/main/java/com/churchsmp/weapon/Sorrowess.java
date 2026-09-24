@@ -2,6 +2,7 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.CloneUtil;
 import com.churchsmp.util.TextUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -51,28 +52,24 @@ public class Sorrowess extends LegendaryWeapon {
     // PDC key to identify Sorrowess clones
     private final NamespacedKey cloneKey;
 
-    // Gloom tracking
+    // Gloom tracking: inflicts for 1 stack (10% armor reduction & durability drain for 30s)
     public static class GloomData {
         private final UUID victimId;
-        private int stacks;
-        private double reductionPercent; // 0.10, 0.20, 0.25 (max)
+        private final int stacks = 1;
+        private final double reductionPercent = 0.10;
         private long expireTime;
 
         public GloomData(UUID victimId) {
             this.victimId = victimId;
-            this.stacks = 1;
-            this.reductionPercent = 0.10;
             this.expireTime = System.currentTimeMillis() + 30000L;
         }
 
-        public void addStack() {
-            this.stacks++;
-            if (this.stacks == 2) {
-                this.reductionPercent = 0.20;
-            } else if (this.stacks >= 3) {
-                this.reductionPercent = 0.25; // maxed at 25%
-            }
+        public void refresh() {
             this.expireTime = System.currentTimeMillis() + 30000L;
+        }
+
+        public int getStacks() {
+            return stacks;
         }
 
         public double getReductionPercent() {
@@ -337,71 +334,104 @@ public class Sorrowess extends LegendaryWeapon {
         return true;
     }
 
-    // Spawns a humanoid clone that wears the player's skull and armor
-    private void spawnClone(Player owner, Location loc, Vector dir, List<LivingEntity> cloneList) {
-        if (cloneList.size() >= 16) return; // hard cap
+    /**
+     * Executes Sorrowess Riptide regardless of water/rain conditions with a 15-second cooldown.
+     */
+    public boolean executeRiptide(Player player) {
+        String cdKey = id + "_riptide";
+        if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+            int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+            player.sendActionBar(miniMessage.deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
+            return false;
+        }
 
-        org.bukkit.entity.Zombie clone = loc.getWorld().spawn(loc, org.bukkit.entity.Zombie.class, z -> {
-            z.setAdult();
-            z.setSilent(true);
-            z.setCanPickupItems(false);
-            z.customName(owner.name());
-            z.setCustomNameVisible(true);
-            z.getPersistentDataContainer().set(cloneKey, PersistentDataType.STRING, owner.getUniqueId().toString());
+        plugin.getCooldownManager().setCooldown(player, cdKey, 15);
+        plugin.getBossBarManager().showPassiveCooldown(player, "Sorrowess Riptide", BossBar.Color.PURPLE, 15);
+        player.sendMessage(miniMessage.deserialize("<gradient:#FFFFFF:#FF7F7F:#8B0000><bold>✦ [SORROWESS] Riptide Surge! ✦</bold></gradient> <gray>(15s cooldown)</gray>"));
 
-            // Equip exact player skin skull and armor
-            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-            if (head.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skull) {
-                skull.setOwningPlayer(owner);
-                head.setItemMeta(skull);
-            }
-            z.getEquipment().setHelmet(head);
-            z.getEquipment().setChestplate(owner.getInventory().getChestplate());
-            z.getEquipment().setLeggings(owner.getInventory().getLeggings());
-            z.getEquipment().setBoots(owner.getInventory().getBoots());
-            z.getEquipment().setItemInMainHand(new ItemStack(Material.TRIDENT));
+        Vector dir = player.getEyeLocation().getDirection().normalize();
+        Vector vel = dir.clone().multiply(2.2);
+        vel.setY(Math.max(vel.getY(), 0.3));
+        player.setVelocity(vel);
 
-            z.getEquipment().setHelmetDropChance(0.0f);
-            z.getEquipment().setChestplateDropChance(0.0f);
-            z.getEquipment().setLeggingsDropChance(0.0f);
-            z.getEquipment().setBootsDropChance(0.0f);
-            z.getEquipment().setItemInMainHandDropChance(0.0f);
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, 1.6f, 1.0f);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.2f, 0.8f);
 
-            z.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, 12000, 0, false, false));
-            z.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 12000, 1, false, false));
-            z.setAI(false);
-        });
-        cloneList.add(clone);
+        Particle.DustOptions riptideDust = new Particle.DustOptions(Color.fromRGB(200, 50, 100), 1.4f);
+        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.6f);
+        java.util.Set<UUID> hitTargets = new java.util.HashSet<>();
 
-        // Movement task: walks in direction, bounces off walls
         new BukkitRunnable() {
-            int lifeTicks = 0;
-            Vector currentDir = dir.clone();
+            int ticks = 0;
 
             @Override
             public void run() {
-                lifeTicks += 2;
-                if (!clone.isValid() || clone.isDead() || lifeTicks > 400) {
-                    if (clone.isValid()) clone.remove();
-                    cloneList.remove(clone);
+                ticks++;
+                if (!player.isOnline() || ticks > 12) {
                     cancel();
                     return;
                 }
 
-                Location cLoc = clone.getLocation();
-                Location next = cLoc.clone().add(currentDir);
+                Location pLoc = player.getLocation().add(0, 1.0, 0);
+                pLoc.getWorld().spawnParticle(Particle.DUST, pLoc, 6, 0.4, 0.4, 0.4, 0, riptideDust);
+                pLoc.getWorld().spawnParticle(Particle.DUST, pLoc, 4, 0.3, 0.3, 0.3, 0, whiteDust);
+                pLoc.getWorld().spawnParticle(Particle.NAUTILUS, pLoc, 3, 0.2, 0.2, 0.2, 0.05);
 
-                if (next.getBlock().getType().isSolid()) {
-                    currentDir.multiply(-1).rotateAroundY(Math.toRadians(45));
-                } else {
-                    clone.teleport(next);
+                for (LivingEntity nearby : player.getWorld().getNearbyLivingEntities(pLoc, 2.6)) {
+                    if (nearby.equals(player) || hitTargets.contains(nearby.getUniqueId())) continue;
+                    if (nearby.getPersistentDataContainer().has(cloneKey, PersistentDataType.STRING)) continue;
+
+                    hitTargets.add(nearby.getUniqueId());
+                    nearby.damage(13.0, player);
+                    nearby.setVelocity(dir.clone().multiply(0.7).add(new Vector(0, 0.35, 0)));
+
+                    nearby.getWorld().playSound(nearby.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.2f, 1.0f);
+                    nearby.getWorld().playSound(nearby.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 1.0f);
+                    nearby.getWorld().spawnParticle(Particle.SWEEP_ATTACK, nearby.getLocation().add(0, 1.0, 0), 1);
+                    nearby.getWorld().spawnParticle(Particle.CRIT, nearby.getLocation().add(0, 1.0, 0), 10, 0.3, 0.3, 0.3, 0.1);
+
+                    // Inflict Gloom (1 stack) on Riptide strike
+                    applyGloom(player, nearby);
                 }
-
-                // Footprint trail particles
-                cLoc.getWorld().spawnParticle(Particle.DUST, cLoc.clone().add(0, 0.1, 0), 1, 0, 0, 0, 0,
-                        new Particle.DustOptions(Color.fromRGB(150, 0, 50), 1.0f));
             }
-        }.runTaskTimer(plugin, 2L, 2L);
+        }.runTaskTimer(plugin, 1L, 1L);
+
+        return true;
+    }
+
+    // Spawns a humanoid clone that mirrors the player's appearance and behavior with realistic AI
+    private void spawnClone(Player owner, Location loc, Vector dir, List<LivingEntity> cloneList) {
+        if (cloneList.size() >= 16) return; // hard cap
+
+        CloneUtil.CloneConfig cfg = new CloneUtil.CloneConfig();
+        cfg.owner = owner;
+        cfg.location = loc;
+        cfg.displayName = owner.name();
+        cfg.tagKey = cloneKey;
+        cfg.tagValue = owner.getUniqueId().toString();
+        cfg.durationTicks = 400;
+        cfg.movementSpeed = 0.32;
+        cfg.formationOffset = dir.clone().multiply(3.0);
+        cfg.followOwner = true;
+        cfg.syncSneak = true;
+        cfg.attackRange = 3.2;
+        cfg.attackDamage = 1.0;
+        cfg.jumpCrit = true;
+        cfg.mainHandOverride = owner.getInventory().getItemInMainHand() != null && owner.getInventory().getItemInMainHand().getType() != Material.AIR
+                ? owner.getInventory().getItemInMainHand().clone()
+                : new ItemStack(Material.TRIDENT);
+        cfg.onTick = z -> {
+            Location cLoc = z.getLocation();
+            cLoc.getWorld().spawnParticle(Particle.DUST, cLoc.clone().add(0, 0.1, 0), 1, 0, 0, 0, 0,
+                    new Particle.DustOptions(Color.fromRGB(150, 0, 50), 1.0f));
+        };
+        cfg.onDespawn = z -> cloneList.remove(z);
+
+        org.bukkit.entity.Zombie clone = CloneUtil.spawnRealisticClone(plugin, cfg);
+        if (clone != null) {
+            cloneList.add(clone);
+        }
     }
 
     // Called from CombatListener when a clone is attacked
@@ -533,41 +563,41 @@ public class Sorrowess extends LegendaryWeapon {
     }
 
     public void handleCritHit(Player attacker, LivingEntity target) {
-        UUID aId = attacker.getUniqueId();
-        int count = critHitCounters.getOrDefault(aId, 0) + 1;
-        critHitCounters.put(aId, count);
-
         // Visual crit feedback with Sorrowess particles
         target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
+        applyGloom(attacker, target);
+    }
 
-        if (count % 5 == 0) {
-            applyGloom(attacker, target);
-        }
+    @Override
+    public void onHit(Player attacker, LivingEntity target, double damage) {
+        applyGloom(attacker, target);
     }
 
     public void applyGloom(Player attacker, LivingEntity target) {
         UUID victimId = target.getUniqueId();
         GloomData gloom = activeGloom.get(victimId);
-        if (gloom == null) {
+        boolean isNew = (gloom == null || gloom.isExpired());
+        if (isNew) {
             gloom = new GloomData(victimId);
             activeGloom.put(victimId, gloom);
         } else {
-            gloom.addStack();
+            gloom.refresh();
         }
 
         applyGloomArmorModifier(target, gloom.getReductionPercent());
 
         Location loc = target.getLocation();
-        loc.getWorld().playSound(loc, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.2f, 0.6f);
-        loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_AMBIENT, 0.8f, 0.7f);
-        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.5, 0), 25, 0.5, 0.6, 0.5, 0.05);
-        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 1.0, 0), 20, 0.4, 0.5, 0.4, 0,
-                new Particle.DustOptions(Color.fromRGB(75, 0, 130), 1.5f));
+        loc.getWorld().playSound(loc, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.0f, 0.7f);
+        loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_AMBIENT, 0.6f, 0.8f);
+        loc.getWorld().spawnParticle(Particle.FALLING_OBSIDIAN_TEAR, loc.clone().add(0, 1.5, 0), 20, 0.4, 0.5, 0.4, 0.04);
+        loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 1.0, 0), 16, 0.3, 0.4, 0.3, 0,
+                new Particle.DustOptions(Color.fromRGB(75, 0, 130), 1.4f));
 
-        int pct = (int) (gloom.getReductionPercent() * 100);
-        attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Inflicted Gloom on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(30s).") + " ✦</dark_purple>"));
-        if (target instanceof Player victimPlayer) {
-            victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(30s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
+        if (isNew) {
+            attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Inflicted Gloom (1 stack) on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by 10% (30s).") + " ✦</dark_purple>"));
+            if (target instanceof Player victimPlayer) {
+                victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by 10% (30s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
+            }
         }
     }
 

@@ -136,6 +136,32 @@ public class InputListener implements Listener {
             grim.throwScythe(player);
             return;
         }
+
+        // Sorrowess Riptide (regardless of water/rain with 15s cooldown)
+        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+            event.setCancelled(true);
+            sorrowess.executeRiptide(player);
+            return;
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerRiptide(org.bukkit.event.player.PlayerRiptideEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
+        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+            String cdKey = sorrowess.getId() + "_riptide";
+            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+                player.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
+                int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+            } else {
+                plugin.getCooldownManager().setCooldown(player, cdKey, 15);
+                plugin.getBossBarManager().showPassiveCooldown(player, "Sorrowess Riptide", net.kyori.adventure.bossbar.BossBar.Color.PURPLE, 15);
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
