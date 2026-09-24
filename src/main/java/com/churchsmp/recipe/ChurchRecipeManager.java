@@ -114,16 +114,15 @@ public class ChurchRecipeManager implements Listener {
             inv.setMatrix(matrix);
             inv.setResult(null);
 
-            // Close GUI so the player experiences the epic full-screen cinematic
+            // Close GUI so the player experiences the full-screen cinematic
             player.closeInventory();
 
             // Sound alerts on craft!
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.4f, 1.0f);
             player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.2f);
-            player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.0f, 1.4f);
-            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.7f, 1.6f);
+            player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.9f, 1.4f);
 
-            // Trigger insane floating animation with scaling relic, lightning, and linked items
+            // Trigger floating animation with scaling relic and linked items
             playInsaneCraftCinematic(player, relic);
 
             player.sendMessage(miniMessage.deserialize(
@@ -133,17 +132,13 @@ public class ChurchRecipeManager implements Listener {
     }
 
     /**
-     * INSANE CRAFTING CINEMATIC:
+     * CRAFTING CINEMATIC:
      * 1. Player floats up into the air with Levitation.
      * 2. Orbiting ingredient items circle the player with particle energy beams linked to player's chest.
      * 3. Forged relic floats overhead and SCALES BIGGER in real 3D.
-     * 4. Orbital lightning strikes around the player.
-     * 5. Expanding shockwaves and celestial particle vortex.
-     * 6. Climax supernova implosion delivering the relic item safely.
+     * 4. Climax delivers relic safely with single celebratory flash and sound.
      */
     public void playInsaneCraftCinematic(Player player, RelicItem.RelicType relic) {
-        Location startLoc = player.getLocation();
-
         // 1. Float the player up into the air smoothly
         player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 65, 1, false, false, false));
 
@@ -228,16 +223,26 @@ public class ChurchRecipeManager implements Listener {
 
         new BukkitRunnable() {
             int t = 0;
+            boolean finished = false;
             double rotation = 0;
 
             @Override
             public void run() {
+                if (finished) {
+                    cancel();
+                    return;
+                }
                 t++;
 
                 // Stop condition or player logout
                 if (t > 60 || !player.isOnline()) {
-                    cleanupAndDeliver(player, relic, orbitingItems, centralRelic);
+                    finished = true;
                     cancel();
+                    try {
+                        cleanupAndDeliver(player, relic, orbitingItems, centralRelic);
+                    } catch (Throwable ex) {
+                        plugin.getLogger().warning("Error in craft cleanup: " + ex.getMessage());
+                    }
                     return;
                 }
 
@@ -284,10 +289,9 @@ public class ChurchRecipeManager implements Listener {
                     }
                 }
 
-                // 2. Insane particles around the scaling relic
-                player.getWorld().spawnParticle(Particle.END_ROD, pRelicLoc, 3, 0.3, 0.3, 0.3, 0.05);
-                player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pRelicLoc, 4, 0.4, 0.4, 0.4, 0.1);
-                player.getWorld().spawnParticle(Particle.DUST, pRelicLoc, 6, 0.5, 0.5, 0.5, 0, dustAccent);
+                // 2. Halo particles around the scaling relic
+                player.getWorld().spawnParticle(Particle.END_ROD, pRelicLoc, 2, 0.2, 0.2, 0.2, 0.04);
+                player.getWorld().spawnParticle(Particle.DUST, pRelicLoc, 4, 0.3, 0.3, 0.3, 0, dustAccent);
 
                 // 3. Dual-helix vortex spiraling up around the player
                 for (int h = 0; h < 2; h++) {
@@ -297,54 +301,40 @@ public class ChurchRecipeManager implements Listener {
                     player.getWorld().spawnParticle(Particle.DUST, hLoc, 1, 0, 0, 0, 0, (h == 0) ? dustTheme : dustAccent);
                 }
 
-                // 4. Orbital Lightning strikes & Ground Shockwaves at rhythmic intervals
-                if (t == 15 || t == 30 || t == 45 || t == 55) {
-                    double boltAngle = (t / 15.0) * (Math.PI / 2.0);
-                    Location bolt1 = player.getLocation().add(Math.cos(boltAngle) * 4.0, 0, Math.sin(boltAngle) * 4.0);
-                    Location bolt2 = player.getLocation().add(Math.cos(boltAngle + Math.PI) * 4.0, 0, Math.sin(boltAngle + Math.PI) * 4.0);
-
-                    // Strike lightning effect (visual/audio with no block fire/player damage)
-                    player.getWorld().strikeLightningEffect(bolt1);
-                    player.getWorld().strikeLightningEffect(bolt2);
-
-                    // Expanding ground shockwave
-                    Location ground = player.getLocation();
-                    player.getWorld().spawnParticle(Particle.SONIC_BOOM, ground, 1, 0, 0, 0, 0);
-                    player.getWorld().spawnParticle(Particle.FLASH, ground.add(0, 0.2, 0), 2, 0.2, 0.1, 0.2, 0);
-
-                    // Thunderous audio
-                    player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.2f);
-                    player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 1.5f);
+                // 4. Harmonic cosmic pulses during ascension (clean chimes, NO spammy sonic booms)
+                if (t == 15 || t == 30 || t == 45) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.4f + (t * 0.01f));
+                    player.playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.8f);
+                    player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1.5, 0), 1, Color.WHITE);
                 }
 
                 // Ambient rising chime
-                if (t % 6 == 0) {
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.2f + (t * 0.01f));
+                if (t % 8 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.2f + (t * 0.01f));
                 }
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
     private void cleanupAndDeliver(Player player, RelicItem.RelicType relic, List<Item> orbitingItems, Entity centralRelic) {
-        // Remove temporary visual entities
-        if (centralRelic != null && centralRelic.isValid()) centralRelic.remove();
-        for (Item it : orbitingItems) {
-            if (it.isValid()) {
-                it.getWorld().spawnParticle(Particle.ITEM, it.getLocation(), 15, 0.1, 0.1, 0.1, 0.05, it.getItemStack());
-                it.remove();
+        // Remove temporary visual entities safely
+        try {
+            if (centralRelic != null && centralRelic.isValid()) centralRelic.remove();
+            for (Item it : orbitingItems) {
+                if (it.isValid()) {
+                    it.remove();
+                }
             }
-        }
+        } catch (Throwable ignored) {}
 
         if (!player.isOnline()) return;
 
-        // Climax Supernova explosion
+        // Single clean climax completion burst
         Location pCenter = player.getLocation().add(0, 1.5, 0);
         player.getWorld().strikeLightningEffect(pCenter);
-        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 5, 0.3, 0.3, 0.3, 0);
-        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 80, 1.0, 1.0, 1.0, 0.3);
-        player.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, pCenter, 2, 0.1, 0.1, 0.1, 0);
-        player.playSound(pCenter, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.8f, 1.0f);
-        player.playSound(pCenter, Sound.ENTITY_PLAYER_LEVELUP, 1.5f, 0.8f);
+        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 3, 0.2, 0.2, 0.2, 0);
+        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 40, 0.6, 0.6, 0.6, 0.2);
+        player.playSound(pCenter, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
 
         // Slow falling and safe landing
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));

@@ -5,6 +5,7 @@ import com.churchsmp.gem.SinGemType;
 import com.churchsmp.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
@@ -168,17 +169,23 @@ public class ForsakingRitualManager implements Listener {
                     session.focusedGem = bestGem;
                     session.focusedItem = bestItem;
 
-                    // Particle beam from player toward focused gem
+                    // Directed particle beam from crosshair toward focused gem
                     Location beamStart = eye.clone().add(lookDir.clone().multiply(0.6));
                     Vector beamVec = bestItem.getLocation().toVector().subtract(beamStart.toVector());
-                    int steps = 5;
+                    int steps = 6;
                     for (int s = 1; s <= steps; s++) {
                         Location stepLoc = beamStart.clone().add(beamVec.clone().multiply((double) s / steps));
                         player.getWorld().spawnParticle(Particle.END_ROD, stepLoc, 1, 0, 0, 0, 0);
                     }
 
-                    // Halo ring around the focused item
-                    player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bestItem.getLocation(), 4, 0.2, 0.2, 0.2, 0.02);
+                    // Structured halo ring around the focused item
+                    TextColor btc = bestGem.getColor();
+                    Particle.DustOptions focusDust = new Particle.DustOptions(Color.fromRGB(btc.red(), btc.green(), btc.blue()), 1.2f);
+                    for (int deg = 0; deg < 360; deg += 60) {
+                        double rad = Math.toRadians(deg + (session.ticks * 6));
+                        Location ringPt = bestItem.getLocation().clone().add(Math.cos(rad) * 0.45, Math.sin(rad) * 0.45, 0);
+                        player.getWorld().spawnParticle(Particle.DUST, ringPt, 1, 0, 0, 0, 0, focusDust);
+                    }
 
                     if (session.ticks % 4 == 0) {
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.4f, 1.8f);
@@ -262,14 +269,14 @@ public class ForsakingRitualManager implements Listener {
     }
 
     /**
-     * INSANE FORSAKING FINALE:
-     * 1. Player floats up into the sky via Levitation.
-     * 2. All 6 unchosen Sin Gems remain in orbit around the rising player.
-     * 3. High-density electric energy beams connect from every unchosen gem into the player's chest!
-     * 4. The chosen Forsake gem ascends overhead and SCALES BIGGER in real 3D up to 3.2x!
-     * 5. Orbital lightning strikes around the player at rhythmic intervals with expanding sonic shockwaves.
-     * 6. Dual-helix cosmic vortex rises around the player.
-     * 7. Supernova climax: direct lightning strike, sonic boom, implosion absorption, and divine deliverance.
+     * FORSAKING FINALE WITH SIN-THEMED DIRECTED PARTICLES:
+     * 1. Player floats up smoothly via Levitation.
+     * 2. The chosen Sin determines the exact color theme & accent for all visual effects.
+     * 3. Beams from remaining gems shoot cleanly into player's chest using the Sin's theme.
+     * 4. A directed vertical power column funnels upward from player's chest to the scaling gem.
+     * 5. Two crisp geometric horizontal mandala rings rotate at waist and feet.
+     * 6. Clean dual astrolabe orbital rings spin around the scaling 3D gem.
+     * 7. Single clean climax delivers the gem safely.
      */
     private void finishRitualChoice(Player player, RitualSession session, SinGemType chosenGem, Item chosenItem) {
         // Tag as completed in PDC
@@ -280,13 +287,25 @@ public class ForsakingRitualManager implements Listener {
         player.removePotionEffect(PotionEffectType.SLOW_FALLING);
         player.removePotionEffect(PotionEffectType.GLOWING);
 
-        // 1. Float the player up into the air!
+        // 1. Float the player up into the air smoothly
         player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 75, 1, false, false, false));
 
+        // 2. Resolve colors matching the chosen Sin
+        TextColor tc = chosenGem.getColor();
+        Color sinColor = Color.fromRGB(tc.red(), tc.green(), tc.blue());
+        Color accentColor = switch (chosenGem) {
+            case WRATH -> Color.fromRGB(255, 120, 20);     // Molten fire orange
+            case GREED -> Color.fromRGB(255, 255, 160);    // Brilliant yellow-white
+            case GLUTTONY -> Color.fromRGB(160, 255, 80);  // Acid lime
+            case LUST -> Color.fromRGB(255, 180, 240);     // Pastel rose
+            case ENVY -> Color.fromRGB(180, 255, 255);     // Bright aquamarine
+            case PRIDE -> Color.fromRGB(255, 255, 255);    // Diamond pure white
+            case SLOTH -> Color.fromRGB(160, 100, 255);    // Void purple
+        };
+
         // Sound cues for awakening
-        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.7f);
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.0f);
-        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 0.8f);
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.4f, 0.9f);
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.8f, 1.2f);
 
         // Separate the unchosen gems to keep them orbiting and linked to the player
         List<Item> linkedItems = new ArrayList<>();
@@ -307,6 +326,7 @@ public class ForsakingRitualManager implements Listener {
                 d.setBillboard(Display.Billboard.CENTER);
                 d.setBrightness(new Display.Brightness(15, 15));
                 d.setGlowing(true);
+                d.setGlowColorOverride(sinColor); // Exactly the chosen sin's color!
                 d.setTransformation(new Transformation(
                         new Vector3f(0, 0, 0),
                         new Quaternionf(),
@@ -315,10 +335,8 @@ public class ForsakingRitualManager implements Listener {
                 ));
             });
             scalingEntity = display;
-            // Hide the original item entity
             if (chosenItem.isValid()) chosenItem.remove();
         } catch (Throwable ignored) {
-            // Fallback for non-display entity environments
             chosenItem.setGravity(false);
             chosenItem.setPickupDelay(Integer.MAX_VALUE);
             chosenItem.setCanMobPickup(false);
@@ -326,26 +344,35 @@ public class ForsakingRitualManager implements Listener {
         }
 
         final Entity centralGem = scalingEntity;
-        Color gemColor = Color.fromRGB(255, 215, 0);
-        Particle.DustOptions gemDust = new Particle.DustOptions(gemColor, 1.5f);
-        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.WHITE, 1.2f);
+        Particle.DustOptions sinDust = new Particle.DustOptions(sinColor, 1.6f);
+        Particle.DustOptions accentDust = new Particle.DustOptions(accentColor, 1.3f);
 
         new BukkitRunnable() {
             int t = 0;
+            boolean finished = false;
             double rotation = session.rotation;
 
             @Override
             public void run() {
+                if (finished) {
+                    cancel();
+                    return;
+                }
                 t++;
 
                 // Stop condition or player disconnect
                 if (t > 70 || !player.isOnline()) {
-                    cleanupAndDeliverForsake(player, chosenGem, linkedItems, centralGem);
+                    finished = true;
                     cancel();
+                    try {
+                        cleanupAndDeliverForsake(player, chosenGem, linkedItems, centralGem, sinColor, accentColor);
+                    } catch (Throwable ex) {
+                        plugin.getLogger().warning("Error in forsake cleanup: " + ex.getMessage());
+                    }
                     return;
                 }
 
-                rotation += 0.22;
+                rotation += 0.20;
                 Location pChest = player.getLocation().add(0, 1.3, 0);
                 Location pGemLoc = player.getEyeLocation().add(0, 1.8, 0);
 
@@ -365,93 +392,123 @@ public class ForsakingRitualManager implements Listener {
                     }
                 }
 
-                // 2. All unchosen gems orbit around the player and LINK with particle energy beams!
+                // 2. Directed straight laser beams from each unchosen gem into player's chest (Sin themed)
                 double orbitRadius = 3.0 - (t * 0.015);
                 for (int i = 0; i < linkedItems.size(); i++) {
                     Item it = linkedItems.get(i);
                     if (!it.isValid()) continue;
 
                     double angle = rotation + (i * (2 * Math.PI / Math.max(1, linkedItems.size())));
-                    double yOffset = Math.sin(t * 0.12 + i) * 0.45;
+                    double yOffset = Math.sin(t * 0.12 + i) * 0.35;
                     Location itemLoc = pChest.clone().add(Math.cos(angle) * orbitRadius, yOffset, Math.sin(angle) * orbitRadius);
                     it.teleport(itemLoc);
 
-                    // Energy beam linking each gem straight to player's heart!
+                    // Clean directed straight line from gem to chest
                     Vector toPlayer = pChest.toVector().subtract(itemLoc.toVector());
-                    int beamPoints = 9;
+                    int beamPoints = 8;
                     for (int step = 1; step <= beamPoints; step++) {
                         Location beamPoint = itemLoc.clone().add(toPlayer.clone().multiply((double) step / beamPoints));
-                        player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, beamPoint, 1, 0, 0, 0, 0);
-                        if (step % 2 == 0) {
-                            player.getWorld().spawnParticle(Particle.END_ROD, beamPoint, 1, 0, 0, 0, 0);
-                        }
+                        player.getWorld().spawnParticle(Particle.DUST, beamPoint, 1, 0, 0, 0, 0, (step % 2 == 0) ? sinDust : accentDust);
                     }
                 }
 
-                // 3. Insane halo & orbital rings around the scaling Forsake Gem
-                player.getWorld().spawnParticle(Particle.END_ROD, pGemLoc, 4, 0.3, 0.3, 0.3, 0.05);
-                player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pGemLoc, 5, 0.4, 0.4, 0.4, 0.08);
-                player.getWorld().spawnParticle(Particle.DUST, pGemLoc, 6, 0.5, 0.5, 0.5, 0, gemDust);
-
-                // 4. Dual-helix ascending vortex particles spiraling up around the player
-                for (int h = 0; h < 2; h++) {
-                    double helixAngle = (rotation * 1.6) + (h * Math.PI) + (t * 0.1);
-                    double helixY = ((t * 0.07) % 3.2);
-                    Location hLoc = player.getLocation().add(Math.cos(helixAngle) * 1.3, helixY, Math.sin(helixAngle) * 1.3);
-                    player.getWorld().spawnParticle(Particle.DUST, hLoc, 1, 0, 0, 0, 0, (h == 0) ? gemDust : whiteDust);
-                    player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, hLoc, 1, 0, 0, 0, 0);
+                // 3. Directed upward power column: flowing straight upward from player's chest into the scaling gem
+                Vector upVector = pGemLoc.toVector().subtract(pChest.toVector());
+                int colSteps = 6;
+                for (int step = 1; step <= colSteps; step++) {
+                    Location colPt = pChest.clone().add(upVector.clone().multiply((double) step / colSteps));
+                    player.getWorld().spawnParticle(Particle.DUST, colPt, 1, 0, 0, 0, 0, sinDust);
+                    if (step % 2 == 0) {
+                        player.getWorld().spawnParticle(Particle.END_ROD, colPt, 1, 0, 0.04, 0, 0.01);
+                    }
                 }
 
-                // 5. Orbital Lightning strikes & Expanding Ground Shockwaves
-                if (t == 15 || t == 30 || t == 45 || t == 60) {
-                    double boltAngle = (t / 15.0) * (Math.PI / 2.0);
-                    Location bolt1 = player.getLocation().add(Math.cos(boltAngle) * 4.2, 0, Math.sin(boltAngle) * 4.2);
-                    Location bolt2 = player.getLocation().add(Math.cos(boltAngle + Math.PI) * 4.2, 0, Math.sin(boltAngle + Math.PI) * 4.2);
+                // 4. Structured geometric horizontal mandala rings around the player
+                // Waist ring (rotating clockwise)
+                for (int d = 0; d < 360; d += 30) {
+                    double rad = Math.toRadians(d + (rotation * 40));
+                    Location ring1 = pChest.clone().add(Math.cos(rad) * 1.3, -0.2, Math.sin(rad) * 1.3);
+                    player.getWorld().spawnParticle(Particle.DUST, ring1, 1, 0, 0, 0, 0, sinDust);
+                }
+                // Feet ring (rotating counter-clockwise)
+                for (int d = 0; d < 360; d += 24) {
+                    double rad = Math.toRadians(d - (rotation * 30));
+                    Location ring2 = player.getLocation().add(Math.cos(rad) * 1.7, 0.1, Math.sin(rad) * 1.7);
+                    player.getWorld().spawnParticle(Particle.DUST, ring2, 1, 0, 0, 0, 0, accentDust);
+                }
 
-                    // Strike real visual lightning
-                    player.getWorld().strikeLightningEffect(bolt1);
-                    player.getWorld().strikeLightningEffect(bolt2);
+                // 5. Clean astrolabe dual rings around the scaling gem overhead
+                // Horizontal ring around the gem
+                for (int d = 0; d < 360; d += 45) {
+                    double rad = Math.toRadians(d + (rotation * 50));
+                    Location gemRing = pGemLoc.clone().add(Math.cos(rad) * 0.85, 0, Math.sin(rad) * 0.85);
+                    player.getWorld().spawnParticle(Particle.DUST, gemRing, 1, 0, 0, 0, 0, sinDust);
+                }
+                // Tilted 45-degree vertical ring around the gem
+                for (int d = 0; d < 360; d += 45) {
+                    double rad = Math.toRadians(d - (rotation * 50));
+                    Location tiltedPt = pGemLoc.clone().add(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, Math.cos(rad) * 0.4);
+                    player.getWorld().spawnParticle(Particle.DUST, tiltedPt, 1, 0, 0, 0, 0, accentDust);
+                }
 
-                    // Expanding ground shockwave
-                    Location ground = player.getLocation();
-                    player.getWorld().spawnParticle(Particle.SONIC_BOOM, ground, 1, 0, 0, 0, 0);
-                    player.getWorld().spawnParticle(Particle.FLASH, ground.add(0, 0.2, 0), 2, 0.2, 0.1, 0.2, 0);
-
-                    // Thunderous audio
-                    player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.1f);
-                    player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 1.4f);
+                // 6. Rhythmic pulse beats (clean and harmonic)
+                if (t == 20 || t == 40 || t == 60) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.3f + (t * 0.01f));
+                    player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.7f, 1.6f);
+                    player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1.5, 0), 1, Color.WHITE);
                 }
 
                 // Ambient rising chime
-                if (t % 5 == 0) {
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.7f, 1.0f + (t * 0.015f));
+                if (t % 8 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.0f + (t * 0.015f));
                 }
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void cleanupAndDeliverForsake(Player player, SinGemType chosenGem, List<Item> linkedItems, Entity centralGem) {
-        // Remove temporary visual entities
-        if (centralGem != null && centralGem.isValid()) centralGem.remove();
-        for (Item it : linkedItems) {
-            if (it.isValid()) {
-                it.getWorld().spawnParticle(Particle.ITEM, it.getLocation(), 15, 0.1, 0.1, 0.1, 0.05, it.getItemStack());
-                it.remove();
+    private void cleanupAndDeliverForsake(Player player, SinGemType chosenGem, List<Item> linkedItems, Entity centralGem, Color sinColor, Color accentColor) {
+        // Remove temporary visual entities safely
+        try {
+            if (centralGem != null && centralGem.isValid()) centralGem.remove();
+            for (Item it : linkedItems) {
+                if (it.isValid()) {
+                    it.remove();
+                }
             }
-        }
+        } catch (Throwable ignored) {}
 
         if (!player.isOnline()) return;
 
-        // Climax Supernova explosion
+        // Structured, directed climax: expanding ground disk & vertical beam of light
         Location pCenter = player.getLocation().add(0, 1.5, 0);
         player.getWorld().strikeLightningEffect(pCenter);
-        player.getWorld().spawnParticle(Particle.SONIC_BOOM, pCenter, 2, 0, 0, 0, 0);
-        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 6, 0.4, 0.4, 0.4, 0);
-        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 100, 1.2, 1.2, 1.2, 0.3);
-        player.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, pCenter, 3, 0.2, 0.2, 0.2, 0);
+        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 2, 0.1, 0.1, 0.1, 0);
 
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.8f, 1.2f);
-        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.6f, 1.0f);
+        Particle.DustOptions sinDust = new Particle.DustOptions(sinColor, 2.0f);
+        Particle.DustOptions accentDust = new Particle.DustOptions(accentColor, 1.6f);
+
+        // Directed horizontal shockwave disk along the ground
+        Location ground = player.getLocation().add(0, 0.1, 0);
+        for (double r = 1.0; r <= 3.5; r += 0.8) {
+            for (int d = 0; d < 360; d += 20) {
+                double rad = Math.toRadians(d);
+                ground.getWorld().spawnParticle(Particle.DUST,
+                        ground.clone().add(Math.cos(rad) * r, 0, Math.sin(rad) * r),
+                        1, 0, 0, 0, 0, sinDust);
+            }
+        }
+
+        // Directed vertical pillar of light shooting straight up into the heavens
+        for (double y = 0; y <= 10.0; y += 0.5) {
+            Location pBeam = player.getLocation().add(0, y, 0);
+            pBeam.getWorld().spawnParticle(Particle.DUST, pBeam, 1, 0, 0, 0, 0, sinDust);
+            if ((int) y % 2 == 0) {
+                pBeam.getWorld().spawnParticle(Particle.END_ROD, pBeam, 1, 0, 0.05, 0, 0.01);
+            }
+        }
+
+        player.playSound(pCenter, Sound.ITEM_TRIDENT_THUNDER, 1.2f, 1.2f);
+        player.playSound(pCenter, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.6f, 1.0f);
 
         // Safe landing
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));
