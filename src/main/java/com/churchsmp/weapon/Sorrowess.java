@@ -629,9 +629,15 @@ public class Sorrowess extends LegendaryWeapon {
                 loc.getWorld().spawnParticle(Particle.DUST, veinPt, 1, 0, 0, 0, 0, veinRed);
             }
             try {
-                loc.getWorld().spawnParticle(Particle.WIND_BURST, veinPt, 1);
-            } catch (Throwable ignored) {
-                loc.getWorld().spawnParticle(Particle.CLOUD, veinPt, 2, 0.1, 0.1, 0.1, 0.02);
+                Particle gust = Particle.valueOf("GUST_EMITTER_SMALL");
+                loc.getWorld().spawnParticle(gust, veinPt, 1);
+            } catch (Throwable t1) {
+                try {
+                    Particle gust = Particle.valueOf("GUST");
+                    loc.getWorld().spawnParticle(gust, veinPt, 1);
+                } catch (Throwable t2) {
+                    loc.getWorld().spawnParticle(Particle.CLOUD, veinPt, 2, 0.1, 0.1, 0.1, 0.02);
+                }
             }
         }
 
