@@ -159,7 +159,7 @@ public class InputListener implements Listener {
                         .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
             } else {
                 plugin.getCooldownManager().setCooldown(player, cdKey, 15);
-                plugin.getBossBarManager().showPassiveCooldown(player, "Sorrowess Riptide", net.kyori.adventure.bossbar.BossBar.Color.PURPLE, 15);
+                plugin.getBossBarManager().showPassiveCooldown(player, weapon, "Riptide", 15);
             }
         }
     }

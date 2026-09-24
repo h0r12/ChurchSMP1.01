@@ -347,7 +347,7 @@ public class Sorrowess extends LegendaryWeapon {
         }
 
         plugin.getCooldownManager().setCooldown(player, cdKey, 15);
-        plugin.getBossBarManager().showPassiveCooldown(player, "Sorrowess Riptide", BossBar.Color.PURPLE, 15);
+        plugin.getBossBarManager().showPassiveCooldown(player, this, "Riptide", 15);
         player.sendMessage(miniMessage.deserialize("<gradient:#FFFFFF:#FF7F7F:#8B0000><bold>✦ [SORROWESS] Riptide Surge! ✦</bold></gradient> <gray>(15s cooldown)</gray>"));
 
         Vector dir = player.getEyeLocation().getDirection().normalize();

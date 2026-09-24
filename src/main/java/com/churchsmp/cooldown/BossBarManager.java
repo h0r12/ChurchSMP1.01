@@ -123,6 +123,47 @@ public class BossBarManager {
         }.runTaskTimer(plugin, 0L, 2L);
     }
 
+    public void showPassiveCooldown(Player player, String passiveName, BossBar.Color color, int totalSeconds) {
+        if (!plugin.getConfig().getBoolean("settings.bossbar_enabled", true)) return;
+
+        String key = "passive_" + passiveName.toLowerCase(Locale.ROOT);
+        removeBar(player, key);
+
+        String gradientTag = "<gradient:#FFFFFF:#FFD700>";
+        String smallName = TextUtil.toSmallCaps(passiveName);
+
+        Component initialTitle = miniMessage.deserialize(gradientTag + "<bold>" + smallName + " | " + totalSeconds + "ꜱ</bold></gradient>");
+        BossBar bar = BossBar.bossBar(initialTitle, 1.0f, color != null ? color : BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
+        player.showBossBar(bar);
+
+        playerBars.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>()).put(key, bar);
+
+        new BukkitRunnable() {
+            int ticksLeft = totalSeconds * 20;
+            final int initialTicks = ticksLeft;
+
+            @Override
+            public void run() {
+                if (!player.isOnline() || ticksLeft <= 0) {
+                    player.hideBossBar(bar);
+                    removeBar(player, key);
+                    cancel();
+                    return;
+                }
+
+                float progress = Math.max(0.0f, Math.min(1.0f, (float) ticksLeft / initialTicks));
+                bar.progress(progress);
+
+                double secondsLeft = ticksLeft / 20.0;
+                String timeFormatted = String.format(Locale.US, "%.1f", secondsLeft);
+                Component updatedTitle = miniMessage.deserialize(gradientTag + "<bold>" + smallName + " | " + timeFormatted + "ꜱ</bold></gradient>");
+                bar.name(updatedTitle);
+
+                ticksLeft -= 2;
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
+
     private void removeBar(Player player, String key) {
         Map<String, BossBar> map = playerBars.get(player.getUniqueId());
         if (map != null) {
