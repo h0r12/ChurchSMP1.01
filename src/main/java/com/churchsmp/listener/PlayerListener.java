@@ -22,6 +22,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.inventory.ItemStack;
@@ -32,6 +33,13 @@ public class PlayerListener implements Listener {
 
     public PlayerListener(ChurchSMP plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (plugin.getSinGemManager().getGemType(event.getItemInHand()) != null) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
@@ -200,7 +208,7 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onConsume(org.bukkit.event.player.PlayerItemConsumeEvent event) {
         Player player = event.getPlayer();
-        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getHeldGem(player);
         if (gem == com.churchsmp.gem.SinGemType.GLUTTONY) {
             plugin.getGemAbilityExecutor().handleGluttonyFood(player, event.getItem(), event);
         }
@@ -209,7 +217,7 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteractEntity(org.bukkit.event.player.PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
-        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+        com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getHeldGem(player);
         if (gem == com.churchsmp.gem.SinGemType.SLOTH) {
             org.bukkit.entity.Entity entity = event.getRightClicked();
             if (entity instanceof org.bukkit.entity.Villager) {

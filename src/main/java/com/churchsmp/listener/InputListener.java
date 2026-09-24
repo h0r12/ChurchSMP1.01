@@ -111,14 +111,22 @@ public class InputListener implements Listener {
             return;
         }
 
-        // Check if it's an unattuned gem being right-clicked to attune
-        SinGemType gemItem = plugin.getSinGemManager().getGemType(mainHand);
-        if (gemItem != null) {
+        // Check if holding a Sin Gem (main hand or offhand)
+        SinGemType heldGem = plugin.getSinGemManager().getHeldGem(player);
+        if (heldGem != null) {
+            event.setCancelled(true);
+
+            // Auto-attune if not yet attuned to this gem
             if (!plugin.getSinGemManager().isAttuned(player)) {
-                event.setCancelled(true);
-                plugin.getSinGemManager().attune(player, gemItem);
-                return;
+                plugin.getSinGemManager().attune(player, heldGem);
             }
+
+            if (player.isSneaking()) {
+                plugin.getGemAbilityExecutor().handleSneakRMB(player);
+            } else {
+                plugin.getGemAbilityExecutor().handleRMB(player);
+            }
+            return;
         }
 
         // Grim Scythe right-click throw
@@ -128,17 +136,6 @@ public class InputListener implements Listener {
             grim.throwScythe(player);
             return;
         }
-
-        // Gem RMB and Sneak + RMB abilities
-        if (player.isSneaking()) {
-            if (plugin.getGemAbilityExecutor().handleSneakRMB(player)) {
-                event.setCancelled(true);
-            }
-        } else {
-            if (plugin.getGemAbilityExecutor().handleRMB(player)) {
-                event.setCancelled(true);
-            }
-        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -146,15 +143,9 @@ public class InputListener implements Listener {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
         Player player = event.getPlayer();
         if (player.isSneaking()) {
-            plugin.getGemAbilityExecutor().handleSneakLMB(player);
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onArmSwing(org.bukkit.event.player.PlayerAnimationEvent event) {
-        Player player = event.getPlayer();
-        if (player.isSneaking()) {
-            plugin.getGemAbilityExecutor().handleSneakLMB(player);
+            if (plugin.getGemAbilityExecutor().handleSneakLMB(player)) {
+                event.setCancelled(true);
+            }
         }
     }
 

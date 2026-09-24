@@ -54,9 +54,12 @@ public class SinGemManager {
                     .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));
             lore.add(Component.text(type.getDescription(), NamedTextColor.WHITE));
             lore.add(Component.empty());
-            lore.add(Component.text("âœ¦ Status: Unattuned", NamedTextColor.YELLOW));
-            lore.add(Component.text("âœ¦ Right-Click to permanently attune", NamedTextColor.GREEN));
-            lore.add(Component.text("âœ¦ Used as crafting reagent for Legendaries", NamedTextColor.LIGHT_PURPLE));
+            lore.add(Component.text("✦ Skill 1 [RMB]: ", NamedTextColor.GOLD)
+                    .append(Component.text(type.getPrimaryAbilityName(), NamedTextColor.YELLOW)));
+            lore.add(Component.text("✦ Skill 2 [Shift + RMB]: ", NamedTextColor.GOLD)
+                    .append(Component.text(type.getSecondaryAbilityName(), NamedTextColor.YELLOW)));
+            lore.add(Component.empty());
+            lore.add(Component.text("✦ Hold in hand to channel powers", NamedTextColor.AQUA));
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
 
             meta.lore(lore);
@@ -76,12 +79,22 @@ public class SinGemManager {
         if (item == null || !item.hasItemMeta()) return null;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         String val = pdc.get(gemTypeKey, PersistentDataType.STRING);
-        if (val == null) return null;
-        try {
-            return SinGemType.valueOf(val.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return null;
+        if (val != null) {
+            try {
+                return SinGemType.valueOf(val.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {}
         }
+        // Fallback: check item display name
+        Component name = item.getItemMeta().displayName();
+        if (name != null) {
+            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(name);
+            for (SinGemType type : SinGemType.values()) {
+                if (plain.toLowerCase(Locale.ROOT).contains(type.getDisplayName().toLowerCase(Locale.ROOT))) {
+                    return type;
+                }
+            }
+        }
+        return null;
     }
 
     /**

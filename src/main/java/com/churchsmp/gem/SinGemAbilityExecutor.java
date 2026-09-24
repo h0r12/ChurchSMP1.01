@@ -58,6 +58,7 @@ public class SinGemAbilityExecutor {
     // Sloth state
     private final Map<UUID, Double> delayedStasisAccumulated = new ConcurrentHashMap<>();
     private final Map<UUID, Long> delayedStasisEndTimes = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastSneakLMBTimes = new ConcurrentHashMap<>();
 
     public SinGemAbilityExecutor(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -66,17 +67,27 @@ public class SinGemAbilityExecutor {
 
     public SinGemType getEffectiveGem(Player player) {
         if (player == null) return null;
-        SinGemType held = plugin.getSinGemManager().getHeldGem(player);
-        if (held == null) return null;
-        SinGemType attuned = plugin.getSinGemManager().getAttunedGem(player);
-        if (attuned != null) {
-            return (attuned == held) ? attuned : null;
-        }
-        return held;
+        return plugin.getSinGemManager().getHeldGem(player);
     }
 
     public boolean hasGemInHand(Player player, SinGemType gem) {
         return plugin.getSinGemManager().isHoldingGem(player, gem);
+    }
+
+    public LivingEntity findTargetInLook(Player player, double maxDist) {
+        Location eye = player.getEyeLocation();
+        RayTraceResult result = player.getWorld().rayTraceEntities(eye, eye.getDirection(), maxDist, 0.8, e -> e instanceof LivingEntity && !e.equals(player));
+        if (result != null && result.getHitEntity() instanceof LivingEntity le) {
+            return le;
+        }
+        for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), maxDist)) {
+            if (e.equals(player)) continue;
+            Vector toE = e.getLocation().toVector().subtract(eye.toVector()).normalize();
+            if (eye.getDirection().dot(toE) > 0.6) {
+                return e;
+            }
+        }
+        return null;
     }
 
     private void startTickingLoops() {
@@ -132,36 +143,55 @@ public class SinGemAbilityExecutor {
      * Triggered on Sneak + Left Click (Attack / Air Swing)
      */
     public boolean handleSneakLMB(Player player) {
+        long now = System.currentTimeMillis();
+        Long last = lastSneakLMBTimes.get(player.getUniqueId());
+        if (last != null && now - last < 350) return false;
+        lastSneakLMBTimes.put(player.getUniqueId(), now);
+
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
             case WRATH -> {
-                // Ability 1: Blood Scythe (Sneak + LMB | 40s CD)
                 String key = "gem_wrath_scythe";
                 if (checkCooldown(player, key, 40)) return true;
                 activateBloodScythe(player);
                 return true;
             }
             case GLUTTONY -> {
-                // Ability 2: Acid Spout (Sneak + LMB | 40s CD)
                 String key = "gem_gluttony_acid";
                 if (checkCooldown(player, key, 40)) return true;
                 activateAcidSpout(player);
                 return true;
             }
             case LUST -> {
-                // Ability 2: Vanity Shield (Sneak + LMB | 45s CD)
                 String key = "gem_lust_shield";
                 if (checkCooldown(player, key, 45)) return true;
                 activateVanityShield(player);
                 return true;
             }
             case SLOTH -> {
-                // Ability 1: Temporal Echo (Sneak + LMB | 35s CD)
                 String key = "gem_sloth_echo";
                 if (checkCooldown(player, key, 35)) return true;
                 activateTemporalEcho(player);
+                return true;
+            }
+            case GREED -> {
+                String key = "gem_greed_ray";
+                if (checkCooldown(player, key, 32)) return true;
+                activateTaxingRay(player);
+                return true;
+            }
+            case ENVY -> {
+                String key = "gem_envy_covet";
+                if (checkCooldown(player, key, 25)) return true;
+                activateShadowCovet(player);
+                return true;
+            }
+            case PRIDE -> {
+                String key = "gem_pride_charge";
+                if (checkCooldown(player, key, 18)) return true;
+                activateSovereignCharge(player);
                 return true;
             }
             default -> { return false; }
@@ -224,13 +254,20 @@ public class SinGemAbilityExecutor {
     }
 
     /**
-     * Triggered on RMB (Right Click without sneak)
+     * Triggered on RMB (Right Click without sneak) — Executes Primary Ability (Skill 1)
      */
     public boolean handleRMB(Player player) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
+            case WRATH -> {
+                // Ability 1: Blood Scythe (RMB | 40s CD)
+                String key = "gem_wrath_scythe";
+                if (checkCooldown(player, key, 40)) return true;
+                activateBloodScythe(player);
+                return true;
+            }
             case GREED -> {
                 // Ability 1: Taxing Ray (RMB | 32s CD)
                 String key = "gem_greed_ray";
@@ -238,11 +275,30 @@ public class SinGemAbilityExecutor {
                 activateTaxingRay(player);
                 return true;
             }
+            case GLUTTONY -> {
+                // Ability 1: Devour Buff (RMB | 120s CD)
+                String key = "gem_gluttony_devour";
+                if (checkCooldown(player, key, 120)) return true;
+                activateDevourBuff(player, findTargetInLook(player, 6.0));
+                return true;
+            }
+            case LUST -> {
+                // Ability 1: Narcissus Mirror (RMB | 30s CD)
+                String key = "gem_lust_mirror";
+                if (checkCooldown(player, key, 30)) return true;
+                activateNarcissusMirror(player, findTargetInLook(player, 8.0));
+                return true;
+            }
             case ENVY -> {
-                // Ability 2: Shadow Covet (RMB | 25s CD)
-                String key = "gem_envy_covet";
-                if (checkCooldown(player, key, 25)) return true;
-                activateShadowCovet(player);
+                // Ability 1: Mirror of Shame (RMB | 70s CD)
+                LivingEntity target = findTargetInLook(player, 8.0);
+                if (target == null) {
+                    player.sendMessage(miniMessage.deserialize("<red>✦ [MIRROR OF SHAME] " + TextUtil.toSmallCaps("Aim at an enemy within 8 blocks to trap them in shame!") + " ✦</red>"));
+                    return true;
+                }
+                String key = "gem_envy_mirror";
+                if (checkCooldown(player, key, 70)) return true;
+                activateMirrorOfShame(player, target);
                 return true;
             }
             case PRIDE -> {
@@ -253,10 +309,10 @@ public class SinGemAbilityExecutor {
                 return true;
             }
             case SLOTH -> {
-                // Ability 2: Delayed Stasis (RMB | 45s CD)
-                String key = "gem_sloth_stasis";
-                if (checkCooldown(player, key, 45)) return true;
-                activateDelayedStasis(player);
+                // Ability 1: Temporal Echo (RMB | 35s CD)
+                String key = "gem_sloth_echo";
+                if (checkCooldown(player, key, 35)) return true;
+                activateTemporalEcho(player);
                 return true;
             }
             default -> { return false; }
@@ -264,18 +320,60 @@ public class SinGemAbilityExecutor {
     }
 
     /**
-     * Triggered on Sneak + RMB
+     * Triggered on Sneak + RMB — Executes Secondary Ability (Skill 2)
      */
     public boolean handleSneakRMB(Player player) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
 
         switch (gem) {
+            case WRATH -> {
+                // Ability 2: Overdrive (Sneak + RMB | 60s CD)
+                UUID uuid = player.getUniqueId();
+                int rev = revengeStacks.getOrDefault(uuid, 0);
+                if (rev < 2) {
+                    player.sendMessage(miniMessage.deserialize("<red>✦ [OVERDRIVE] " + TextUtil.toSmallCaps("Requires 2 Revenge Stacks (currently ") + rev + "/2)! Attack or take hits during Fury to gain Revenge Stacks. ✦</red>"));
+                    return true;
+                }
+                String key = "gem_wrath_overdrive";
+                if (checkCooldown(player, key, 60)) return true;
+                revengeStacks.put(uuid, rev - 2);
+                activateOverdrive(player, findTargetInLook(player, 8.0));
+                grantBloodlust(player);
+                return true;
+            }
             case GREED -> {
                 // Ability 2: Taken (Sneak + RMB | 120s CD)
                 String key = "gem_greed_taken";
-                if (checkCooldown(player, key, 120)) return true;
-                activateTaken(player);
+                if (plugin.getCooldownManager().isOnCooldown(player, key)) {
+                    double remaining = plugin.getCooldownManager().getRemainingCooldownSeconds(player, key);
+                    player.sendMessage(miniMessage.deserialize("<red>✦ <white>" + TextUtil.toSmallCaps("Ability is on cooldown") + ":</white> " + String.format("%.1f", remaining) + "s</red>"));
+                    return true;
+                }
+                if (activateTaken(player)) {
+                    plugin.getCooldownManager().setCooldown(player, key, 120);
+                }
+                return true;
+            }
+            case GLUTTONY -> {
+                // Ability 2: Acid Spout (Sneak + RMB | 40s CD)
+                String key = "gem_gluttony_acid";
+                if (checkCooldown(player, key, 40)) return true;
+                activateAcidSpout(player);
+                return true;
+            }
+            case LUST -> {
+                // Ability 2: Vanity Shield (Sneak + RMB | 45s CD)
+                String key = "gem_lust_shield";
+                if (checkCooldown(player, key, 45)) return true;
+                activateVanityShield(player);
+                return true;
+            }
+            case ENVY -> {
+                // Ability 2: Shadow Covet (Sneak + RMB | 25s CD)
+                String key = "gem_envy_covet";
+                if (checkCooldown(player, key, 25)) return true;
+                activateShadowCovet(player);
                 return true;
             }
             case PRIDE -> {
@@ -283,6 +381,13 @@ public class SinGemAbilityExecutor {
                 String key = "gem_pride_duel";
                 if (checkCooldown(player, key, 50)) return true;
                 activateTombstoneDuel(player);
+                return true;
+            }
+            case SLOTH -> {
+                // Ability 2: Delayed Stasis (Sneak + RMB | 45s CD)
+                String key = "gem_sloth_stasis";
+                if (checkCooldown(player, key, 45)) return true;
+                activateDelayedStasis(player);
                 return true;
             }
             default -> { return false; }
@@ -327,7 +432,7 @@ public class SinGemAbilityExecutor {
     }
 
     private void activateOverdrive(Player player, LivingEntity target) {
-        Location center = target.getLocation();
+        Location center = (target != null) ? target.getLocation() : player.getLocation().add(player.getEyeLocation().getDirection().multiply(3.0));
         player.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.2f, 1.2f);
         player.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 1.6f);
 
@@ -476,32 +581,65 @@ public class SinGemAbilityExecutor {
         return until != null && System.currentTimeMillis() <= until;
     }
 
-    private void activateTaken(Player player) {
-        ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (offhand == null || offhand.getType() == Material.AIR) {
-            player.sendMessage(miniMessage.deserialize("<red>✦ [TAKEN] " + TextUtil.toSmallCaps("Your offhand Relic slot is empty! Use /ritual to preload an item.") + " ✦</red>"));
-            return;
+    private boolean activateTaken(Player player) {
+        ItemStack item = preloadedRitualItems.get(player.getUniqueId());
+        boolean fromPreload = true;
+
+        if (item == null || item.getType() == Material.AIR) {
+            ItemStack offhand = player.getInventory().getItemInOffHand();
+            if (offhand != null && offhand.getType() != Material.AIR && plugin.getSinGemManager().getGemType(offhand) == null) {
+                item = offhand;
+                fromPreload = false;
+            }
         }
 
-        Material mat = offhand.getType();
+        if (item == null || item.getType() == Material.AIR) {
+            for (ItemStack invItem : player.getInventory().getContents()) {
+                if (invItem != null) {
+                    Material m = invItem.getType();
+                    if ((m.name().contains("ORE") || m.name().startsWith("RAW_")) && invItem.getAmount() >= 64) {
+                        item = invItem;
+                        fromPreload = false;
+                        break;
+                    } else if (m == Material.NETHERITE_SWORD || m == Material.PLAYER_HEAD) {
+                        item = invItem;
+                        fromPreload = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (item == null || item.getType() == Material.AIR) {
+            player.sendMessage(miniMessage.deserialize("<red>✦ [TAKEN] " + TextUtil.toSmallCaps("No eligible sacrifice found! Preload with /ritual or hold 64 Ores, Netherite Sword, or Player Head.") + " ✦</red>"));
+            return false;
+        }
+
+        Material mat = item.getType();
         String name = mat.name();
 
         if (name.contains("ORE") || name.startsWith("RAW_")) {
-            if (offhand.getAmount() >= 64) {
-                offhand.setAmount(offhand.getAmount() - 64);
-                player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 3, false, false)); // Absorption IV
+            if (item.getAmount() >= 64) {
+                item.setAmount(item.getAmount() - 64);
+                if (fromPreload && item.getAmount() <= 0) preloadedRitualItems.remove(player.getUniqueId());
+                player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 3, false, false));
                 player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.2f);
                 player.sendMessage(miniMessage.deserialize("<gold>✦ [TAKEN: 64 ORES] <yellow>" + TextUtil.toSmallCaps("Consumed 64 ores: Granted Absorption IV for 10s!") + " ✦</yellow></gold>"));
+                return true;
             } else {
                 player.sendMessage(miniMessage.deserialize("<red>✦ [TAKEN] " + TextUtil.toSmallCaps("Need a full stack (64) of ores to consume!") + " ✦</red>"));
+                return false;
             }
         } else if (mat == Material.NETHERITE_SWORD) {
-            offhand.subtract(1);
-            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 150, 2, false, false)); // Strength III for 7.5s
+            item.subtract(1);
+            if (fromPreload && item.getAmount() <= 0) preloadedRitualItems.remove(player.getUniqueId());
+            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 150, 2, false, false));
             player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.2f, 1.4f);
             player.sendMessage(miniMessage.deserialize("<gold>✦ [TAKEN: NETHERITE SWORD] <red>" + TextUtil.toSmallCaps("Consumed Netherite Sword: Granted Strength III for 7.5s!") + " ✦</red></gold>"));
+            return true;
         } else if (mat == Material.PLAYER_HEAD) {
-            offhand.subtract(1);
+            item.subtract(1);
+            if (fromPreload && item.getAmount() <= 0) preloadedRitualItems.remove(player.getUniqueId());
             Player nearest = null;
             double minDist = 15.0;
             for (Player p : player.getWorld().getPlayers()) {
@@ -538,11 +676,14 @@ public class SinGemAbilityExecutor {
                         ticks -= 10;
                     }
                 }.runTaskTimer(plugin, 0L, 10L);
+                return true;
             } else {
                 player.sendMessage(miniMessage.deserialize("<red>✦ [TAKEN] " + TextUtil.toSmallCaps("No enemy player within 15 blocks to tether!") + " ✦</red>"));
+                return false;
             }
         } else {
             player.sendMessage(miniMessage.deserialize("<red>✦ [TAKEN] " + TextUtil.toSmallCaps("Invalid preloaded item! Must be 64 Ores, Netherite Sword, or Player Head.") + " ✦</red>"));
+            return false;
         }
     }
 
@@ -594,6 +735,17 @@ public class SinGemAbilityExecutor {
     }
 
     private void activateDevourBuff(Player player, LivingEntity target) {
+        if (target == null) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 200, 1, false, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 1, false, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, 100, 1, false, false));
+            player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EAT, 1.2f, 0.8f);
+            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 1.0f);
+            player.getWorld().spawnParticle(Particle.ITEM_SLIME, player.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, 0.05);
+            player.sendMessage(miniMessage.deserialize("<green>✦ [DEVOUR BUFF] <white>" + TextUtil.toSmallCaps("Self-Devoured! Gained Resistance II, Absorption II & Saturation.") + " ✦</white></green>"));
+            return;
+        }
+
         int strippedCount = 0;
         for (PotionEffect effect : new ArrayList<>(target.getActivePotionEffects())) {
             int newDur = Math.max(0, effect.getDuration() - 200); // strip 10s (200 ticks)
@@ -660,14 +812,15 @@ public class SinGemAbilityExecutor {
     // 4. LUST IMPLEMENTATION
     // -------------------------------------------------------------------------
     private void activateNarcissusMirror(Player player, LivingEntity target) {
-        Location tLoc = target.getLocation();
+        Location tLoc = (target != null) ? target.getLocation() : player.getLocation().add(player.getEyeLocation().getDirection().multiply(2.5));
+        World world = (target != null) ? target.getWorld() : player.getWorld();
         player.playSound(tLoc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.2f, 1.2f);
 
         for (int i = 0; i < 2; i++) {
             double angle = (Math.PI * i) + (Math.PI / 4.0);
             Location spawnLoc = tLoc.clone().add(Math.cos(angle) * 2.0, 0, Math.sin(angle) * 2.0);
 
-            Zombie clone = (Zombie) target.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
+            Zombie clone = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
             clone.setAdult();
             clone.setAI(false);
             clone.setInvulnerable(false);
@@ -689,7 +842,7 @@ public class SinGemAbilityExecutor {
                 }
             }, 120L); // 6 seconds
         }
-        player.sendMessage(miniMessage.deserialize("<pink>✦ [NARCISSUS MIRROR] <white>" + TextUtil.toSmallCaps("Summoned 2 reflections around target! Attacks on them heal you 50%.") + " ✦</white></pink>"));
+        player.sendMessage(miniMessage.deserialize("<pink>✦ [NARCISSUS MIRROR] <white>" + TextUtil.toSmallCaps("Summoned 2 reflections! Attacks on them heal you 50%.") + " ✦</white></pink>"));
     }
 
     public boolean handleCloneDamage(Entity damagee, double damage) {
