@@ -53,4 +53,15 @@ public class WeaponManager {
     public Collection<LegendaryWeapon> getAllWeapons() {
         return weapons.values().stream().distinct().toList();
     }
+
+    public boolean hasWeapon(org.bukkit.entity.Player player, String weaponId) {
+        if (player == null || weaponId == null) return false;
+        for (ItemStack item : player.getInventory().getContents()) {
+            LegendaryWeapon w = getWeapon(item);
+            if (w != null && weaponId.equalsIgnoreCase(w.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

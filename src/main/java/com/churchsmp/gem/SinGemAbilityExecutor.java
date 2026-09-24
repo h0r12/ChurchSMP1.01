@@ -533,7 +533,7 @@ public class SinGemAbilityExecutor {
                 Player greedPlayer = Bukkit.getPlayer(entry.getKey());
                 if (greedPlayer != null && greedPlayer.isOnline()) {
                     double heal = damage * 0.10;
-                    double newHp = Math.min(greedPlayer.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue(), greedPlayer.getHealth() + heal);
+                    double newHp = Math.min(greedPlayer.getAttribute(Attribute.MAX_HEALTH).getValue(), greedPlayer.getHealth() + heal);
                     greedPlayer.setHealth(newHp);
                     greedPlayer.getWorld().spawnParticle(Particle.HEART, greedPlayer.getLocation().add(0, 1.5, 0), 2, 0.2, 0.2, 0.2, 0);
                 }
@@ -680,7 +680,7 @@ public class SinGemAbilityExecutor {
                 Player owner = Bukkit.getPlayer(ownerId);
                 if (owner != null && owner.isOnline()) {
                     double heal = damage * 0.50;
-                    double newHp = Math.min(owner.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue(), owner.getHealth() + heal);
+                    double newHp = Math.min(owner.getAttribute(Attribute.MAX_HEALTH).getValue(), owner.getHealth() + heal);
                     owner.setHealth(newHp);
                     owner.playSound(owner.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.8f, 1.5f);
                     owner.getWorld().spawnParticle(Particle.HEART, owner.getLocation().add(0, 1.2, 0), 3, 0.2, 0.2, 0.2, 0);
@@ -717,7 +717,7 @@ public class SinGemAbilityExecutor {
             Location loc = e.getLocation();
             loc.setYaw((loc.getYaw() + 180f) % 360f);
             e.teleport(loc);
-            e.playSound(e.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.0f, 1.5f);
+            e.getWorld().playSound(e.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.0f, 1.5f);
         }
 
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, 1.2f, 1.0f);
@@ -899,8 +899,29 @@ public class SinGemAbilityExecutor {
         player.sendMessage(miniMessage.deserialize("<gold>✦ [SOVEREIGN CHARGE] <white>" + TextUtil.toSmallCaps("Consumed " + charges + " charges for piercing lunge!") + " ✦</white></gold>"));
     }
 
+    private void activateTombstoneDuel(Player player) {
+        LivingEntity target = null;
+        for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 10.0)) {
+            if (e.equals(player)) continue;
+            Vector toE = e.getLocation().toVector().subtract(player.getEyeLocation().toVector()).normalize();
+            if (player.getEyeLocation().getDirection().dot(toE) > 0.6) {
+                target = e;
+                break;
+            }
+        }
+        if (target == null) {
+            for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 6.0)) {
+                if (!e.equals(player)) {
+                    target = e;
+                    break;
+                }
+            }
+        }
+        activateTombstoneDuel(player, target);
+    }
+
     private void activateTombstoneDuel(Player player, LivingEntity target) {
-        Location center = player.getLocation().add(target.getLocation()).multiply(0.5);
+        Location center = (target != null) ? player.getLocation().add(target.getLocation()).multiply(0.5) : player.getLocation();
         tombstoneArenas.put(player.getUniqueId(), center);
         long end = System.currentTimeMillis() + 6000;
         tombstoneEndTimes.put(player.getUniqueId(), end);
@@ -937,7 +958,7 @@ public class SinGemAbilityExecutor {
     public void checkTombstoneKill(Player killer) {
         Location arena = tombstoneArenas.get(killer.getUniqueId());
         if (arena != null && killer.getLocation().distanceSquared(arena) <= 16.0) {
-            double maxHp = killer.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue();
+            double maxHp = killer.getAttribute(Attribute.MAX_HEALTH).getValue();
             killer.setHealth(maxHp);
             killer.playSound(killer.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
             killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killer.getLocation().add(0, 1.5, 0), 30, 0.5, 0.5, 0.5, 0.1);
@@ -1059,7 +1080,7 @@ public class SinGemAbilityExecutor {
 
         // Wrath Bloodfeast & BloodPrice & Fury
         if (gem == SinGemType.WRATH) {
-            double maxHp = player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue();
+            double maxHp = player.getAttribute(Attribute.MAX_HEALTH).getValue();
             double missingHearts = Math.max(0, (maxHp - player.getHealth()) / 2.0);
             event.setDamage(event.getDamage() + (missingHearts * 0.75));
 
