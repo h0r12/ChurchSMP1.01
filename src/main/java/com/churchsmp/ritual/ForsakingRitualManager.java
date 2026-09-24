@@ -8,7 +8,10 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,7 +24,10 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.time.Duration;
 import java.util.*;
@@ -255,64 +261,201 @@ public class ForsakingRitualManager implements Listener {
         }
     }
 
+    /**
+     * INSANE FORSAKING FINALE:
+     * 1. Player floats up into the sky via Levitation.
+     * 2. All 6 unchosen Sin Gems remain in orbit around the rising player.
+     * 3. High-density electric energy beams connect from every unchosen gem into the player's chest!
+     * 4. The chosen Forsake gem ascends overhead and SCALES BIGGER in real 3D up to 3.2x!
+     * 5. Orbital lightning strikes around the player at rhythmic intervals with expanding sonic shockwaves.
+     * 6. Dual-helix cosmic vortex rises around the player.
+     * 7. Supernova climax: direct lightning strike, sonic boom, implosion absorption, and divine deliverance.
+     */
     private void finishRitualChoice(Player player, RitualSession session, SinGemType chosenGem, Item chosenItem) {
         // Tag as completed in PDC
         player.getPersistentDataContainer().set(forsakingKey, PersistentDataType.BOOLEAN, true);
 
-        // Remove potion effects
+        // Remove initial freeze effects
         player.removePotionEffect(PotionEffectType.SLOWNESS);
         player.removePotionEffect(PotionEffectType.SLOW_FALLING);
         player.removePotionEffect(PotionEffectType.GLOWING);
 
-        // Sound cues for resolution
-        player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.5f, 0.7f);
-        player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.5f);
+        // 1. Float the player up into the air!
+        player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 75, 1, false, false, false));
 
-        // Shatter all unchosen gems into smoke and fragments
+        // Sound cues for awakening
+        player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.7f);
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.0f);
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 0.8f);
+
+        // Separate the unchosen gems to keep them orbiting and linked to the player
+        List<Item> linkedItems = new ArrayList<>();
         for (Item item : session.items) {
             if (item.equals(chosenItem)) continue;
             if (item.isValid()) {
-                item.getWorld().spawnParticle(Particle.ITEM, item.getLocation(), 20, 0.2, 0.2, 0.2, 0.05, item.getItemStack());
-                item.getWorld().spawnParticle(Particle.SMOKE, item.getLocation(), 15, 0.2, 0.2, 0.2, 0.02);
-                item.setGravity(true);
-                item.setVelocity(new Vector(0, -0.6, 0));
-                Bukkit.getScheduler().runTaskLater(plugin, item::remove, 15L);
+                linkedItems.add(item);
             }
         }
 
-        // Chosen gem rises upward and centers above player's head
-        if (chosenItem.isValid()) {
+        // Spawn central scaling Forsake Gem entity (ItemDisplay with fallback)
+        ItemStack gemStack = plugin.getSinGemManager().createGemItem(chosenGem);
+        Entity scalingEntity = null;
+        try {
+            Location gemSpawn = player.getEyeLocation().add(0, 1.8, 0);
+            ItemDisplay display = player.getWorld().spawn(gemSpawn, ItemDisplay.class, d -> {
+                d.setItemStack(gemStack);
+                d.setBillboard(Display.Billboard.CENTER);
+                d.setBrightness(new Display.Brightness(15, 15));
+                d.setGlowing(true);
+                d.setTransformation(new Transformation(
+                        new Vector3f(0, 0, 0),
+                        new Quaternionf(),
+                        new Vector3f(1.0f, 1.0f, 1.0f),
+                        new Quaternionf()
+                ));
+            });
+            scalingEntity = display;
+            // Hide the original item entity
+            if (chosenItem.isValid()) chosenItem.remove();
+        } catch (Throwable ignored) {
+            // Fallback for non-display entity environments
             chosenItem.setGravity(false);
-            new BukkitRunnable() {
-                int t = 0;
-                @Override
-                public void run() {
-                    t++;
-                    if (t > 30 || !player.isOnline() || !chosenItem.isValid()) {
-                        chosenItem.remove();
-                        deliverGem(player, chosenGem);
-                        cancel();
-                        return;
-                    }
-
-                    Location pHead = player.getEyeLocation().add(0, 1.2, 0);
-                    Location curr = chosenItem.getLocation();
-                    Vector toHead = pHead.toVector().subtract(curr.toVector()).multiply(0.2);
-                    chosenItem.setVelocity(toHead);
-
-                    chosenItem.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, chosenItem.getLocation(), 5, 0.1, 0.1, 0.1, 0.05);
-                    chosenItem.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, chosenItem.getLocation(), 3, 0.1, 0.1, 0.1, 0.02);
-                }
-            }.runTaskTimer(plugin, 0L, 1L);
-        } else {
-            deliverGem(player, chosenGem);
+            chosenItem.setPickupDelay(Integer.MAX_VALUE);
+            chosenItem.setCanMobPickup(false);
+            scalingEntity = chosenItem;
         }
+
+        final Entity centralGem = scalingEntity;
+        Color gemColor = Color.fromRGB(255, 215, 0);
+        Particle.DustOptions gemDust = new Particle.DustOptions(gemColor, 1.5f);
+        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.WHITE, 1.2f);
+
+        new BukkitRunnable() {
+            int t = 0;
+            double rotation = session.rotation;
+
+            @Override
+            public void run() {
+                t++;
+
+                // Stop condition or player disconnect
+                if (t > 70 || !player.isOnline()) {
+                    cleanupAndDeliverForsake(player, chosenGem, linkedItems, centralGem);
+                    cancel();
+                    return;
+                }
+
+                rotation += 0.22;
+                Location pChest = player.getLocation().add(0, 1.3, 0);
+                Location pGemLoc = player.getEyeLocation().add(0, 1.8, 0);
+
+                // 1. Central Forsake Gem: Hovers overhead and SCALES BIGGER in real 3D!
+                if (centralGem != null && centralGem.isValid()) {
+                    centralGem.teleport(pGemLoc);
+                    if (centralGem instanceof ItemDisplay itemDisplay) {
+                        float scale = 1.0f + (t * 0.035f); // Scales up to ~3.45x!
+                        try {
+                            itemDisplay.setTransformation(new Transformation(
+                                    new Vector3f(0, 0, 0),
+                                    new Quaternionf().rotateY((float) rotation),
+                                    new Vector3f(scale, scale, scale),
+                                    new Quaternionf()
+                            ));
+                        } catch (Throwable ignored) {}
+                    }
+                }
+
+                // 2. All unchosen gems orbit around the player and LINK with particle energy beams!
+                double orbitRadius = 3.0 - (t * 0.015);
+                for (int i = 0; i < linkedItems.size(); i++) {
+                    Item it = linkedItems.get(i);
+                    if (!it.isValid()) continue;
+
+                    double angle = rotation + (i * (2 * Math.PI / Math.max(1, linkedItems.size())));
+                    double yOffset = Math.sin(t * 0.12 + i) * 0.45;
+                    Location itemLoc = pChest.clone().add(Math.cos(angle) * orbitRadius, yOffset, Math.sin(angle) * orbitRadius);
+                    it.teleport(itemLoc);
+
+                    // Energy beam linking each gem straight to player's heart!
+                    Vector toPlayer = pChest.toVector().subtract(itemLoc.toVector());
+                    int beamPoints = 9;
+                    for (int step = 1; step <= beamPoints; step++) {
+                        Location beamPoint = itemLoc.clone().add(toPlayer.clone().multiply((double) step / beamPoints));
+                        player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, beamPoint, 1, 0, 0, 0, 0);
+                        if (step % 2 == 0) {
+                            player.getWorld().spawnParticle(Particle.END_ROD, beamPoint, 1, 0, 0, 0, 0);
+                        }
+                    }
+                }
+
+                // 3. Insane halo & orbital rings around the scaling Forsake Gem
+                player.getWorld().spawnParticle(Particle.END_ROD, pGemLoc, 4, 0.3, 0.3, 0.3, 0.05);
+                player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pGemLoc, 5, 0.4, 0.4, 0.4, 0.08);
+                player.getWorld().spawnParticle(Particle.DUST, pGemLoc, 6, 0.5, 0.5, 0.5, 0, gemDust);
+
+                // 4. Dual-helix ascending vortex particles spiraling up around the player
+                for (int h = 0; h < 2; h++) {
+                    double helixAngle = (rotation * 1.6) + (h * Math.PI) + (t * 0.1);
+                    double helixY = ((t * 0.07) % 3.2);
+                    Location hLoc = player.getLocation().add(Math.cos(helixAngle) * 1.3, helixY, Math.sin(helixAngle) * 1.3);
+                    player.getWorld().spawnParticle(Particle.DUST, hLoc, 1, 0, 0, 0, 0, (h == 0) ? gemDust : whiteDust);
+                    player.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, hLoc, 1, 0, 0, 0, 0);
+                }
+
+                // 5. Orbital Lightning strikes & Expanding Ground Shockwaves
+                if (t == 15 || t == 30 || t == 45 || t == 60) {
+                    double boltAngle = (t / 15.0) * (Math.PI / 2.0);
+                    Location bolt1 = player.getLocation().add(Math.cos(boltAngle) * 4.2, 0, Math.sin(boltAngle) * 4.2);
+                    Location bolt2 = player.getLocation().add(Math.cos(boltAngle + Math.PI) * 4.2, 0, Math.sin(boltAngle + Math.PI) * 4.2);
+
+                    // Strike real visual lightning
+                    player.getWorld().strikeLightningEffect(bolt1);
+                    player.getWorld().strikeLightningEffect(bolt2);
+
+                    // Expanding ground shockwave
+                    Location ground = player.getLocation();
+                    player.getWorld().spawnParticle(Particle.SONIC_BOOM, ground, 1, 0, 0, 0, 0);
+                    player.getWorld().spawnParticle(Particle.FLASH, ground.add(0, 0.2, 0), 2, 0.2, 0.1, 0.2, 0);
+
+                    // Thunderous audio
+                    player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.1f);
+                    player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 1.4f);
+                }
+
+                // Ambient rising chime
+                if (t % 5 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.7f, 1.0f + (t * 0.015f));
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void deliverGem(Player player, SinGemType chosenGem) {
-        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.6f, 1.2f);
-        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
-        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1.5, 0), 3, Color.WHITE);
+    private void cleanupAndDeliverForsake(Player player, SinGemType chosenGem, List<Item> linkedItems, Entity centralGem) {
+        // Remove temporary visual entities
+        if (centralGem != null && centralGem.isValid()) centralGem.remove();
+        for (Item it : linkedItems) {
+            if (it.isValid()) {
+                it.getWorld().spawnParticle(Particle.ITEM, it.getLocation(), 15, 0.1, 0.1, 0.1, 0.05, it.getItemStack());
+                it.remove();
+            }
+        }
+
+        if (!player.isOnline()) return;
+
+        // Climax Supernova explosion
+        Location pCenter = player.getLocation().add(0, 1.5, 0);
+        player.getWorld().strikeLightningEffect(pCenter);
+        player.getWorld().spawnParticle(Particle.SONIC_BOOM, pCenter, 2, 0, 0, 0, 0);
+        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 6, 0.4, 0.4, 0.4, 0);
+        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 100, 1.2, 1.2, 1.2, 0.3);
+        player.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, pCenter, 3, 0.2, 0.2, 0.2, 0);
+
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.8f, 1.2f);
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.6f, 1.0f);
+
+        // Safe landing
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));
+        player.setFallDistance(0);
 
         // Attune the player
         plugin.getSinGemManager().attune(player, chosenGem);
@@ -320,7 +463,7 @@ public class ForsakingRitualManager implements Listener {
         // Deliver item to player inventory
         HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(plugin.getSinGemManager().createGemItem(chosenGem));
         for (ItemStack left : overflow.values()) {
-            player.getWorld().dropItem(player.getLocation(), left);
+            player.getWorld().dropItemNaturally(player.getLocation(), left);
         }
 
         // Broadcast to all players on server
@@ -337,7 +480,7 @@ public class ForsakingRitualManager implements Listener {
         Component title = miniMessage.deserialize("<gold>✦ <gradient:#FFD700:#FFFFFF><bold>" + TextUtil.toSmallCaps("Destiny Sealed") + "</bold></gradient> <gold>✦</gold>");
         player.showTitle(Title.title(title, chosenGem.getFormattedName(), Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))));
 
-        // Starter lore & guide in chat with proper component appending (NO TextComponentImpl bug!)
+        // Starter lore & guide in chat
         player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
         player.sendMessage(miniMessage.deserialize("<gold>✦ <white><bold>" + TextUtil.toSmallCaps("Forsaking Sealed") + ":</bold></white> </gold>")
                 .append(chosenGem.getFormattedName()));
