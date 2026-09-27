@@ -34,10 +34,9 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // /church ritual or /ritual command
+        // /church ritual or /ritual command — Opens the Ritual Sacrifice inventory GUI!
         if (label.equalsIgnoreCase("ritual") || (args.length > 0 && args[0].equalsIgnoreCase("ritual"))) {
-            ItemStack held = player.getInventory().getItemInMainHand();
-            plugin.getGemAbilityExecutor().preloadRelic(player, held);
+            plugin.getGemAbilityExecutor().openRitualInventory(player);
             return true;
         }
 
@@ -46,24 +45,50 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // /church guide — shows detailed breakdown of player's attuned Sin Gem
+        // /church guide [gemName] — shows detailed breakdown of player's attuned or requested Sin Gem
         if (args.length > 0 && args[0].equalsIgnoreCase("guide")) {
-            showPlayerGemGuide(player);
+            String gemArg = (args.length > 1) ? args[1] : null;
+            showPlayerGemGuide(player, gemArg);
             return true;
         }
 
         // Default: show gem guide directly
-        showPlayerGemGuide(player);
+        showPlayerGemGuide(player, null);
         return true;
     }
 
-    private void showPlayerGemGuide(Player player) {
-        SinGemType gem = plugin.getSinGemManager().getAttunedGem(player);
+    private void showPlayerGemGuide(Player player, String requestedGem) {
+        SinGemType gem = null;
+        if (requestedGem != null) {
+            try {
+                gem = SinGemType.valueOf(requestedGem.toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                for (SinGemType t : SinGemType.values()) {
+                    if (t.name().equalsIgnoreCase(requestedGem) || t.getDisplayName().equalsIgnoreCase(requestedGem)) {
+                        gem = t;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (gem == null) {
+            gem = plugin.getSinGemManager().getAttunedGem(player);
+        }
+
+        if (gem == null) {
+            gem = plugin.getSinGemManager().getHeldGem(player);
+        }
+
         if (gem == null) {
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
-            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Sin Gem Guide") + "</bold></yellow> ✦</gold>"));
-            player.sendMessage(miniMessage.deserialize("<red>✦ " + TextUtil.toSmallCaps("You have not attuned to any Sin Gem yet!") + " ✦</red>"));
-            player.sendMessage(miniMessage.deserialize("<gray>" + TextUtil.toSmallCaps("Complete the Forsaking Ritual or right-click an unattuned Sin Gem to attune.") + "</gray>"));
+            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Sin Gem Guide Directory") + "</bold></yellow> ✦</gold>"));
+            player.sendMessage(miniMessage.deserialize("<gray>You are not attuned to any Sin Gem yet, but you can read any guide:</gray>"));
+            for (SinGemType type : SinGemType.values()) {
+                player.sendMessage(miniMessage.deserialize("  <gold>•</gold> ").append(type.getFormattedName())
+                        .append(miniMessage.deserialize(" <gray>— Type </gray><yellow>/church guide " + type.name().toLowerCase() + "</yellow>")));
+            }
+            player.sendMessage(miniMessage.deserialize("<gray><i>Tip: Complete the Forsaking Ritual or right-click an unattuned Sin Gem to attune.</i></gray>"));
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
             return;
         }
@@ -174,6 +199,15 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
                     matches.add(s);
+                }
+            }
+            return matches;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("guide")) {
+            List<String> matches = new ArrayList<>();
+            for (SinGemType t : SinGemType.values()) {
+                if (t.name().toLowerCase().startsWith(args[1].toLowerCase())) {
+                    matches.add(t.name().toLowerCase());
                 }
             }
             return matches;

@@ -50,6 +50,9 @@ public class SinGemAbilityExecutor {
     private final Map<UUID, Location> shameChambers = new ConcurrentHashMap<>(); // Target UUID -> Chamber Center
     private final Map<UUID, Long> shameChamberEndTimes = new ConcurrentHashMap<>();
 
+    public static final Component RITUAL_GUI_TITLE_COMPONENT = MiniMessage.miniMessage()
+            .deserialize("<gold><bold>✦ " + TextUtil.toSmallCaps("Ritual Sacrifice") + " ✦</bold></gold>");
+
     // Pride state
     private final Map<UUID, Integer> prideCharges = new ConcurrentHashMap<>();
     private final Map<UUID, Location> prideLastLocations = new ConcurrentHashMap<>();
@@ -117,7 +120,7 @@ public class SinGemAbilityExecutor {
                                     current++;
                                     prideCharges.put(uuid, current);
                                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.2f + (current * 0.15f));
-                                    player.sendActionBar(miniMessage.deserialize("<gold>✦ " + TextUtil.toSmallCaps("Pride Charges") + ": <yellow>[" + "■".repeat(current) + "□".repeat(5 - current) + "] " + current + "/5 ✦</gold>"));
+                                    player.sendMessage(miniMessage.deserialize("<gold>✦ " + TextUtil.toSmallCaps("Pride Charges") + ": <yellow>[" + "■".repeat(current) + "□".repeat(5 - current) + "] " + current + "/5 ✦</gold>"));
                                 }
                             }
                             prideLastLocations.put(uuid, curr);
@@ -489,23 +492,102 @@ public class SinGemAbilityExecutor {
         if (rev < 5) {
             rev++;
             revengeStacks.put(uuid, rev);
-            player.sendActionBar(miniMessage.deserialize("<red>✦ [FURY] " + TextUtil.toSmallCaps("Revenge Stacks") + ": <yellow>" + rev + "/5</yellow> ✦</red>"));
+            player.sendMessage(miniMessage.deserialize("<red>✦ [FURY] " + TextUtil.toSmallCaps("Revenge Stacks") + ": <yellow>" + rev + "/5</yellow> ✦</red>"));
         }
     }
 
     // -------------------------------------------------------------------------
-    // 2. GREED IMPLEMENTATION
+    // 2. GREED IMPLEMENTATION & RITUAL INVENTORY
     // -------------------------------------------------------------------------
-    public void preloadRelic(Player player, ItemStack item) {
-        if (item == null || item.getType() == Material.AIR) {
-            player.sendMessage(miniMessage.deserialize("<red>✦ " + TextUtil.toSmallCaps("You must hold an item to preload into your Relic slot!") + " ✦</red>"));
-            return;
+    public void openRitualInventory(Player player) {
+        org.bukkit.inventory.Inventory inv = Bukkit.createInventory(player, 9, RITUAL_GUI_TITLE_COMPONENT);
+
+        ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = border.getItemMeta();
+        if (meta != null) {
+            meta.displayName(miniMessage.deserialize("<dark_gray>✦ " + TextUtil.toSmallCaps("Ritual Altar") + " ✦</dark_gray>"));
+            meta.lore(List.of(
+                    miniMessage.deserialize("<gray>Place your sacrifice item in slot 5 (center).</gray>"),
+                    miniMessage.deserialize("<yellow>• 64 Ores <gray>(Absorption IV)</gray></yellow>"),
+                    miniMessage.deserialize("<yellow>• Netherite Sword <gray>(Strength III)</gray></yellow>"),
+                    miniMessage.deserialize("<yellow>• Player Head <gray>(Damage Tether)</gray></yellow>")
+            ));
+            border.setItemMeta(meta);
         }
-        ItemStack copy = item.clone();
-        player.getInventory().setItemInOffHand(copy);
-        preloadedRitualItems.put(player.getUniqueId(), copy);
-        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.5f);
-        player.sendMessage(miniMessage.deserialize("<gold>✦ [GREED PRELOAD] <white>" + TextUtil.toSmallCaps("Preloaded into Relic slot") + ": </white><yellow>" + copy.getType().name() + " x" + copy.getAmount() + "</yellow> ✦</gold>"));
+
+        for (int i = 0; i < 9; i++) {
+            if (i != 4) {
+                inv.setItem(i, border);
+            }
+        }
+
+        ItemStack current = preloadedRitualItems.get(player.getUniqueId());
+        if (current != null && current.getType() != Material.AIR) {
+            inv.setItem(4, current.clone());
+        }
+
+        player.openInventory(inv);
+        player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.2f);
+    }
+
+    public void setPreloadedItem(Player player, ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) {
+            preloadedRitualItems.remove(player.getUniqueId());
+        } else {
+            preloadedRitualItems.put(player.getUniqueId(), item.clone());
+        }
+    }
+
+    public void removePreloadedItem(Player player) {
+        preloadedRitualItems.remove(player.getUniqueId());
+    }
+
+    public ItemStack getPreloadedItem(Player player) {
+        return preloadedRitualItems.get(player.getUniqueId());
+    }
+
+    public void preloadRelic(Player player, ItemStack item) {
+        openRitualInventory(player);
+    }
+
+    public String getGemAbilityCooldownKey(SinGemType gem, boolean sneak) {
+        if (gem == null) return null;
+        if (!sneak) {
+            return switch (gem) {
+                case WRATH -> "gem_wrath_scythe";
+                case GREED -> "gem_greed_ray";
+                case GLUTTONY -> "gem_gluttony_devour";
+                case LUST -> "gem_lust_mirror";
+                case ENVY -> "gem_envy_mirror";
+                case PRIDE -> "gem_pride_charge";
+                case SLOTH -> "gem_sloth_echo";
+            };
+        } else {
+            return switch (gem) {
+                case WRATH -> "gem_wrath_overdrive";
+                case GREED -> "gem_greed_taken";
+                case GLUTTONY -> "gem_gluttony_acid";
+                case LUST -> "gem_lust_shield";
+                case ENVY -> "gem_envy_covet";
+                case PRIDE -> "gem_pride_duel";
+                case SLOTH -> "gem_sloth_stasis";
+            };
+        }
+    }
+
+    public boolean isGemAbilityOnCooldown(Player player, boolean sneak) {
+        SinGemType gem = getEffectiveGem(player);
+        if (gem == null) return false;
+        String key = getGemAbilityCooldownKey(gem, sneak);
+        return key != null && plugin.getCooldownManager().isOnCooldown(player, key);
+    }
+
+    public double getGemAbilityRemainingCooldown(Player player, boolean sneak) {
+        SinGemType gem = getEffectiveGem(player);
+        if (gem == null) return 0.0;
+        String key = getGemAbilityCooldownKey(gem, sneak);
+        if (key == null) return 0.0;
+        return plugin.getCooldownManager().getRemainingCooldownSeconds(player, key);
     }
 
     public void checkGoldSiphon(Player attacker, Player target) {

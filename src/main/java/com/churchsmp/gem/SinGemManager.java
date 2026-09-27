@@ -147,13 +147,19 @@ public class SinGemManager {
             return false;
         }
 
+        forceAttune(player, type);
+        return true;
+    }
+
+    /**
+     * Forcefully attunes a player to a sin gem type (used for Forsaking Ritual and Admin overrides).
+     */
+    public void forceAttune(Player player, SinGemType type) {
         player.getPersistentDataContainer().set(attunedKey, PersistentDataType.STRING, type.name());
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-        player.sendMessage(Component.text("âš” You have permanently attuned your soul to the ", NamedTextColor.GOLD)
+        player.sendMessage(Component.text("✦ You have permanently attuned your soul to the ", NamedTextColor.GOLD)
                 .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD))
                 .append(Component.text(" Relic Gem!", NamedTextColor.GOLD)));
-
-        return true;
     }
 
     /**

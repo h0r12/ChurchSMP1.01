@@ -14,6 +14,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -24,7 +25,10 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -214,13 +218,22 @@ public class Excalibur extends LegendaryWeapon {
         // No fling — player remains on ground
         player.setFallDistance(0);
 
+        final ItemStack displaySword = createItem();
+
         new BukkitRunnable() {
             int ticks = 0;
             boolean slammed = false;
+            ItemDisplay swordDisplay = null;
 
             @Override
             public void run() {
                 ticks++;
+
+                if (!player.isOnline() && ticks > 20) {
+                    if (swordDisplay != null && swordDisplay.isValid()) swordDisplay.remove();
+                    cancel();
+                    return;
+                }
 
                 // Phase 1: Vortex Suction & Altar Runes (ticks 1 - 15)
                 if (ticks <= 15) {
@@ -255,42 +268,48 @@ public class Excalibur extends LegendaryWeapon {
                     }
                 }
 
-                // Phase 2: Celestial Excalibur Descends from the Heavens (ticks 6 - 16)
-                if (ticks >= 6 && ticks <= 16) {
-                    double swordY = Math.max(0.0, 18.0 - (ticks - 6) * 1.8);
-                    Location swordTip = altarCenter.clone().add(0, swordY, 0);
-
-                    // Blade vertical spine (7 blocks length)
-                    for (double y = 0; y <= 7.0; y += 0.4) {
-                        Location p = swordTip.clone().add(0, y, 0);
-                        p.getWorld().spawnParticle(Particle.END_ROD, p, 1, 0.03, 0.03, 0.03, 0.01);
-                        p.getWorld().spawnParticle(Particle.DUST, p, 2, 0.05, 0.05, 0.05, 0, (y > 4.5) ? bladeGold : bladeWhite);
-                    }
-
-                    // Crossguard at y = 5.0 (3 blocks wide)
-                    for (double w = -1.5; w <= 1.5; w += 0.3) {
-                        swordTip.getWorld().spawnParticle(Particle.DUST, swordTip.clone().add(w, 5.0, 0), 1, 0, 0, 0, 0, ringYellow);
-                        swordTip.getWorld().spawnParticle(Particle.DUST, swordTip.clone().add(0, 5.0, w), 1, 0, 0, 0, 0, ringYellow);
-                    }
-
-                    // Sound of descending celestial blade
-                    altarCenter.getWorld().playSound(swordTip, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 0.6f + (ticks * 0.05f));
+                // Phase 2: Giant Celestial Excalibur Descends from the Heavens (ticks 5 - 15)
+                if (ticks == 5) {
+                    Location spawnLoc = altarCenter.clone().add(0, 18.0, 0);
+                    swordDisplay = altarCenter.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
+                        d.setItemStack(displaySword);
+                        d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+                        Transformation transform = new Transformation(
+                                new Vector3f(0f, 0f, 0f),
+                                new AxisAngle4f((float) Math.PI, 0f, 0f, 1f),
+                                new Vector3f(4.5f, 4.5f, 4.5f),
+                                new AxisAngle4f(0f, 0f, 0f, 1f)
+                        );
+                        d.setTransformation(transform);
+                    });
                 }
 
-                // Phase 3: Divine Slam Impact (tick 16)
+                if (ticks >= 6 && ticks < 16 && swordDisplay != null && swordDisplay.isValid()) {
+                    double swordY = Math.max(0.2, 18.0 - (ticks - 5) * 1.8);
+                    Location curr = altarCenter.clone().add(0, swordY, 0);
+                    swordDisplay.teleport(curr);
+                    altarCenter.getWorld().playSound(curr, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 0.6f + (ticks * 0.05f));
+                    altarCenter.getWorld().spawnParticle(Particle.END_ROD, curr, 3, 0.2, 0.2, 0.2, 0.02);
+                }
+
+                // Phase 3: Divine Slam Impact (tick 16) — Sword pins the ground!
                 if (!slammed && ticks >= 16) {
                     slammed = true;
                     player.setFallDistance(0);
+
+                    if (swordDisplay != null && swordDisplay.isValid()) {
+                        swordDisplay.teleport(altarCenter.clone().add(0, 0.2, 0));
+                    }
 
                     altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.75f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.BLOCK_ANVIL_LAND, 1.8f, 0.5f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 1.1f);
                     altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.5f, 1.2f);
 
-                    // No EXPLOSION_EMITTER — just totem+holy pillars
+                    // Totem + holy pillars
                     altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 180, 3.5, 0.8, 3.5, 0.35);
 
-                    // Rising holy light pillars (taller: 8 blocks)
+                    // Rising holy light pillars (8 blocks)
                     for (double y = 0; y <= 8.0; y += 0.4) {
                         altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 3, 0.2, 0.1, 0.2, 0.02);
                         altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(0, y, 0), 3, 0.15, 0.15, 0.15, 0, bladeGold);
@@ -322,11 +341,30 @@ public class Excalibur extends LegendaryWeapon {
                         e.setVelocity(new Vector(0, -0.3, 0)); // pin down, no fling
                     }
 
-                    player.sendMessage(Component.text("✦ Excalibur impales the altar! Enemies pinned & stunned for 3s!", NamedTextColor.GOLD));
-                    cancel();
+                    player.sendMessage(Component.text("✦ Excalibur impales the altar! Big holy sword pinning the location for 3s!", NamedTextColor.GOLD));
                 }
 
-                if (ticks > 40) {
+                // Phase 4: Big Sword Pinning the Location (ticks 17 - 76, 3 seconds duration)
+                if (ticks > 16 && ticks <= 76) {
+                    if (ticks % 4 == 0) {
+                        for (int d = 0; d < 360; d += 45) {
+                            double rad = Math.toRadians(d + (ticks * 8));
+                            altarCenter.getWorld().spawnParticle(Particle.DUST,
+                                    altarCenter.clone().add(Math.cos(rad) * 1.2, 0.2, Math.sin(rad) * 1.2),
+                                    1, 0, 0, 0, 0, ringYellow);
+                        }
+                        altarCenter.getWorld().spawnParticle(Particle.WAX_ON, altarCenter.clone().add(0, 0.8, 0), 2, 0.2, 0.4, 0.2, 0.02);
+                    }
+                }
+
+                // Altar pin ends after 3s (tick 76): Clean removal of ItemDisplay
+                if (ticks > 76) {
+                    if (swordDisplay != null && swordDisplay.isValid()) {
+                        swordDisplay.getWorld().spawnParticle(Particle.FLASH, swordDisplay.getLocation().add(0, 1.5, 0), 1);
+                        swordDisplay.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, swordDisplay.getLocation().add(0, 1.5, 0), 25, 0.5, 0.8, 0.5, 0.15);
+                        swordDisplay.getWorld().playSound(swordDisplay.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 1.4f);
+                        swordDisplay.remove();
+                    }
                     cancel();
                 }
             }

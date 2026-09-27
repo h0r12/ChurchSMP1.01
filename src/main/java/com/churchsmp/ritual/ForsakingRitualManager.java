@@ -514,8 +514,16 @@ public class ForsakingRitualManager implements Listener {
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));
         player.setFallDistance(0);
 
-        // Attune the player
-        plugin.getSinGemManager().attune(player, chosenGem);
+        // Force attune the player so attunement always updates
+        plugin.getSinGemManager().forceAttune(player, chosenGem);
+
+        // Give the player the physical Sin Gem item
+        ItemStack gemStack = plugin.getSinGemManager().createGemItem(chosenGem);
+        Map<Integer, ItemStack> leftover = player.getInventory().addItem(gemStack);
+        if (!leftover.isEmpty()) {
+            player.getWorld().dropItem(player.getLocation(), gemStack);
+        }
+        player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Granted your attuned Sin Gem") + ": </white></gold>").append(chosenGem.getFormattedName()));
 
         // Broadcast to all players on server
         Component broadcastMsg = miniMessage.deserialize("<gold>✦ <yellow>" + player.getName() + "</yellow> <gray>has completed the Forsaking Ritual and attuned to </gray></gold>")
