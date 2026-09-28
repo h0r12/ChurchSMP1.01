@@ -197,6 +197,24 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     default -> sender.sendMessage(Component.text("Unknown event type! Use bloodmoon, inquisition, or stop.", NamedTextColor.RED));
                 }
             }
+            case "purge" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(Component.text("Usage: /churchadmin purge <player|clear>", NamedTextColor.RED));
+                    return true;
+                }
+                if (args[1].equalsIgnoreCase("clear") || args[1].equalsIgnoreCase("stop") || args[1].equalsIgnoreCase("reset")) {
+                    plugin.getFinaleManager().clearPurge(sender instanceof Player p ? p : null);
+                    sender.sendMessage(Component.text("ChurchSMP Finale Purge cleared successfully.", NamedTextColor.GREEN));
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(Component.text("Player not found: " + args[1], NamedTextColor.RED));
+                    return true;
+                }
+                plugin.getFinaleManager().startPurge(target, false);
+                sender.sendMessage(Component.text("Initiated ChurchSMP Purge with " + target.getName() + " as the Juggernaut!", NamedTextColor.GOLD));
+            }
             case "reload" -> {
                 plugin.reloadConfig();
                 sender.sendMessage(Component.text("ChurchSMP config reloaded successfully!", NamedTextColor.GREEN));
@@ -220,6 +238,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("setalignment") + " <player> <alignment></bold></gold> <white>-</white> <gray>Sets player's alignment (GOOD, EVIL, NULLIFIED)</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giveweapon") + " <player> <weapon_id></bold></gold> <white>-</white> <gray>Spawns a legendary weapon</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("givegem") + " <player> <gem_name></bold></gold> <white>-</white> <gray>Spawns a Sin Relic gem</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("purge") + " <player|clear></bold></gold> <white>-</white> <gray>Initiates or clears the ChurchSMP Finale Purge</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("reload") + "</bold></gold> <white>-</white> <gray>Reloads configuration file</gray>"));
         sender.sendMessage(mm.deserialize("<gold>══════════════════════════════════════════</gold>"));
     }
@@ -227,11 +246,19 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            return filter(List.of("menu", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "reload", "help"), args[0]);
+            return filter(List.of("menu", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "purge", "reload", "help"), args[0]);
         }
         if (args.length == 2) {
             if (args[0].equalsIgnoreCase("event")) {
                 return filter(List.of("bloodmoon", "inquisition", "stop"), args[1]);
+            }
+            if (args[0].equalsIgnoreCase("purge")) {
+                List<String> options = new ArrayList<>();
+                options.add("clear");
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    options.add(p.getName());
+                }
+                return filter(options, args[1]);
             }
             return null; // suggest player names
         }

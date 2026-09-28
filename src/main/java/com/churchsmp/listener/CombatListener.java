@@ -54,6 +54,15 @@ public class CombatListener implements Listener {
         if (attacker == null) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
+        // Juggernaut knockback resistance perk
+        if (target instanceof Player targetPlayer && plugin.getFinaleManager() != null && plugin.getFinaleManager().isJuggernaut(targetPlayer.getUniqueId())) {
+            org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (targetPlayer.isOnline()) {
+                    targetPlayer.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
+                }
+            }, 1L);
+        }
+
         // Mirror of Shame: reflected outgoing damage
         if (plugin.getGemAbilityExecutor().isInsideShameChamber(attacker.getUniqueId())) {
             event.setCancelled(true);
@@ -257,10 +266,17 @@ public class CombatListener implements Listener {
         String deathMsg = null;
 
         if (killer != null) {
+            // Finale Purge & Bounty Purge kill handling
+            if (plugin.getFinaleManager() != null) {
+                plugin.getFinaleManager().onPlayerKill(killer, victim);
+            }
+
             ItemStack weaponItem = killer.getInventory().getItemInMainHand();
             LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(weaponItem);
 
-            if (weapon instanceof Sorrowess sorrowess) {
+            if (plugin.getFinaleManager() != null && plugin.getFinaleManager().isJuggernaut(killer.getUniqueId())) {
+                deathMsg = "<dark_red>☠</dark_red> <white>" + victim.getName() + "</white> <gray>was purified into a</gray> <white><bold>Lost Soul</bold></white> <gray>by the colossal might of the Juggernaut</gray> <red><bold>" + killer.getName() + "</bold></red>";
+            } else if (weapon instanceof Sorrowess sorrowess) {
                 if (sorrowess.hasGloom(victim)) {
                     deathMsg = "<dark_purple>☠</dark_purple> <white>" + victim.getName() + "</white> <gray>was shattered in the abyss by</gray> <gradient:#FFFFFF:#FF7F7F:#8B0000><bold>" + killer.getName() + "'s Sorrowess</bold></gradient> <dark_purple>[Gloom Shatter]</dark_purple>";
                 } else if (sorrowess.isBleedingOut(victim)) {

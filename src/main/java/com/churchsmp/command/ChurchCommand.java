@@ -42,6 +42,12 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // /church null or /null — toggles entry and exit from the Liminal Null Control Room
+        if (label.equalsIgnoreCase("null") || (args.length > 0 && (args[0].equalsIgnoreCase("null") || args[0].equalsIgnoreCase("liminalnull")))) {
+            plugin.getFinaleManager().toggleLiminalNull(player);
+            return true;
+        }
+
         // /church forsake or /forsake — triggers or recovers Forsaking ritual
         if (label.equalsIgnoreCase("forsake") || (args.length > 0 && args[0].equalsIgnoreCase("forsake"))) {
             if (plugin.getForsakingRitualManager().isInRitual(player)) {
@@ -97,29 +103,43 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         // Clear existing test clones first for clean side-by-side testing
         com.churchsmp.util.CloneUtil.clearTestClones(player);
 
+        boolean forceSkin = false;
+        for (String a : args) {
+            if (a.equalsIgnoreCase("skin") || a.equalsIgnoreCase("head") || a.equalsIgnoreCase("face")) {
+                forceSkin = true;
+            }
+        }
+
         Location loc = player.getLocation();
         Vector dir = loc.getDirection().setY(0).normalize();
         Vector right = new Vector(-dir.getZ(), 0, dir.getX()).normalize();
 
-        if (sub.equals("all")) {
+        String headModeNote = forceSkin
+                ? "<yellow>(Forced Player Skin Face Mode)</yellow>"
+                : (player.getInventory().getHelmet() != null && player.getInventory().getHelmet().getType() != Material.AIR
+                ? "<aqua>(Equipped Your Helmet)</aqua>"
+                : "<yellow>(Equipped Your Player Skin Face)</yellow>");
+
+        if (sub.equals("all") || sub.equals("skin")) {
             // Spawn all 3 side-by-side
             spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.LIVING_RIG,
                     loc.clone().add(dir.clone().multiply(3.5)).add(right.clone().multiply(-2.2)),
-                    miniMessage.deserialize("<aqua><bold>[Model A] Living Rig</bold></aqua>"));
+                    miniMessage.deserialize("<aqua><bold>[Model A] Living Rig</bold></aqua>"), forceSkin);
 
             spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.KINETIC,
                     loc.clone().add(dir.clone().multiply(3.5)),
-                    miniMessage.deserialize("<yellow><bold>[Model B] Kinetic Puppet</bold></yellow>"));
+                    miniMessage.deserialize("<yellow><bold>[Model B] Kinetic Puppet</bold></yellow>"), forceSkin);
 
             spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.SPECTRAL,
                     loc.clone().add(dir.clone().multiply(3.5)).add(right.clone().multiply(2.2)),
-                    miniMessage.deserialize("<light_purple><bold>[Model C] Spectral Mirage</bold></light_purple>"));
+                    miniMessage.deserialize("<light_purple><bold>[Model C] Spectral Mirage</bold></light_purple>"), forceSkin);
 
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
-            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Spawned 3 Human Doppelgängers Side-by-Side") + "</bold></yellow> ✦</gold>"));
+            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Spawned 3 Human Doppelgängers Side-by-Side") + "</bold></yellow> " + headModeNote + " ✦</gold>"));
             player.sendMessage(miniMessage.deserialize("<aqua>• Model A (Living Rig):</aqua> <gray>Invisible host + natural-posture human puppet. (No zombie arms!)</gray>"));
             player.sendMessage(miniMessage.deserialize("<yellow>• Model B (Kinetic Puppet):</yellow> <gray>Procedural walking animation & weapon swing physics.</gray>"));
             player.sendMessage(miniMessage.deserialize("<light_purple>• Model C (Spectral Mirage):</light_purple> <gray>Translucent sorrow/grief soul phantom.</gray>"));
+            player.sendMessage(miniMessage.deserialize("<gray>Tip: Type </gray><yellow>/church testclone all skin</yellow> <gray>to see skin face or </gray><yellow>/church testclone all</yellow> <gray>for helmet.</gray>"));
             player.sendMessage(miniMessage.deserialize("<gray>Type </gray><yellow>/church testclone clear</yellow> <gray>when done testing.</gray>"));
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
             return;
@@ -133,17 +153,18 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         };
 
         Location spawnLoc = loc.clone().add(dir.clone().multiply(3.0));
-        spawnSingleTestClone(player, chosen, spawnLoc, miniMessage.deserialize("<yellow><bold>[Test Doppelgänger]</bold></yellow>"));
-        player.sendMessage(miniMessage.deserialize("<gold>✦ [TEST CLONE] <green>" + TextUtil.toSmallCaps("Spawned " + chosen.name() + " Doppelgänger!") + "</green> <gray>(Use /church testclone clear to remove)</gray> ✦</gold>"));
+        spawnSingleTestClone(player, chosen, spawnLoc, miniMessage.deserialize("<yellow><bold>[Test Doppelgänger]</bold></yellow>"), forceSkin);
+        player.sendMessage(miniMessage.deserialize("<gold>✦ [TEST CLONE] <green>" + TextUtil.toSmallCaps("Spawned " + chosen.name() + " Doppelgänger!") + "</green> " + headModeNote + " <gray>(Use /church testclone clear to remove)</gray> ✦</gold>"));
     }
 
-    private void spawnSingleTestClone(Player player, com.churchsmp.util.CloneUtil.CloneModelType model, Location loc, Component name) {
+    private void spawnSingleTestClone(Player player, com.churchsmp.util.CloneUtil.CloneModelType model, Location loc, Component name, boolean forceSkin) {
         com.churchsmp.util.CloneUtil.CloneConfig cfg = new com.churchsmp.util.CloneUtil.CloneConfig();
         cfg.owner = player;
         cfg.location = loc;
         cfg.modelType = model;
         cfg.displayName = name;
         cfg.showNameTag = true;
+        cfg.forceSkinHead = forceSkin;
         cfg.durationTicks = 12000; // 10 minutes test lifespan
         cfg.followOwner = false; // Stand still for easy inspection
         cfg.attackDamage = 0.0; // Don't hurt the player during inspection
@@ -291,7 +312,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> sub = List.of("guide", "ritual", "reroll", "forsake", "testclone");
+            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "testclone");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
@@ -305,6 +326,16 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[1].toLowerCase())) {
+                    matches.add(s);
+                }
+            }
+            return matches;
+        }
+        if (args.length == 3 && (args[0].equalsIgnoreCase("testclone") || args[0].equalsIgnoreCase("clone"))) {
+            List<String> sub = List.of("skin", "helmet");
+            List<String> matches = new ArrayList<>();
+            for (String s : sub) {
+                if (s.toLowerCase().startsWith(args[2].toLowerCase())) {
                     matches.add(s);
                 }
             }

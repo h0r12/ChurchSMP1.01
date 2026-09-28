@@ -52,6 +52,12 @@ public class StunManager implements Listener {
     public void applyTrueStun(LivingEntity target, int durationTicks, String reason) {
         if (target == null || !target.isValid() || target.isDead()) return;
 
+        // Juggernaut Stun Immunity perk
+        if (plugin.getFinaleManager() != null && plugin.getFinaleManager().isJuggernaut(target.getUniqueId())) {
+            target.getWorld().playSound(target.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1.0f, 1.5f);
+            return;
+        }
+
         UUID id = target.getUniqueId();
         long expireTime = System.currentTimeMillis() + (durationTicks * 50L);
         stunnedUntil.put(id, expireTime);

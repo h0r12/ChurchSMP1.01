@@ -40,6 +40,7 @@ public class ChurchSMP extends JavaPlugin {
     private ChurchEventManager churchEventManager;
     private ForsakingRitualManager forsakingRitualManager;
     private com.churchsmp.effect.StunManager stunManager;
+    private com.churchsmp.finale.FinaleManager finaleManager;
 
     @Override
     public void onEnable() {
@@ -64,6 +65,7 @@ public class ChurchSMP extends JavaPlugin {
             this.churchEventManager = new ChurchEventManager(this);
             this.forsakingRitualManager = new ForsakingRitualManager(this);
             this.stunManager = new com.churchsmp.effect.StunManager(this);
+            this.finaleManager = new com.churchsmp.finale.FinaleManager(this);
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
@@ -78,6 +80,7 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(this.churchEventManager, this);
             Bukkit.getPluginManager().registerEvents(this.forsakingRitualManager, this);
             Bukkit.getPluginManager().registerEvents(this.stunManager, this);
+            Bukkit.getPluginManager().registerEvents(this.finaleManager, this);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -236,5 +239,9 @@ public class ChurchSMP extends JavaPlugin {
 
     public com.churchsmp.effect.StunManager getStunManager() {
         return stunManager;
+    }
+
+    public com.churchsmp.finale.FinaleManager getFinaleManager() {
+        return finaleManager;
     }
 }
