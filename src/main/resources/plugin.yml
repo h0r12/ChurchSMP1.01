@@ -15,6 +15,10 @@ commands:
     description: Preload items into offhand Relic slot for Greed
     usage: /<command>
     permission: churchsmp.use
+  forsake:
+    description: Initiate or reclaim your Forsaking Sin Gem
+    usage: /<command>
+    permission: churchsmp.use
   churchadmin:
     description: Administrative commands for ChurchSMP
     usage: /<command> [help|resetcooldown|setalignment|giveweapon|givegem|reload]

@@ -318,7 +318,7 @@ public class VoidBreaker extends LegendaryWeapon {
         // Fractured: Applies Fallen debuff + 2s stun
         if (Boolean.TRUE.equals(fracturedArmed.remove(attacker.getUniqueId()))) {
             plugin.getFallenManager().applyFallen(target);
-            target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 255)); // 2s stun
+            plugin.getStunManager().applyTrueStun(target, 40, "FRACTURED");
             attacker.sendMessage(Component.text("✦ Fractured strike landed! Target infected with Fallen!", NamedTextColor.DARK_PURPLE));
         }
     }

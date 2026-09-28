@@ -39,6 +39,7 @@ public class ChurchSMP extends JavaPlugin {
     private AlignmentListener alignmentListener;
     private ChurchEventManager churchEventManager;
     private ForsakingRitualManager forsakingRitualManager;
+    private com.churchsmp.effect.StunManager stunManager;
 
     @Override
     public void onEnable() {
@@ -62,6 +63,7 @@ public class ChurchSMP extends JavaPlugin {
             this.alignmentListener = new AlignmentListener(this);
             this.churchEventManager = new ChurchEventManager(this);
             this.forsakingRitualManager = new ForsakingRitualManager(this);
+            this.stunManager = new com.churchsmp.effect.StunManager(this);
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
@@ -75,6 +77,7 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(this.alignmentListener, this);
             Bukkit.getPluginManager().registerEvents(this.churchEventManager, this);
             Bukkit.getPluginManager().registerEvents(this.forsakingRitualManager, this);
+            Bukkit.getPluginManager().registerEvents(this.stunManager, this);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -121,6 +124,15 @@ public class ChurchSMP extends JavaPlugin {
                 };
                 fallbackRitual.setPermission("churchsmp.use");
                 commandMap.register("churchsmp", fallbackRitual);
+
+                org.bukkit.command.Command fallbackForsake = new org.bukkit.command.Command("forsake", "Initiate or reclaim your Forsaking Sin Gem", "/forsake", java.util.List.of()) {
+                    @Override
+                    public boolean execute(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String label, @org.jetbrains.annotations.NotNull String[] args) {
+                        return churchCommand.onCommand(sender, this, label, args);
+                    }
+                };
+                fallbackForsake.setPermission("churchsmp.use");
+                commandMap.register("churchsmp", fallbackForsake);
             } catch (Throwable t) {
                 getLogger().warning("Direct CommandMap registration notice: " + t.getMessage());
             }
@@ -136,6 +148,11 @@ public class ChurchSMP extends JavaPlugin {
                 if (r != null) {
                     r.setExecutor(churchCommand);
                     r.setTabCompleter(churchCommand);
+                }
+                var f = getCommand("forsake");
+                if (f != null) {
+                    f.setExecutor(churchCommand);
+                    f.setTabCompleter(churchCommand);
                 }
                 var ca = getCommand("churchadmin");
                 if (ca != null) {
@@ -215,5 +232,9 @@ public class ChurchSMP extends JavaPlugin {
 
     public ForsakingRitualManager getForsakingRitualManager() {
         return forsakingRitualManager;
+    }
+
+    public com.churchsmp.effect.StunManager getStunManager() {
+        return stunManager;
     }
 }

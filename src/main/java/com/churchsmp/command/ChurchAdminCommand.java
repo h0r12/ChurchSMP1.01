@@ -172,8 +172,8 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
                     return true;
                 }
-                plugin.getForsakingRitualManager().startRitual(target);
-                sender.sendMessage(Component.text("Initiated the Forsaking Ritual for " + target.getName() + "!", NamedTextColor.GREEN));
+                plugin.getForsakingRitualManager().resetAndStartRitual(target);
+                sender.sendMessage(Component.text("Reset and initiated the Forsaking Ritual for " + target.getName() + "!", NamedTextColor.GREEN));
             }
             case "event" -> {
                 if (args.length < 2) {

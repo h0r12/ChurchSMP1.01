@@ -120,22 +120,10 @@ public class InputListener implements Listener {
             return;
         }
 
-        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
-            String cdKey = sorrowess.getId() + "_riptide";
-            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
-                // If offhand item or gem is present, do NOT cancel event so offhand item/gem can be used
-                if (offHand == null || offHand.getType() == Material.AIR) {
-                    int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
-                    player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                            .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
-                    event.setCancelled(true);
-                    return;
-                }
-            } else {
-                event.setCancelled(true);
-                sorrowess.executeRiptide(player);
-                return;
-            }
+        if (weapon instanceof com.churchsmp.weapon.Sorrowess) {
+            // Sorrowess has no right-click attack or riptide hijack.
+            // Right-clicking cleanly allows using offhand shields or items!
+            return;
         }
 
         // 3. Check Sin Gem: Priority to mainHand; offHand gem only if mainHand is empty/non-usable or player sneaking

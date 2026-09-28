@@ -33,6 +33,7 @@ public class PlayerListener implements Listener {
 
     public PlayerListener(ChurchSMP plugin) {
         this.plugin = plugin;
+        startAlignmentPassivesTask();
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -233,6 +234,78 @@ public class PlayerListener implements Listener {
                 }
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPotionEffect(org.bukkit.event.entity.EntityPotionEffectEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+
+        // Dark Resilience: Depraved players (score <= -50) are immune to Darkness & Wither
+        if (plugin.getAlignmentManager().hasDarkResilience(player)) {
+            org.bukkit.potion.PotionEffectType type = event.getModifiedType();
+            if (type == org.bukkit.potion.PotionEffectType.DARKNESS || type == org.bukkit.potion.PotionEffectType.WITHER) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        // Holy Grace: Positive potion effects last up to 50% longer for Good players
+        if (event.getAction() == org.bukkit.event.entity.EntityPotionEffectEvent.Action.ADDED) {
+            org.bukkit.potion.PotionEffect effect = event.getNewEffect();
+            if (effect != null && plugin.getAlignmentManager().getAlignmentScore(player) > 0) {
+                double mult = plugin.getAlignmentManager().getPotionDurationMultiplier(player);
+                if (mult > 1.0) {
+                    org.bukkit.potion.PotionEffectType type = effect.getType();
+                    boolean isPositive = type == org.bukkit.potion.PotionEffectType.SPEED
+                            || type == org.bukkit.potion.PotionEffectType.HASTE
+                            || type == org.bukkit.potion.PotionEffectType.STRENGTH
+                            || type == org.bukkit.potion.PotionEffectType.REGENERATION
+                            || type == org.bukkit.potion.PotionEffectType.RESISTANCE
+                            || type == org.bukkit.potion.PotionEffectType.FIRE_RESISTANCE
+                            || type == org.bukkit.potion.PotionEffectType.WATER_BREATHING
+                            || type == org.bukkit.potion.PotionEffectType.INVISIBILITY
+                            || type == org.bukkit.potion.PotionEffectType.NIGHT_VISION
+                            || type == org.bukkit.potion.PotionEffectType.ABSORPTION;
+
+                    if (isPositive && effect.getDuration() < 72000) {
+                        int newDuration = (int) Math.round(effect.getDuration() * mult);
+                        org.bukkit.potion.PotionEffect extended = new org.bukkit.potion.PotionEffect(
+                                type, newDuration, effect.getAmplifier(), effect.isAmbient(), effect.hasParticles(), effect.hasIcon()
+                        );
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (player.isOnline()) {
+                                player.addPotionEffect(extended);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private void startAlignmentPassivesTask() {
+        org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+                if (!player.isValid() || player.isDead()) continue;
+
+                // Holy Radiance: Regeneration for score >= 50
+                if (plugin.getAlignmentManager().hasHolyRadiance(player)) {
+                    if (!player.hasPotionEffect(org.bukkit.potion.PotionEffectType.REGENERATION)) {
+                        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                                org.bukkit.potion.PotionEffectType.REGENERATION, 80, 0, false, false, true
+                        ));
+                    }
+                }
+                // Absolute Balance: +10% Speed for Neutral players (score == 0)
+                else if (plugin.getAlignmentManager().getAlignmentScore(player) == 0) {
+                    if (!player.hasPotionEffect(org.bukkit.potion.PotionEffectType.SPEED)) {
+                        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                                org.bukkit.potion.PotionEffectType.SPEED, 80, 0, false, false, true
+                        ));
+                    }
+                }
+            }
+        }, 40L, 40L);
     }
 }
 

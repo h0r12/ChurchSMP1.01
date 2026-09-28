@@ -175,8 +175,7 @@ public class Grim extends LegendaryWeapon {
                                 target.damage(8.0, player);
                                 target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 200, 0));
                                 // Stun target for halved the charge time (20 ticks = 1 second)
-                                target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, stunDurationTicks, 255));
-                                target.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, stunDurationTicks, 200));
+                                plugin.getStunManager().applyTrueStun(target, stunDurationTicks, "HOLLOWED STUN");
                                 failedActionTarget.put(target.getUniqueId(), System.currentTimeMillis() + 15000L);
                             }
                         }

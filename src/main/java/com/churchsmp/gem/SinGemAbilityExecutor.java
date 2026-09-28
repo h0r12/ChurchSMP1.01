@@ -464,8 +464,7 @@ public class SinGemAbilityExecutor {
                 if (ticks % 4 == 0) {
                     for (LivingEntity e : center.getWorld().getNearbyLivingEntities(center, 3.0)) {
                         if (e.equals(player)) continue;
-                        e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 255, false, false));
-                        e.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 40, 128, false, false));
+                        plugin.getStunManager().applyTrueStun(e, 40, "WRATH STUN");
                         e.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 60, 0, false, false));
                         e.damage(1.0, player); // 0.5 heart = 1.0 hp
                     }
@@ -931,12 +930,12 @@ public class SinGemAbilityExecutor {
                 z.getWorld().spawnParticle(Particle.BLOCK, z.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.AMETHYST_BLOCK.createBlockData());
             };
 
-            Zombie clone = CloneUtil.spawnRealisticClone(plugin, cfg);
+            LivingEntity clone = CloneUtil.spawnRealisticClone(plugin, cfg);
             if (clone != null) {
                 lustCloneIds.add(clone.getUniqueId());
                 cloneOwnerMap.put(clone.getUniqueId(), player.getUniqueId());
-                if (target != null) {
-                    clone.setTarget(target);
+                if (target != null && clone instanceof org.bukkit.entity.Mob mob) {
+                    mob.setTarget(target);
                 }
                 clone.getWorld().spawnParticle(Particle.HEART, clone.getLocation().add(0, 1.0, 0), 8, 0.3, 0.3, 0.3, 0.02);
             }

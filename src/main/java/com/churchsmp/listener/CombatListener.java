@@ -158,6 +158,21 @@ public class CombatListener implements Listener {
             }
         }
 
+        // Alignment Evil: Unholy melee bonus & Soul Leech
+        if (plugin.getAlignmentManager().getAlignmentScore(attacker) < 0) {
+            double unholyBonus = plugin.getAlignmentManager().getUnholyBonusDamage(attacker);
+            if (unholyBonus > 0) {
+                event.setDamage(event.getDamage() + unholyBonus);
+            }
+            if (plugin.getAlignmentManager().hasSoulLeech(attacker) && Math.random() < 0.20) {
+                double healAmount = Math.min(attacker.getMaxHealth(), attacker.getHealth() + 2.0);
+                attacker.setHealth(healAmount);
+                target.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 60, 0));
+                attacker.getWorld().spawnParticle(Particle.SOUL, attacker.getLocation().add(0, 1.0, 0), 6, 0.2, 0.3, 0.2, 0.02);
+                attacker.getWorld().playSound(attacker.getLocation(), Sound.ENTITY_WITHER_HURT, 0.6f, 1.8f);
+            }
+        }
+
         // Judas passives apply to attacker's attacks if they possess Judas
         LegendaryWeapon judasW = plugin.getWeaponManager().getWeapon("judas");
         if (judasW instanceof Judas judas && plugin.getWeaponManager().hasWeapon(attacker, "judas")) {
@@ -228,5 +243,55 @@ public class CombatListener implements Listener {
         }
 
         plugin.getGemAbilityExecutor().onPlayerKill(killer, event.getEntity());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Player victim = event.getEntity();
+        Player killer = victim.getKiller();
+
+        String deathMsg = null;
+
+        if (killer != null) {
+            ItemStack weaponItem = killer.getInventory().getItemInMainHand();
+            LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(weaponItem);
+
+            if (weapon instanceof Sorrowess sorrowess) {
+                if (sorrowess.hasGloom(victim)) {
+                    deathMsg = "<dark_purple>☠</dark_purple> <white>" + victim.getName() + "</white> <gray>was shattered in the abyss by</gray> <gradient:#FFFFFF:#FF7F7F:#8B0000><bold>" + killer.getName() + "'s Sorrowess</bold></gradient> <dark_purple>[Gloom Shatter]</dark_purple>";
+                } else if (sorrowess.isBleedingOut(victim)) {
+                    deathMsg = "<dark_red>☠</dark_red> <white>" + victim.getName() + "</white> <gray>bled to death from</gray> <gradient:#FFFFFF:#FF7F7F:#8B0000><bold>" + killer.getName() + "'s Sorrowess</bold></gradient> <red>[Bleedout]</red>";
+                } else {
+                    deathMsg = "<dark_purple>☠</dark_purple> <white>" + victim.getName() + "</white> <gray>was pierced by</gray> <gradient:#FFFFFF:#FF7F7F:#8B0000><bold>" + killer.getName() + "'s Sorrowess</bold></gradient>";
+                }
+            } else if (weapon instanceof Excalibur) {
+                deathMsg = "<gold>☠</gold> <white>" + victim.getName() + "</white> <gray>was smitten by the celestial fury of</gray> <gradient:#FFF8DC:#FFD700><bold>" + killer.getName() + "'s Excalibur</bold></gradient>";
+            } else if (weapon instanceof Grim) {
+                deathMsg = "<dark_gray>☠</dark_gray> <white>" + victim.getName() + "</white>'s <gray>soul was severed into eternity by</gray> <gradient:#8B0000:#2F4F4F><bold>" + killer.getName() + "'s Grim</bold></gradient>";
+            } else if (weapon instanceof VoidBreaker) {
+                deathMsg = "<dark_purple>☠</dark_purple> <white>" + victim.getName() + "</white> <gray>was fractured across the void by</gray> <gradient:#9400D3:#8A2BE2><bold>" + killer.getName() + "'s VoidBreaker</bold></gradient>";
+            } else if (weapon instanceof Mayim) {
+                deathMsg = "<aqua>☠</aqua> <white>" + victim.getName() + "</white> <gray>was frozen to the core by</gray> <gradient:#00FFFF:#1E90FF><bold>" + killer.getName() + "'s Mayim</bold></gradient>";
+            } else if (weapon instanceof Judas) {
+                deathMsg = "<red>☠</red> <white>" + victim.getName() + "</white> <gray>was betrayed and slaughtered by</gray> <gradient:#8B0000:#FF0000><bold>" + killer.getName() + "'s Judas</bold></gradient>";
+            } else if (weapon instanceof LuminescenceSpear) {
+                deathMsg = "<gold>☠</gold> <white>" + victim.getName() + "</white> <gray>was impaled by blinding celestial light from</gray> <gradient:#FFD700:#FFF8DC><bold>" + killer.getName() + "'s Luminescence Spear</bold></gradient>";
+            } else {
+                com.churchsmp.gem.SinGemType gem = plugin.getSinGemManager().getHeldGem(killer);
+                if (gem != null) {
+                    deathMsg = "<dark_red>☠</dark_red> <white>" + victim.getName() + "</white> <gray>succumbed to the unholy sin of</gray> <red><bold>" + gem.getDisplayName() + "</bold></red> <gray>invoked by</gray> <white>" + killer.getName() + "</white>";
+                }
+            }
+        } else {
+            // Environmental/ability death without direct killer
+            if (plugin.getFallenManager().isFallen(victim)) {
+                deathMsg = "<dark_purple>☠</dark_purple> <white>" + victim.getName() + "</white> <gray>collapsed under the terminal weight of the</gray> <dark_purple><bold>Fallen Debuff</bold></dark_purple>";
+            }
+        }
+
+        if (deathMsg != null) {
+            event.deathMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(deathMsg));
+            victim.getWorld().playSound(victim.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 0.8f, 0.7f);
+        }
     }
 }

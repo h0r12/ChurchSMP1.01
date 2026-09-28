@@ -203,8 +203,37 @@ public class SinGemManager {
 
         player.getInventory().setItemInMainHand(createGemItem(next));
         player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.2f);
-        player.sendMessage(Component.text("âœ¦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
+        player.sendMessage(Component.text("✦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
                 .append(next.getFormattedName()));
         return true;
     }
+
+    /**
+     * Checks if the player currently has any Sin Gem in their inventory.
+     */
+    public boolean hasGemInInventory(Player player) {
+        if (player == null) return false;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && getGemType(item) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Safely delivers a physical Sin Gem directly into the player's inventory,
+     * dropping any excess onto the ground if the inventory is full.
+     */
+    public void giveGemToPlayer(Player player, SinGemType gem) {
+        if (player == null || gem == null) return;
+        ItemStack stack = createGemItem(gem);
+        java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
+        if (!leftover.isEmpty()) {
+            for (ItemStack rem : leftover.values()) {
+                player.getWorld().dropItem(player.getLocation(), rem);
+            }
+        }
+    }
 }
+

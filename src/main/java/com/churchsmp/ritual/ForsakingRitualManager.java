@@ -74,6 +74,17 @@ public class ForsakingRitualManager implements Listener {
                     startRitual(player);
                 }
             }, 40L);
+        } else {
+            // Auto-recovery: if player completed forsaking in a previous bugged version without receiving their gem
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    SinGemType attuned = plugin.getSinGemManager().getAttunedGem(player);
+                    if (attuned != null && !plugin.getSinGemManager().hasGemInInventory(player)) {
+                        plugin.getSinGemManager().giveGemToPlayer(player, attuned);
+                        player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Restored your attuned Sin Gem") + ": </white></gold>").append(attuned.getFormattedName()));
+                    }
+                }
+            }, 30L);
         }
     }
 
@@ -150,7 +161,7 @@ public class ForsakingRitualManager implements Listener {
 
                 Item bestItem = null;
                 SinGemType bestGem = null;
-                double bestDot = 0.93; // tight targeting cone (~21 degrees)
+                double bestDot = 0.82; // Accessible targeting cone (~35 degrees)
 
                 for (int i = 0; i < session.items.size(); i++) {
                     Item it = session.items.get(i);
@@ -238,6 +249,15 @@ public class ForsakingRitualManager implements Listener {
             RitualSession session = activeRituals.get(player.getUniqueId());
             if (session != null) {
                 event.setCancelled(true);
+                int idx = session.items.indexOf(event.getEntity());
+                if (idx != -1) {
+                    SinGemType gem = session.gems.get(idx);
+                    Item it = session.items.get(idx);
+                    activeRituals.remove(player.getUniqueId());
+                    session.task.cancel();
+                    finishRitualChoice(player, session, gem, it);
+                    return;
+                }
                 handleSelectionAttempt(player, session);
             }
         }
@@ -249,16 +269,46 @@ public class ForsakingRitualManager implements Listener {
         RitualSession session = activeRituals.get(player.getUniqueId());
         if (session != null) {
             event.setCancelled(true);
+            int idx = session.items.indexOf(event.getRightClicked());
+            if (idx != -1) {
+                SinGemType gem = session.gems.get(idx);
+                Item it = session.items.get(idx);
+                activeRituals.remove(player.getUniqueId());
+                session.task.cancel();
+                finishRitualChoice(player, session, gem, it);
+                return;
+            }
             handleSelectionAttempt(player, session);
         }
     }
 
     private void handleSelectionAttempt(Player player, RitualSession session) {
-        if (session.focusedGem != null && session.focusedItem != null) {
+        SinGemType targetGem = session.focusedGem;
+        Item targetItem = session.focusedItem;
+
+        // If not directly focused via tight cone, check if any gem is in front of the player (cone > 0.65, ~50 degrees)
+        if (targetGem == null || targetItem == null) {
+            Location eye = player.getEyeLocation();
+            Vector lookDir = eye.getDirection().normalize();
+            double highestDot = 0.65;
+            for (int i = 0; i < session.items.size(); i++) {
+                Item it = session.items.get(i);
+                if (!it.isValid()) continue;
+                Vector toIt = it.getLocation().toVector().subtract(eye.toVector()).normalize();
+                double dot = lookDir.dot(toIt);
+                if (dot > highestDot) {
+                    highestDot = dot;
+                    targetItem = it;
+                    targetGem = session.gems.get(i);
+                }
+            }
+        }
+
+        if (targetGem != null && targetItem != null) {
             // Gem chosen!
             activeRituals.remove(player.getUniqueId());
             session.task.cancel();
-            finishRitualChoice(player, session, session.focusedGem, session.focusedItem);
+            finishRitualChoice(player, session, targetGem, targetItem);
         } else {
             // Not focused on any gem
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
@@ -282,12 +332,17 @@ public class ForsakingRitualManager implements Listener {
         // Tag as completed in PDC
         player.getPersistentDataContainer().set(forsakingKey, PersistentDataType.BOOLEAN, true);
 
+        // 1. Force attune and deliver the physical gem IMMEDIATELY so the player is 100% guaranteed their reward!
+        plugin.getSinGemManager().forceAttune(player, chosenGem);
+        plugin.getSinGemManager().giveGemToPlayer(player, chosenGem);
+        player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Granted your attuned Sin Gem") + ": </white></gold>").append(chosenGem.getFormattedName()));
+
         // Remove initial freeze effects
         player.removePotionEffect(PotionEffectType.SLOWNESS);
         player.removePotionEffect(PotionEffectType.SLOW_FALLING);
         player.removePotionEffect(PotionEffectType.GLOWING);
 
-        // 1. Float the player up into the air smoothly
+        // Float the player up into the air smoothly
         player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 75, 1, false, false, false));
 
         // 2. Resolve colors matching the chosen Sin
@@ -482,7 +537,7 @@ public class ForsakingRitualManager implements Listener {
         // Structured, directed climax: expanding ground disk & vertical beam of light
         Location pCenter = player.getLocation().add(0, 1.5, 0);
         player.getWorld().strikeLightningEffect(pCenter);
-        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 2, 0.1, 0.1, 0.1, 0);
+        player.getWorld().spawnParticle(Particle.FLASH, pCenter, 1, Color.WHITE);
 
         Particle.DustOptions sinDust = new Particle.DustOptions(sinColor, 2.0f);
         Particle.DustOptions accentDust = new Particle.DustOptions(accentColor, 1.6f);
@@ -514,16 +569,12 @@ public class ForsakingRitualManager implements Listener {
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));
         player.setFallDistance(0);
 
-        // Force attune the player so attunement always updates
+        // Ensure attunement and physical item delivery
         plugin.getSinGemManager().forceAttune(player, chosenGem);
-
-        // Give the player the physical Sin Gem item
-        ItemStack gemStack = plugin.getSinGemManager().createGemItem(chosenGem);
-        Map<Integer, ItemStack> leftover = player.getInventory().addItem(gemStack);
-        if (!leftover.isEmpty()) {
-            player.getWorld().dropItem(player.getLocation(), gemStack);
+        if (!plugin.getSinGemManager().hasGemInInventory(player)) {
+            plugin.getSinGemManager().giveGemToPlayer(player, chosenGem);
+            player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Granted your attuned Sin Gem") + ": </white></gold>").append(chosenGem.getFormattedName()));
         }
-        player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Granted your attuned Sin Gem") + ": </white></gold>").append(chosenGem.getFormattedName()));
 
         // Broadcast to all players on server
         Component broadcastMsg = miniMessage.deserialize("<gold>✦ <yellow>" + player.getName() + "</yellow> <gray>has completed the Forsaking Ritual and attuned to </gray></gold>")
@@ -546,6 +597,15 @@ public class ForsakingRitualManager implements Listener {
         player.sendMessage(Component.text("  You have permanently attuned your soul to this Relic Gem.", NamedTextColor.GRAY));
         player.sendMessage(miniMessage.deserialize("  <gray>Type <yellow>/church guide</yellow> <white>" + TextUtil.toSmallCaps("to view your abilities and passives!") + "</white></gray>"));
         player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+    }
+
+    public boolean isInRitual(Player player) {
+        return activeRituals.containsKey(player.getUniqueId());
+    }
+
+    public void resetAndStartRitual(Player player) {
+        player.getPersistentDataContainer().remove(forsakingKey);
+        startRitual(player);
     }
 
     @EventHandler

@@ -331,14 +331,12 @@ public class Excalibur extends LegendaryWeapon {
                         }.runTaskLater(plugin, wave * 2L);
                     }
 
-                    // Slam: 2.5 hearts (5.0 HP) + 3s stun/pin — NO upward velocity
+                    // Slam: 2.5 hearts (5.0 HP) + 3s stun/pin — Mid-air freeze and pin
                     for (LivingEntity e : altarCenter.getWorld().getNearbyLivingEntities(altarCenter, 9.0, 5.0, 9.0)) {
                         if (e.equals(player)) continue;
                         applyTrueDamage(e, 5.0, player); // 2.5 hearts
-                        e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 255, false, false));
-                        e.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 60, 128, false, false));
+                        plugin.getStunManager().applyTrueStun(e, 60, "ALTAR PINNED");
                         e.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
-                        e.setVelocity(new Vector(0, -0.3, 0)); // pin down, no fling
                     }
 
                     player.sendMessage(Component.text("✦ Excalibur impales the altar! Big holy sword pinning the location for 3s!", NamedTextColor.GOLD));
@@ -360,7 +358,7 @@ public class Excalibur extends LegendaryWeapon {
                 // Altar pin ends after 3s (tick 76): Clean removal of ItemDisplay
                 if (ticks > 76) {
                     if (swordDisplay != null && swordDisplay.isValid()) {
-                        swordDisplay.getWorld().spawnParticle(Particle.FLASH, swordDisplay.getLocation().add(0, 1.5, 0), 1);
+                        swordDisplay.getWorld().spawnParticle(Particle.FLASH, swordDisplay.getLocation().add(0, 1.5, 0), 1, Color.WHITE);
                         swordDisplay.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, swordDisplay.getLocation().add(0, 1.5, 0), 25, 0.5, 0.8, 0.5, 0.15);
                         swordDisplay.getWorld().playSound(swordDisplay.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 1.4f);
                         swordDisplay.remove();

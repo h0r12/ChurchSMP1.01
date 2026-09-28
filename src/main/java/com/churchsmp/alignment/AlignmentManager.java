@@ -140,4 +140,34 @@ public class AlignmentManager {
         if (score <= 0) return 0.0;
         return (score / 100.0) * 6.0; // Up to 6.0 bonus damage (3 hearts)
     }
+
+    /**
+     * Bonus unholy melee damage for depraved/evil players (-1 to -100).
+     */
+    public double getUnholyBonusDamage(Player player) {
+        int score = getAlignmentScore(player);
+        if (score >= 0) return 0.0;
+        return Math.abs(score / 100.0) * 4.5; // Up to +4.5 damage (2.25 hearts)
+    }
+
+    /**
+     * Soul Leech: Evil players with score <= -30 have a chance to leech health on melee hit.
+     */
+    public boolean hasSoulLeech(Player player) {
+        return getAlignmentScore(player) <= -30;
+    }
+
+    /**
+     * Dark Resilience: Evil players with score <= -50 are immune to Darkness and Wither debuffs.
+     */
+    public boolean hasDarkResilience(Player player) {
+        return getAlignmentScore(player) <= -50;
+    }
+
+    /**
+     * Holy Radiance: Good players with score >= 50 possess passive natural regeneration.
+     */
+    public boolean hasHolyRadiance(Player player) {
+        return getAlignmentScore(player) >= 50;
+    }
 }

@@ -52,28 +52,15 @@ public class Sorrowess extends LegendaryWeapon {
     // PDC key to identify Sorrowess clones
     private final NamespacedKey cloneKey;
 
-    // Gloom tracking: stacks per hit (10% armor reduction per stack up to 30%) lasting for 20s
+    // Gloom tracking: triggers on 5 crits or Bleedout (25% armor reduction) lasting for strictly 15s
     public static class GloomData {
         private final UUID victimId;
-        private int stacks = 1;
-        private double reductionPercent = 0.10;
-        private long expireTime;
+        private final double reductionPercent = 0.25; // Flat 25% armor reduction
+        private final long expireTime;
 
         public GloomData(UUID victimId) {
             this.victimId = victimId;
-            this.stacks = 1;
-            this.reductionPercent = 0.10;
-            this.expireTime = System.currentTimeMillis() + 20000L;
-        }
-
-        public void addStack() {
-            this.stacks = Math.min(3, this.stacks + 1);
-            this.reductionPercent = this.stacks * 0.10;
-            this.expireTime = System.currentTimeMillis() + 20000L;
-        }
-
-        public int getStacks() {
-            return stacks;
+            this.expireTime = System.currentTimeMillis() + 15000L; // 15 seconds
         }
 
         public double getReductionPercent() {
@@ -89,6 +76,7 @@ public class Sorrowess extends LegendaryWeapon {
         }
     }
 
+    private final java.util.Set<UUID> activeBleedout = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Integer> critHitCounters = new ConcurrentHashMap<>();
     private final Map<UUID, GloomData> activeGloom = new ConcurrentHashMap<>();
     private final NamespacedKey gloomArmorKey;
@@ -116,7 +104,6 @@ public class Sorrowess extends LegendaryWeapon {
             meta.lore(buildCleanLore(List.of("Forming", "Brave", "Gloom"), "Grief Shards", "Bloody Rain"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
-            meta.addEnchant(Enchantment.RIPTIDE, 7, true);
 
             // Netherite Sword Sharpness 7 damage (12.0 attribute bonus = 13.0 total attack damage)
             NamespacedKey dmgKey = new NamespacedKey(plugin, "sorrowess_damage");
@@ -223,6 +210,10 @@ public class Sorrowess extends LegendaryWeapon {
     }
 
     private void startBleedout(LivingEntity target, Player attacker) {
+        if (target == null || !target.isValid()) return;
+        UUID victimId = target.getUniqueId();
+        activeBleedout.add(victimId);
+
         if (target instanceof Player tp) {
             tp.sendMessage(Component.text("⚔ You are hemorrhaging from Bleedout!", NamedTextColor.RED));
         }
@@ -237,16 +228,21 @@ public class Sorrowess extends LegendaryWeapon {
             public void run() {
                 ticks++;
                 if (!target.isValid() || ticks > 4) {
+                    activeBleedout.remove(victimId);
                     cancel();
                     return;
                 }
-                // Bleedout reduced: 0.25 HP per tick for 4 ticks (1.0 HP = 0.5 hearts total)
+                // Bleedout: 0.25 HP per tick for 4 ticks (1.0 HP = 0.5 hearts total)
                 target.damage(0.25, attacker);
                 Location loc = target.getLocation().add(0, 1.0, 0);
                 target.getWorld().spawnParticle(Particle.DUST, loc, 6, 0.2, 0.3, 0.2, 0, bloodDust);
                 target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 1);
             }
         }.runTaskTimer(plugin, 15L, 15L);
+    }
+
+    public boolean isBleedingOut(LivingEntity target) {
+        return target != null && activeBleedout.contains(target.getUniqueId());
     }
 
     @Override
@@ -416,7 +412,7 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.location = loc;
         cfg.displayName = null;
         cfg.showNameTag = false;
-        cfg.hasArms = false;
+        cfg.hasArms = true;
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
         cfg.durationTicks = 400;
@@ -436,7 +432,7 @@ public class Sorrowess extends LegendaryWeapon {
         };
         cfg.onDespawn = z -> cloneList.remove(z);
 
-        org.bukkit.entity.Zombie clone = CloneUtil.spawnRealisticClone(plugin, cfg);
+        org.bukkit.entity.LivingEntity clone = CloneUtil.spawnRealisticClone(plugin, cfg);
         if (clone != null) {
             cloneList.add(clone);
         }
@@ -571,25 +567,40 @@ public class Sorrowess extends LegendaryWeapon {
     }
 
     public void handleCritHit(Player attacker, LivingEntity target) {
-        // Visual crit feedback with Sorrowess particles (onHit applies Gloom once)
+        if (target == null || !target.isValid()) return;
+
+        // Visual crit feedback with Sorrowess soul flame
         target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
+
+        // If target already has active gloom, no need to count
+        if (hasGloom(target)) {
+            return;
+        }
+
+        int crits = critHitCounters.getOrDefault(target.getUniqueId(), 0) + 1;
+        if (crits >= 5) {
+            critHitCounters.remove(target.getUniqueId());
+            applyGloom(attacker, target);
+        } else {
+            critHitCounters.put(target.getUniqueId(), crits);
+            attacker.sendActionBar(miniMessage.deserialize("<dark_purple>✦ Sorrowess Crit: <white>" + crits + "/5</white> <gray>(Gloom at 5)</gray> ✦</dark_purple>"));
+            attacker.playSound(attacker.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.8f, 1.4f + (crits * 0.1f));
+        }
     }
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
-        applyGloom(attacker, target);
+        // Bleedout when holding sorrowess inflicts Gloom immediately!
+        if (isBleedingOut(target) && !hasGloom(target)) {
+            applyGloom(attacker, target);
+        }
     }
 
     public void applyGloom(Player attacker, LivingEntity target) {
         UUID victimId = target.getUniqueId();
-        GloomData gloom = activeGloom.get(victimId);
-        boolean isNew = (gloom == null || gloom.isExpired());
-        if (isNew) {
-            gloom = new GloomData(victimId);
-            activeGloom.put(victimId, gloom);
-        } else {
-            gloom.addStack();
-        }
+        GloomData gloom = new GloomData(victimId);
+        activeGloom.put(victimId, gloom);
+        critHitCounters.remove(victimId);
 
         applyGloomArmorModifier(target, gloom.getReductionPercent());
 
@@ -642,9 +653,9 @@ public class Sorrowess extends LegendaryWeapon {
         }
 
         int pct = (int) (gloom.getReductionPercent() * 100);
-        attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] " + TextUtil.toSmallCaps("Gloom Stack (" + gloom.getStacks() + "/3) on ") + "<white>" + target.getName() + "</white>! " + TextUtil.toSmallCaps("Armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(20s).") + " ✦</dark_purple>"));
+        attacker.sendMessage(miniMessage.deserialize("<dark_purple>✦ [GLOOM] <white>" + target.getName() + "</white> " + TextUtil.toSmallCaps("is overwhelmed by Gloom! Armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(15s).") + " ✦</dark_purple>"));
         if (target instanceof Player victimPlayer) {
-            victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(20s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
+            victimPlayer.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ [GLOOM] " + TextUtil.toSmallCaps("Your armor fractured into sorrow! Total armor reduced by") + " <red>" + pct + "%</red> " + TextUtil.toSmallCaps("(15s) & durability crumbling faster!") + " ✦</bold></dark_purple>"));
         }
     }
 

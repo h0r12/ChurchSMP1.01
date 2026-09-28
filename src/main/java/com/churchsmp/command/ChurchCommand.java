@@ -40,8 +40,34 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // /church forsake or /forsake — triggers or recovers Forsaking ritual
+        if (label.equalsIgnoreCase("forsake") || (args.length > 0 && args[0].equalsIgnoreCase("forsake"))) {
+            if (plugin.getForsakingRitualManager().isInRitual(player)) {
+                player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow>" + TextUtil.toSmallCaps("You are currently in the Forsaking Ritual! Aim at a gem and click.") + "</yellow> ✦</gold>"));
+                return true;
+            }
+            if (plugin.getSinGemManager().isAttuned(player)) {
+                SinGemType attuned = plugin.getSinGemManager().getAttunedGem(player);
+                if (!plugin.getSinGemManager().hasGemInInventory(player)) {
+                    plugin.getSinGemManager().giveGemToPlayer(player, attuned);
+                    player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <white>" + TextUtil.toSmallCaps("Restored your attuned Sin Gem") + ": </white></gold>").append(attuned.getFormattedName()));
+                } else {
+                    player.sendMessage(miniMessage.deserialize("<gold>✦ [FORSAKING] <gray>" + TextUtil.toSmallCaps("You are already attuned to") + " </gray></gold>").append(attuned.getFormattedName()));
+                }
+                return true;
+            }
+            plugin.getForsakingRitualManager().startRitual(player);
+            return true;
+        }
+
         if (args.length > 0 && args[0].equalsIgnoreCase("reroll")) {
             plugin.getSinGemManager().rerollGemInHand(player);
+            return true;
+        }
+
+        // /church testclone <living_rig|kinetic|spectral|all|clear>
+        if (args.length > 0 && (args[0].equalsIgnoreCase("testclone") || args[0].equalsIgnoreCase("clone"))) {
+            handleTestCloneCommand(player, args);
             return true;
         }
 
@@ -55,6 +81,75 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         // Default: show gem guide directly
         showPlayerGemGuide(player, null);
         return true;
+    }
+
+    private void handleTestCloneCommand(Player player, String[] args) {
+        String sub = (args.length > 1) ? args[1].toLowerCase(java.util.Locale.ROOT) : "all";
+
+        if (sub.equals("clear") || sub.equals("remove") || sub.equals("despawn")) {
+            com.churchsmp.util.CloneUtil.clearTestClones(player);
+            player.sendMessage(miniMessage.deserialize("<gold>✦ [TEST CLONE] <green>" + TextUtil.toSmallCaps("All test doppelgängers cleared!") + "</green> ✦</gold>"));
+            return;
+        }
+
+        // Clear existing test clones first for clean side-by-side testing
+        com.churchsmp.util.CloneUtil.clearTestClones(player);
+
+        Location loc = player.getLocation();
+        Vector dir = loc.getDirection().setY(0).normalize();
+        Vector right = new Vector(-dir.getZ(), 0, dir.getX()).normalize();
+
+        if (sub.equals("all")) {
+            // Spawn all 3 side-by-side
+            spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.LIVING_RIG,
+                    loc.clone().add(dir.clone().multiply(3.5)).add(right.clone().multiply(-2.2)),
+                    miniMessage.deserialize("<aqua><bold>[Model A] Living Rig</bold></aqua>"));
+
+            spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.KINETIC,
+                    loc.clone().add(dir.clone().multiply(3.5)),
+                    miniMessage.deserialize("<yellow><bold>[Model B] Kinetic Puppet</bold></yellow>"));
+
+            spawnSingleTestClone(player, com.churchsmp.util.CloneUtil.CloneModelType.SPECTRAL,
+                    loc.clone().add(dir.clone().multiply(3.5)).add(right.clone().multiply(2.2)),
+                    miniMessage.deserialize("<light_purple><bold>[Model C] Spectral Mirage</bold></light_purple>"));
+
+            player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Spawned 3 Human Doppelgängers Side-by-Side") + "</bold></yellow> ✦</gold>"));
+            player.sendMessage(miniMessage.deserialize("<aqua>• Model A (Living Rig):</aqua> <gray>Invisible host + natural-posture human puppet. (No zombie arms!)</gray>"));
+            player.sendMessage(miniMessage.deserialize("<yellow>• Model B (Kinetic Puppet):</yellow> <gray>Procedural walking animation & weapon swing physics.</gray>"));
+            player.sendMessage(miniMessage.deserialize("<light_purple>• Model C (Spectral Mirage):</light_purple> <gray>Translucent sorrow/grief soul phantom.</gray>"));
+            player.sendMessage(miniMessage.deserialize("<gray>Type </gray><yellow>/church testclone clear</yellow> <gray>when done testing.</gray>"));
+            player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+            return;
+        }
+
+        com.churchsmp.util.CloneUtil.CloneModelType chosen = switch (sub) {
+            case "living_rig", "living", "rig", "a" -> com.churchsmp.util.CloneUtil.CloneModelType.LIVING_RIG;
+            case "kinetic", "puppet", "b" -> com.churchsmp.util.CloneUtil.CloneModelType.KINETIC;
+            case "spectral", "ghost", "c" -> com.churchsmp.util.CloneUtil.CloneModelType.SPECTRAL;
+            default -> com.churchsmp.util.CloneUtil.CloneModelType.LIVING_RIG;
+        };
+
+        Location spawnLoc = loc.clone().add(dir.clone().multiply(3.0));
+        spawnSingleTestClone(player, chosen, spawnLoc, miniMessage.deserialize("<yellow><bold>[Test Doppelgänger]</bold></yellow>"));
+        player.sendMessage(miniMessage.deserialize("<gold>✦ [TEST CLONE] <green>" + TextUtil.toSmallCaps("Spawned " + chosen.name() + " Doppelgänger!") + "</green> <gray>(Use /church testclone clear to remove)</gray> ✦</gold>"));
+    }
+
+    private void spawnSingleTestClone(Player player, com.churchsmp.util.CloneUtil.CloneModelType model, Location loc, Component name) {
+        com.churchsmp.util.CloneUtil.CloneConfig cfg = new com.churchsmp.util.CloneUtil.CloneConfig();
+        cfg.owner = player;
+        cfg.location = loc;
+        cfg.modelType = model;
+        cfg.displayName = name;
+        cfg.showNameTag = true;
+        cfg.durationTicks = 12000; // 10 minutes test lifespan
+        cfg.followOwner = false; // Stand still for easy inspection
+        cfg.attackDamage = 0.0; // Don't hurt the player during inspection
+
+        org.bukkit.entity.LivingEntity clone = com.churchsmp.util.CloneUtil.spawnRealisticClone(plugin, cfg);
+        if (clone != null) {
+            com.churchsmp.util.CloneUtil.registerTestClone(player, clone);
+        }
     }
 
     private void showPlayerGemGuide(Player player, String requestedGem) {
@@ -194,10 +289,20 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> sub = List.of("guide", "ritual", "reroll");
+            List<String> sub = List.of("guide", "ritual", "reroll", "forsake", "testclone");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
+                    matches.add(s);
+                }
+            }
+            return matches;
+        }
+        if (args.length == 2 && (args[0].equalsIgnoreCase("testclone") || args[0].equalsIgnoreCase("clone"))) {
+            List<String> sub = List.of("all", "living_rig", "kinetic", "spectral", "clear");
+            List<String> matches = new ArrayList<>();
+            for (String s : sub) {
+                if (s.toLowerCase().startsWith(args[1].toLowerCase())) {
                     matches.add(s);
                 }
             }
