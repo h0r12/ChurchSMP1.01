@@ -1,15 +1,18 @@
 package com.churchsmp.listener;
 
 import com.churchsmp.ChurchSMP;
+import com.churchsmp.weapon.Excalibur;
 import com.churchsmp.weapon.Grim;
 import com.churchsmp.weapon.Judas;
 import com.churchsmp.weapon.LegendaryWeapon;
 import com.churchsmp.weapon.LuminescenceSpear;
+import com.churchsmp.weapon.Mayim;
 import com.churchsmp.weapon.Sorrowess;
 import com.churchsmp.weapon.VoidBreaker;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Phantom;
@@ -26,6 +29,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.Random;
