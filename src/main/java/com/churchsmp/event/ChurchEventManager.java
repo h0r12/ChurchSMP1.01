@@ -289,4 +289,6 @@ public class ChurchEventManager implements Listener {
     }
 
     public EventType getCurrentEvent() { return currentEvent; }
+
+    public boolean isEventActive() { return currentEvent != EventType.NONE; }
 }

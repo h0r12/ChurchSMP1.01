@@ -349,7 +349,7 @@ public class FinaleManager implements Listener {
 
             if (hadGem) {
                 p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 1, 0), 40, 0.5, 0.5, 0.5, new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 1.5f));
-                p.getWorld().spawnParticle(Particle.ITEM_CRACK, p.getLocation().add(0, 1, 0), 25, 0.4, 0.4, 0.4, new ItemStack(sin.getIconMaterial()));
+                p.getWorld().spawnParticle(Particle.BLOCK, p.getLocation().add(0, 1, 0), 25, 0.4, 0.4, 0.4, sin.getIconMaterial().createBlockData());
                 p.sendMessage(miniMessage.deserialize("<dark_red>⚡ The " + sin.getDisplayName() + " Gem inside your inventory cracked and dissolved into dust!</dark_red>"));
             }
         }
