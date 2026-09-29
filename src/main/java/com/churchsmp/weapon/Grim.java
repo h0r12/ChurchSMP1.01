@@ -554,7 +554,7 @@ public class Grim extends LegendaryWeapon {
                 }
 
                 // Chain link trail
-                player.getWorld().spawnParticle(Particle.ITEM, player.getLocation(), 4, 0.2, 0.2, 0.2, 0.02, new ItemStack(Material.CHAIN));
+                player.getWorld().spawnParticle(Particle.ITEM, player.getLocation(), 4, 0.2, 0.2, 0.2, 0.02, new ItemStack(Material.IRON_BARS));
                 player.getWorld().spawnParticle(Particle.DUST, player.getLocation(), 4, 0.2, 0.2, 0.2, 0, new Particle.DustOptions(Color.fromRGB(20, 20, 20), 1.8f));
 
                 // Check ground impact
