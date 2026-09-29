@@ -126,6 +126,17 @@ public class InputListener implements Listener {
             return;
         }
 
+        // VoidBreaker: RMB detonates armed shockwave (crumble 5/5)
+        if (weapon instanceof com.churchsmp.weapon.VoidBreaker vb) {
+            if (vb.hasShockwaveArmed(player)) {
+                event.setCancelled(true);
+                vb.detonateShockwave(player);
+                return;
+            }
+            // VoidBreaker has no other right-click action
+            return;
+        }
+
         // 3. Check Sin Gem: Priority to mainHand; offHand gem only if mainHand is empty/non-usable or player sneaking
         SinGemType mainHandGem = plugin.getSinGemManager().getGemType(mainHand);
         SinGemType offHandGem = plugin.getSinGemManager().getGemType(offHand);

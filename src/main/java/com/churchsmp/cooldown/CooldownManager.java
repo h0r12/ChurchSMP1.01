@@ -95,6 +95,16 @@ public class CooldownManager {
     }
 
     /**
+     * Resets a specific cooldown for a player.
+     */
+    public void resetCooldown(Player player, String abilityKey) {
+        Map<String, Long> userCooldowns = cooldowns.get(player.getUniqueId());
+        if (userCooldowns != null) {
+            userCooldowns.remove(abilityKey);
+        }
+    }
+
+    /**
      * Resets all cooldowns for a player.
      */
     public void resetAllCooldowns(Player player) {

@@ -31,18 +31,23 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Grim extends LegendaryWeapon {
 
     private final NamespacedKey killCountKey;
-    private final Map<UUID, Integer> darkParticleHearts = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> hollowedOutArmed = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean> darkParticleArmed = new ConcurrentHashMap<>();
     private final Map<UUID, Long> failedActionTarget = new ConcurrentHashMap<>();
+    private final Map<UUID, List<LivingEntity>> airVariantMarked = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> airVariantMarkExpire = new ConcurrentHashMap<>();
+    private final Set<UUID> isDivingAirVariant = ConcurrentHashMap.newKeySet();
+    private final net.kyori.adventure.text.minimessage.MiniMessage miniMessage = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage();
 
     public Grim(ChurchSMP plugin) {
         super(plugin,
@@ -315,29 +320,326 @@ public class Grim extends LegendaryWeapon {
 
     @Override
     public boolean executeSecondary(Player player) {
+        UUID uuid = player.getUniqueId();
+
+        // 1. Air Variant "Press Again" Followup: Inflict Voidbreaker's Fallen status effect
+        if (airVariantMarked.containsKey(uuid)) {
+            Long expire = airVariantMarkExpire.get(uuid);
+            if (expire != null && System.currentTimeMillis() <= expire) {
+                List<LivingEntity> targets = airVariantMarked.remove(uuid);
+                airVariantMarkExpire.remove(uuid);
+
+                if (targets != null && !targets.isEmpty()) {
+                    int count = 0;
+                    for (LivingEntity t : targets) {
+                        if (t != null && t.isValid() && !t.isDead()) {
+                            plugin.getFallenManager().applyFallen(t);
+                            t.getWorld().playSound(t.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.4f, 0.6f);
+                            t.getWorld().playSound(t.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.2f, 0.8f);
+                            t.getWorld().spawnParticle(Particle.LARGE_SMOKE, t.getLocation().add(0, 1.0, 0), 20, 0.4, 0.5, 0.4, 0.05);
+                            t.getWorld().spawnParticle(Particle.SOUL, t.getLocation().add(0, 1.0, 0), 15, 0.3, 0.4, 0.3, 0.03);
+                            count++;
+                        }
+                    }
+
+                    player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 1.4f);
+                    player.sendMessage(miniMessage.deserialize("<dark_purple>✦ [AIR VARIANT] Inflicted Voidbreaker's Fallen status effect on " + count + " stunned enemies!</dark_purple>"));
+                    return true;
+                }
+            } else {
+                airVariantMarked.remove(uuid);
+                airVariantMarkExpire.remove(uuid);
+            }
+        }
+
+        // 2. Normal Secondary Activation (Cooldown check)
         String key = id + "_secondary";
         if (plugin.getCooldownManager().isOnCooldown(player, key)) return false;
 
-        int cd = plugin.getConfig().getInt("weapons.grim.secondary_cooldown", 80);
+        // Choose variant based on player state: Air vs Ground
+        if (!player.isOnGround()) {
+            return executeAirVariant(player, key);
+        } else {
+            return executeGroundVariant(player, key);
+        }
+    }
+
+    /**
+     * Ground Variant:
+     * Summons a dark Gravity Vortex at target location.
+     * Pulls enemies toward the center.
+     * Inner 3-block field: Slowness III and -1 HP (0.5 heart) per second.
+     * Climax: If N players/entities are trapped, fires 3 * N homing dark projectiles!
+     */
+    private boolean executeGroundVariant(Player player, String key) {
+        int cd = plugin.getConfig().getInt("weapons.grim.secondary_cooldown", 35);
         plugin.getCooldownManager().setCooldown(player, key, cd);
-        plugin.getCooldownManager().setActiveDuration(player, key, 25);
-        plugin.getBossBarManager().showActiveCountdown(player, "Dark Particle Surge", BossBar.Color.PURPLE, 25);
+        plugin.getBossBarManager().showActiveCountdown(player, "Dark Particle: Gravity Vortex", BossBar.Color.PURPLE, 5);
 
-        darkParticleArmed.put(player.getUniqueId(), true);
-        darkParticleHearts.put(player.getUniqueId(), 0);
+        Location spawnLoc = player.getLocation().add(player.getLocation().getDirection().setY(0).normalize().multiply(3.5));
+        spawnLoc.setY(player.getWorld().getHighestBlockYAt(spawnLoc) + 1.0);
 
-        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 1.2f, 1.2f);
+        player.getWorld().playSound(spawnLoc, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.5f, 0.5f);
+        player.getWorld().playSound(spawnLoc, Sound.ENTITY_WITHER_AMBIENT, 1.2f, 0.6f);
+        player.sendMessage(miniMessage.deserialize("<dark_purple>✦ Dark Particle [Ground Variant]: Summoned Gravity Vortex! ✦</dark_purple>"));
 
-        // Dark red aura pulse from player
-        Location pLoc = player.getLocation();
-        Particle.DustOptions darkRed = new Particle.DustOptions(Color.fromRGB(120, 0, 20), 1.8f);
-        for (int d = 0; d < 360; d += 20) {
-            double rad = Math.toRadians(d);
-            pLoc.getWorld().spawnParticle(Particle.DUST, pLoc.clone().add(Math.cos(rad) * 1.5, 0.2, Math.sin(rad) * 1.5), 1, 0, 0, 0, 0, darkRed);
+        Set<LivingEntity> trappedEntities = Collections.synchronizedSet(new HashSet<>());
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            final int maxTicks = 80; // 4 seconds duration
+            final Particle.DustOptions blackHoleDust = new Particle.DustOptions(Color.fromRGB(15, 15, 15), 2.5f);
+            final Particle.DustOptions ringDust = new Particle.DustOptions(Color.fromRGB(80, 0, 30), 1.6f);
+
+            @Override
+            public void run() {
+                ticks += 2;
+
+                // Central Black Hole Orb visual
+                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 12, 0.4, 0.4, 0.4, 0, blackHoleDust);
+                spawnLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, spawnLoc, 6, 0.3, 0.3, 0.3, 0.02);
+                spawnLoc.getWorld().spawnParticle(Particle.SOUL, spawnLoc, 4, 0.2, 0.2, 0.2, 0.02);
+
+                // 3-Block Ring on the ground
+                for (int d = 0; d < 360; d += 20) {
+                    double rad = Math.toRadians(d);
+                    Location ringPoint = spawnLoc.clone().add(Math.cos(rad) * 3.0, 0.15, Math.sin(rad) * 3.0);
+                    spawnLoc.getWorld().spawnParticle(Particle.DUST, ringPoint, 1, 0, 0, 0, 0, ringDust);
+                }
+
+                // Ambient hum
+                if (ticks % 20 == 0) {
+                    spawnLoc.getWorld().playSound(spawnLoc, Sound.BLOCK_RESPAWN_ANCHOR_AMBIENT, 1.0f, 0.7f);
+                }
+
+                // Gravitational pull & 3-block damage/slowness
+                for (LivingEntity e : spawnLoc.getWorld().getNearbyLivingEntities(spawnLoc, 7.0)) {
+                    if (e.equals(player)) continue;
+
+                    // Pull toward vortex center
+                    Vector pull = spawnLoc.toVector().subtract(e.getLocation().toVector());
+                    double dist = pull.length();
+                    if (dist > 0.8) {
+                        Vector vel = pull.normalize().multiply(0.38);
+                        e.setVelocity(e.getVelocity().add(vel));
+                    }
+
+                    // Inside 3-block ring
+                    if (dist <= 3.2) {
+                        trappedEntities.add(e);
+                        e.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, 2, false, false));
+
+                        // -1 HP (0.5 heart = 1.0 damage) every second (20 ticks)
+                        if (ticks % 20 == 0) {
+                            e.damage(1.0, player);
+                            e.getWorld().playSound(e.getLocation(), Sound.ENTITY_PHANTOM_BITE, 0.6f, 1.5f);
+                            e.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, e.getLocation().add(0, 1.0, 0), 2, 0.2, 0.2, 0.2, 0.05);
+                        }
+                    }
+                }
+
+                // Vortex climax: fire 3x projectiles per trapped player!
+                if (ticks >= maxTicks) {
+                    cancel();
+
+                    List<LivingEntity> validTargets = new ArrayList<>();
+                    for (LivingEntity e : trappedEntities) {
+                        if (e != null && e.isValid() && !e.isDead() && e.getWorld().equals(spawnLoc.getWorld()) && e.getLocation().distance(spawnLoc) <= 12.0) {
+                            validTargets.add(e);
+                        }
+                    }
+
+                    int count = validTargets.size();
+                    if (count > 0) {
+                        int totalProjectiles = count * 3;
+                        player.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#8B0000><bold>✦ GRAVITY VORTEX UNLEASHES " + totalProjectiles + " DARK PROJECTILES! (" + count + " trapped) ✦</bold></gradient>"));
+                        spawnLoc.getWorld().playSound(spawnLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.2f, 1.6f);
+
+                        // Fire projectiles at targets
+                        fireVortexProjectiles(player, spawnLoc, validTargets, totalProjectiles);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+
+        return true;
+    }
+
+    private void fireVortexProjectiles(Player player, Location origin, List<LivingEntity> targets, int totalProjectiles) {
+        new BukkitRunnable() {
+            int fired = 0;
+
+            @Override
+            public void run() {
+                if (fired >= totalProjectiles || targets.isEmpty()) {
+                    cancel();
+                    return;
+                }
+
+                LivingEntity target = targets.get(fired % targets.size());
+                fired++;
+
+                launchSingleDarkProjectile(player, origin.clone().add(0, 0.5, 0), target);
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    private void launchSingleDarkProjectile(Player player, Location start, LivingEntity target) {
+        new BukkitRunnable() {
+            Location curr = start.clone();
+            int steps = 0;
+            final Particle.DustOptions projDust = new Particle.DustOptions(Color.fromRGB(20, 0, 40), 1.8f);
+
+            @Override
+            public void run() {
+                steps++;
+                if (!target.isValid() || target.isDead() || steps > 40) {
+                    cancel();
+                    return;
+                }
+
+                Vector dir = target.getEyeLocation().toVector().subtract(curr.toVector()).normalize().multiply(1.2);
+                curr.add(dir);
+
+                // Projectile visual trail
+                curr.getWorld().spawnParticle(Particle.DUST, curr, 3, 0.1, 0.1, 0.1, 0, projDust);
+                curr.getWorld().spawnParticle(Particle.SOUL, curr, 1, 0.05, 0.05, 0.05, 0.01);
+                curr.getWorld().spawnParticle(Particle.SMOKE, curr, 2, 0.05, 0.05, 0.05, 0.01);
+
+                if (curr.distanceSquared(target.getEyeLocation()) <= 2.25) {
+                    cancel();
+                    target.damage(3.0, player);
+                    target.getWorld().playSound(target.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.2f, 1.4f);
+                    target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1.0, 0), 10, 0.3, 0.4, 0.3, 0.05);
+                    target.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, target.getLocation().add(0, 1.0, 0), 4, 0.2, 0.2, 0.2, 0.05);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * Air Variant:
+     * Chains/dives downward with high velocity.
+     * Ground impact creates concentric shockwaves, blows back enemies, deals 6 HP (3 hearts),
+     * and inflicts True Stun for 2s.
+     * Marks hit targets ready for Fallen: pressing Secondary again within 4s inflicts Voidbreaker's Fallen!
+     * Cooldown Reset: If at least 1 hit player is under 4 hearts (<= 8.0 HP), resets cooldown immediately!
+     */
+    private boolean executeAirVariant(Player player, String key) {
+        int cd = plugin.getConfig().getInt("weapons.grim.secondary_cooldown", 35);
+        plugin.getCooldownManager().setCooldown(player, key, cd);
+
+        isDivingAirVariant.add(player.getUniqueId());
+
+        // Dive downward with high velocity
+        Vector aim = player.getLocation().getDirection();
+        Vector dive = aim.clone().setY(0).normalize().multiply(1.2).setY(-1.8);
+        player.setVelocity(dive);
+
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_CHAIN_PLACE, 1.5f, 0.7f);
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_2, 1.2f, 0.6f);
+        player.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#9400D3><bold>✦ Dark Particle [Air Variant]: CHAIN DIVE SLAM! ✦</bold></gradient>"));
+
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                ticks++;
+
+                if (!player.isOnline() || ticks > 40) {
+                    isDivingAirVariant.remove(player.getUniqueId());
+                    cancel();
+                    return;
+                }
+
+                // Chain link trail
+                player.getWorld().spawnParticle(Particle.ITEM, player.getLocation(), 4, 0.2, 0.2, 0.2, 0.02, new ItemStack(Material.CHAIN));
+                player.getWorld().spawnParticle(Particle.DUST, player.getLocation(), 4, 0.2, 0.2, 0.2, 0, new Particle.DustOptions(Color.fromRGB(20, 20, 20), 1.8f));
+
+                // Check ground impact
+                if (player.isOnGround() || (ticks > 5 && player.getVelocity().getY() >= -0.1)) {
+                    isDivingAirVariant.remove(player.getUniqueId());
+                    cancel();
+                    triggerAirSlamImpact(player, key);
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+
+        return true;
+    }
+
+    private void triggerAirSlamImpact(Player player, String key) {
+        Location impact = player.getLocation();
+
+        // Audio
+        impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 0.6f);
+        impact.getWorld().playSound(impact, Sound.BLOCK_ANVIL_LAND, 1.5f, 0.5f);
+        impact.getWorld().playSound(impact, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.2f, 1.4f);
+
+        // Concentric shockwave rings (expanding outward from 1.0 to 5.0 blocks)
+        Particle.DustOptions darkDust = new Particle.DustOptions(Color.fromRGB(25, 25, 25), 2.2f);
+        Particle.DustOptions crimsonDust = new Particle.DustOptions(Color.fromRGB(139, 0, 0), 1.8f);
+
+        for (double r = 1.0; r <= 5.0; r += 0.8) {
+            for (int d = 0; d < 360; d += 15) {
+                double rad = Math.toRadians(d);
+                Location p = impact.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
+                impact.getWorld().spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 3.0) ? crimsonDust : darkDust);
+            }
+        }
+        impact.getWorld().spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 40, 1.5, 0.4, 1.5, 0.1, Material.OBSIDIAN.createBlockData());
+
+        List<LivingEntity> hitTargets = new ArrayList<>();
+        boolean lowHealthHit = false;
+
+        for (LivingEntity e : impact.getWorld().getNearbyLivingEntities(impact, 5.0)) {
+            if (e.equals(player)) continue;
+
+            // Damage
+            e.damage(6.0, player); // 3 hearts
+
+            // Knockback
+            Vector kb = e.getLocation().toVector().subtract(impact.toVector()).normalize().multiply(1.2).setY(0.45);
+            e.setVelocity(kb);
+
+            // True Stun for 40 ticks (2 seconds)
+            plugin.getStunManager().applyTrueStun(e, 40, "Dark Particle Air Slam");
+
+            // Tag as ready for Fallen
+            hitTargets.add(e);
+
+            // Execution reset condition: hit at least 1 person under 4 hearts (<= 8.0 HP)
+            if (e.getHealth() <= 8.0) {
+                lowHealthHit = true;
+            }
         }
 
-        player.sendMessage(Component.text("✦ Dark Particle active (25s)! Attacks grant bonus max health and Sharpness X!", NamedTextColor.DARK_RED));
-        return true;
+        // Execution Cooldown Reset!
+        if (lowHealthHit) {
+            plugin.getCooldownManager().resetCooldown(player, key);
+            player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1.4f);
+            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.2f, 1.8f);
+            player.sendMessage(miniMessage.deserialize("<gold>✦ [GRIM EXECUTION] <dark_red><bold>Hit low-health prey (< 4 hearts)! Dark Particle Cooldown RESET!</bold></dark_red> ✦</gold>"));
+        }
+
+        // Mark for "Press again" Fallen infliction
+        if (!hitTargets.isEmpty()) {
+            airVariantMarked.put(player.getUniqueId(), hitTargets);
+            airVariantMarkExpire.put(player.getUniqueId(), System.currentTimeMillis() + 4000L); // 4 seconds
+
+            player.sendActionBar(miniMessage.deserialize("<gradient:#4B0082:#9400D3><bold>✦ PRESS SECONDARY AGAIN TO INFLICT FALLEN! ✦</bold></gradient>"));
+            player.sendMessage(miniMessage.deserialize("<light_purple>✦ Stunned " + hitTargets.size() + " enemies! Press Secondary again within 4s to inflict Voidbreaker's Fallen!</light_purple>"));
+
+            // Schedule mark expiry cleanup after 4 seconds
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    airVariantMarked.remove(player.getUniqueId());
+                    airVariantMarkExpire.remove(player.getUniqueId());
+                }
+            }.runTaskLater(plugin, 80L);
+        }
     }
 
     @Override
@@ -357,45 +659,14 @@ public class Grim extends LegendaryWeapon {
             target.sendMessage(Component.text("⚔ Your actions have a 40% chance to fail for 15s from HollowedOut!", NamedTextColor.DARK_PURPLE));
             attacker.sendMessage(Component.text("✦ HollowedOut curse planted on " + target.getName() + "!", NamedTextColor.DARK_PURPLE));
         }
-
-        // Dark Particle execution: +1 max health per hit, orbiting soul sand
-        String key = id + "_secondary";
-        if (plugin.getCooldownManager().isActive(attacker, key)) {
-            int bonus = darkParticleHearts.getOrDefault(attacker.getUniqueId(), 0) + 1;
-            darkParticleHearts.put(attacker.getUniqueId(), bonus);
-
-            AttributeInstance attr = attacker.getAttribute(Attribute.MAX_HEALTH);
-            if (attr != null) {
-                attr.setBaseValue(Math.min(40.0, attr.getBaseValue() + 2.0)); // +1 heart (2 HP)
-            }
-
-            // Orbiting soul sand and dark red particles
-            Location loc = attacker.getLocation().add(0, 1.0, 0);
-            loc.getWorld().spawnParticle(Particle.SOUL, loc, 15, 0.5, 0.5, 0.5, 0.05);
-            Particle.DustOptions darkRed = new Particle.DustOptions(Color.fromRGB(150, 10, 30), 1.5f);
-            for (int d = 0; d < 360; d += 30) {
-                double rad = Math.toRadians(d);
-                loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(Math.cos(rad) * 1.0, 0, Math.sin(rad) * 1.0), 1, 0, 0, 0, 0, darkRed);
-            }
-
-            attacker.sendMessage(Component.text("✦ Dark Particle: +1 Max Heart! (Total bonus: " + bonus + " hearts)", NamedTextColor.DARK_RED));
-        }
     }
 
     @Override
     public void onDamaged(Player victim, EntityDamageEvent event) {
-        // Dark Particle: resets bonus hearts if attacked
-        Integer bonus = darkParticleHearts.remove(victim.getUniqueId());
-        if (bonus != null && bonus > 0) {
-            AttributeInstance attr = victim.getAttribute(Attribute.MAX_HEALTH);
-            if (attr != null) {
-                attr.setBaseValue(Math.max(20.0, attr.getBaseValue() - (bonus * 2.0)));
-            }
-            Location loc = victim.getLocation().add(0, 1.0, 0);
-            loc.getWorld().playSound(loc, Sound.BLOCK_GLASS_BREAK, 1.5f, 0.7f);
-            loc.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 10, 0.4, 0.4, 0.4, 0.1);
-            loc.getWorld().spawnParticle(Particle.SOUL, loc, 12, 0.5, 0.5, 0.5, 0.08);
-            victim.sendMessage(Component.text("✦ Dark Particle hearts shattered by damage!", NamedTextColor.RED));
+        // Cancel fall damage if diving during Air Variant
+        if (isDivingAirVariant.contains(victim.getUniqueId()) && event.getCause() == EntityDamageEvent.DamageCause.FALL) {
+            event.setCancelled(true);
+            return;
         }
     }
 

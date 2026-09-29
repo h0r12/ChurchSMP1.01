@@ -77,6 +77,7 @@ public class PlayerListener implements Listener {
             player.setFlying(false);
             player.setAllowFlight(false);
             vb.handleDoubleJump(player);
+            // Flight is re-enabled inside handleDoubleJump via reEnableFlightDelayed()
         }
     }
 
@@ -88,9 +89,9 @@ public class PlayerListener implements Listener {
         ItemStack item = player.getInventory().getItemInMainHand();
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
 
-        // Allow flight in air if holding Voidbreaker so double jump triggers
+        // Allow flight whenever holding Voidbreaker so double jump triggers mid-air
         if (weapon instanceof VoidBreaker) {
-            if (player.isOnGround()) {
+            if (!player.getAllowFlight()) {
                 player.setAllowFlight(true);
             }
         }
