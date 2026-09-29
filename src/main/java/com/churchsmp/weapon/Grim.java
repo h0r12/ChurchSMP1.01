@@ -507,8 +507,6 @@ public class Grim extends LegendaryWeapon {
                 }
             }
         }.runTaskTimer(plugin, 0L, 2L);
-
-        return true;
     }
 
     private void fireVortexProjectiles(Player player, Location origin, List<LivingEntity> targets, int totalProjectiles) {
