@@ -121,8 +121,11 @@ public class InputListener implements Listener {
         }
 
         if (weapon instanceof com.churchsmp.weapon.Sorrowess) {
-            // Sorrowess has no right-click attack or riptide hijack.
-            // Right-clicking cleanly allows using offhand shields or items!
+            if (offHand.getType() == Material.SHIELD) {
+                // Cancel main-hand interaction so the offhand shield can block
+                event.setCancelled(true);
+            }
+            // If no shield, allow vanilla Trident charge -> ProjectileLaunchEvent -> Riptide dash
             return;
         }
 
@@ -178,20 +181,16 @@ public class InputListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerRiptide(org.bukkit.event.player.PlayerRiptideEvent event) {
-        Player player = event.getPlayer();
-        ItemStack item = event.getItem();
-        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
-        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
-            String cdKey = sorrowess.getId() + "_riptide";
-            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
-                player.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
-                int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
-                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
-            } else {
-                plugin.getCooldownManager().setCooldown(player, cdKey, 15);
-                plugin.getBossBarManager().showPassiveCooldown(player, weapon, "Riptide", 15);
+    public void onProjectileLaunch(org.bukkit.event.entity.ProjectileLaunchEvent event) {
+        if (event.getEntity() instanceof org.bukkit.entity.Trident trident) {
+            if (trident.getShooter() instanceof Player player) {
+                ItemStack item = trident.getItem();
+                LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
+                if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+                    event.setCancelled(true);
+                    // Instead of throwing, trigger the custom Riptide dash!
+                    sorrowess.executeRiptide(player);
+                }
             }
         }
     }

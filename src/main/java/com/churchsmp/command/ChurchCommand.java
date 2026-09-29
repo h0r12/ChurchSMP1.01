@@ -178,6 +178,8 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
 
     private void showPlayerGemGuide(Player player, String requestedGem) {
         SinGemType gem = null;
+        com.churchsmp.weapon.LegendaryWeapon requestedWeapon = null;
+
         if (requestedGem != null) {
             try {
                 gem = SinGemType.valueOf(requestedGem.toUpperCase(java.util.Locale.ROOT));
@@ -189,6 +191,22 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
                     }
                 }
             }
+            if (gem == null) {
+                requestedWeapon = plugin.getWeaponManager().getWeapon(requestedGem);
+            }
+        }
+
+        if (requestedWeapon != null) {
+            player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+            player.sendMessage(miniMessage.deserialize("<gold>✦ <bold>" + TextUtil.toSmallCaps("Legendary Weapon") + ":</bold> </gold><white>" + requestedWeapon.getId() + "</white>"));
+            org.bukkit.inventory.ItemStack dummy = requestedWeapon.createItem();
+            if (dummy != null && dummy.hasItemMeta() && dummy.getItemMeta().hasLore()) {
+                for (Component line : dummy.getItemMeta().lore()) {
+                    player.sendMessage(line);
+                }
+            }
+            player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+            return;
         }
 
         if (gem == null) {
@@ -199,16 +217,28 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             gem = plugin.getSinGemManager().getHeldGem(player);
         }
 
-        if (gem == null) {
+        if (gem == null && requestedGem == null) {
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
-            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Sin Gem Guide Directory") + "</bold></yellow> ✦</gold>"));
-            player.sendMessage(miniMessage.deserialize("<gray>You are not attuned to any Sin Gem yet, but you can read any guide:</gray>"));
+            player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("ChurchSMP Guide Directory") + "</bold></yellow> ✦</gold>"));
+            
+            player.sendMessage(miniMessage.deserialize("<dark_red><bold>Sin Gems</bold></dark_red>"));
             for (SinGemType type : SinGemType.values()) {
                 player.sendMessage(miniMessage.deserialize("  <gold>•</gold> ").append(type.getFormattedName())
-                        .append(miniMessage.deserialize(" <gray>— Type </gray><yellow>/church guide " + type.name().toLowerCase() + "</yellow>")));
+                        .append(miniMessage.deserialize(" <gray>— /church guide " + type.name().toLowerCase() + "</gray>")));
             }
-            player.sendMessage(miniMessage.deserialize("<gray><i>Tip: Complete the Forsaking Ritual or right-click an unattuned Sin Gem to attune.</i></gray>"));
+            
+            player.sendMessage(miniMessage.deserialize("<aqua><bold>Legendary Weapons</bold></aqua>"));
+            for (com.churchsmp.weapon.LegendaryWeapon w : plugin.getWeaponManager().getAllWeapons()) {
+                player.sendMessage(miniMessage.deserialize("  <aqua>• " + w.getId() + "</aqua> <gray>— /church guide " + w.getId().toLowerCase() + "</gray>"));
+            }
+            
+            player.sendMessage(miniMessage.deserialize("<gray><i>Tip: Type /church guide [name] to read about a specific item.</i></gray>"));
             player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+            return;
+        }
+
+        if (gem == null) {
+            player.sendMessage(miniMessage.deserialize("<red>Could not find a guide for '" + requestedGem + "'. Type /church guide to see the directory.</red>"));
             return;
         }
 

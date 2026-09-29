@@ -130,6 +130,110 @@ public class FinaleManager implements Listener {
     }
 
     /* -------------------------------------------------------------
+     * PHYSICAL ALTAR & CONTROL ROOM GENERATION
+     * ------------------------------------------------------------- */
+
+    public void spawnAltar(Location loc) {
+        World w = loc.getWorld();
+        int cx = loc.getBlockX();
+        int cy = loc.getBlockY();
+        int cz = loc.getBlockZ();
+
+        // Build a 3x3 base
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) {
+                w.getBlockAt(cx + x, cy - 1, cz + z).setType(Material.CRYING_OBSIDIAN);
+            }
+        }
+        // Center pillar
+        w.getBlockAt(cx, cy, cz).setType(Material.LODESTONE);
+        w.getBlockAt(cx, cy + 1, cz).setType(Material.DRAGON_EGG);
+
+        // Spawn some particles to mark it
+        new BukkitRunnable() {
+            int ticks = 0;
+            @Override
+            public void run() {
+                if (ticks++ > 1200) cancel(); // runs for 1 minute
+                w.spawnParticle(Particle.PORTAL, cx + 0.5, cy + 1.5, cz + 0.5, 10, 0.5, 0.5, 0.5, 0.1);
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    private Location controlRoomLocation = null;
+
+    public void teleportToPhysicalControlRoom(Player player) {
+        if (controlRoomLocation == null) {
+            World w = Bukkit.getWorlds().get(0);
+            int cx = 10000;
+            int cy = 250;
+            int cz = 10000;
+
+            // Generate 11x7x11 Bedrock Room
+            for (int x = -5; x <= 5; x++) {
+                for (int y = 0; y <= 6; y++) {
+                    for (int z = -5; z <= 5; z++) {
+                        if (y == 0 || y == 6 || x == -5 || x == 5 || z == -5 || z == 5) {
+                            w.getBlockAt(cx + x, cy + y, cz + z).setType(Material.BEDROCK);
+                        } else {
+                            w.getBlockAt(cx + x, cy + y, cz + z).setType(Material.AIR);
+                        }
+                    }
+                }
+            }
+
+            // Decorate inside
+            w.getBlockAt(cx, cy, cz).setType(Material.CRYING_OBSIDIAN); // Center floor
+            w.getBlockAt(cx, cy + 1, cz).setType(Material.END_CRYSTAL); // Visual center (will be entity later or just leave block)
+            w.getBlockAt(cx, cy + 6, cz).setType(Material.GLOWSTONE);
+
+            // Place Buttons on the North Wall (z = -4)
+            placeControlButton(w, cx - 2, cy + 2, cz - 4, "Armor Tier", "Cycles Max Armor");
+            placeControlButton(w, cx - 1, cy + 2, cz - 4, "Potion Cap", "Cycles Max Potion");
+            placeControlButton(w, cx, cy + 2, cz - 4, "Toggle Event", "Start/Stop Events");
+            placeControlButton(w, cx + 1, cy + 2, cz - 4, "Revive All", "Utopia Decree");
+            placeControlButton(w, cx + 2, cy + 2, cz - 4, "Great Reset", "End the World");
+
+            // More Configs on East Wall (x = 4)
+            placeControlButton(w, cx + 4, cy + 2, cz - 2, "Natural Regen", "Toggle On/Off");
+            placeControlButton(w, cx + 4, cy + 2, cz, "Time Lock", "Toggle Night/Day");
+            placeControlButton(w, cx + 4, cy + 2, cz + 2, "Keep Inventory", "Toggle On/Off");
+
+            controlRoomLocation = new Location(w, cx + 0.5, cy + 1, cz + 3.5, 180, 0); // Face North
+        }
+
+        player.teleport(controlRoomLocation);
+        player.setGameMode(GameMode.ADVENTURE);
+        player.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ WELCOME TO THE LIMINAL NULL ✦</bold></dark_purple>"));
+        player.sendMessage(miniMessage.deserialize("<gray>Use the buttons on the walls to rewrite the laws of the universe.</gray>"));
+    }
+
+    private void placeControlButton(World w, int x, int y, int z, String title, String sub) {
+        org.bukkit.block.Block block = w.getBlockAt(x, y, z);
+        block.setType(Material.WARPED_BUTTON);
+        if (block.getBlockData() instanceof org.bukkit.block.data.type.Switch btn) {
+            // Facing out from wall
+            if (z == 10000 - 4) btn.setFacing(org.bukkit.block.BlockFace.SOUTH);
+            else if (x == 10000 + 4) btn.setFacing(org.bukkit.block.BlockFace.WEST);
+            block.setBlockData(btn);
+        }
+
+        // Place sign above button
+        org.bukkit.block.Block signBlock = w.getBlockAt(x, y + 1, z);
+        signBlock.setType(Material.WARPED_WALL_SIGN);
+        if (signBlock.getBlockData() instanceof org.bukkit.block.data.type.WallSign signData) {
+            if (z == 10000 - 4) signData.setFacing(org.bukkit.block.BlockFace.SOUTH);
+            else if (x == 10000 + 4) signData.setFacing(org.bukkit.block.BlockFace.WEST);
+            signBlock.setBlockData(signData);
+        }
+
+        org.bukkit.block.Sign sign = (org.bukkit.block.Sign) signBlock.getState();
+        sign.line(0, Component.text("[ " + title + " ]", NamedTextColor.GOLD, TextDecoration.BOLD));
+        sign.line(1, Component.text(sub, NamedTextColor.GRAY));
+        sign.update();
+    }
+
+    /* -------------------------------------------------------------
      * PURGE ACTIVATION & TERMINATION
      * ------------------------------------------------------------- */
 
@@ -423,41 +527,10 @@ public class FinaleManager implements Listener {
      * LIMINAL NULL & CONTROL ROOM CONSOLE
      * ------------------------------------------------------------- */
 
-    public Location getLiminalNullPlatform() {
-        World world = Bukkit.getWorlds().get(0);
-        for (World w : Bukkit.getWorlds()) {
-            if (w.getEnvironment() == World.Environment.THE_END) {
-                world = w;
-                break;
-            }
-        }
-
-        Location center = new Location(world, 0.5, 180.0, 0.5);
-
-        // Generate clean circular void control platform if not present
-        if (center.clone().subtract(0, 1, 0).getBlock().getType() != Material.CRYING_OBSIDIAN) {
-            int radius = 6;
-            for (int x = -radius; x <= radius; x++) {
-                for (int z = -radius; z <= radius; z++) {
-                    if (x * x + z * z <= radius * radius) {
-                        Material mat = (x * x + z * z <= 3) ? Material.PURPUR_BLOCK : Material.CRYING_OBSIDIAN;
-                        center.clone().add(x, -1, z).getBlock().setType(mat);
-                        center.clone().add(x, 0, z).getBlock().setType(Material.AIR);
-                        center.clone().add(x, 1, z).getBlock().setType(Material.AIR);
-                        center.clone().add(x, 2, z).getBlock().setType(Material.AIR);
-                    }
-                }
-            }
-            center.clone().subtract(0, 1, 0).getBlock().setType(Material.BEACON);
-        }
-
-        return center;
-    }
-
     public boolean isInLiminalNull(Player player) {
         Location loc = player.getLocation();
-        Location nullLoc = getLiminalNullPlatform();
-        return loc.getWorld().equals(nullLoc.getWorld()) && loc.distanceSquared(nullLoc) < 400;
+        if (controlRoomLocation == null) return false;
+        return loc.getWorld().equals(controlRoomLocation.getWorld()) && loc.distanceSquared(controlRoomLocation) < 1000;
     }
 
     /**
@@ -476,24 +549,16 @@ public class FinaleManager implements Listener {
                 prev = Bukkit.getWorlds().get(0).getSpawnLocation();
             }
             player.teleport(prev);
+            player.setGameMode(GameMode.SURVIVAL);
             player.playSound(player.getLocation(), Sound.BLOCK_PORTAL_TRAVEL, 1.0f, 1.2f);
             player.sendMessage(miniMessage.deserialize("<yellow>✦ Returned from the Liminal Null to physical reality.</yellow>"));
         } else {
             // Teleport into Liminal Null
             previousLocations.put(player.getUniqueId(), player.getLocation());
-            Location target = getLiminalNullPlatform();
-            player.teleport(target);
             player.playSound(player.getLocation(), Sound.BLOCK_END_PORTAL_SPAWN, 1.0f, 1.0f);
-            player.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#00CED1><bold>✦ Welcome to the Liminal Null Control Room. ✦</bold></gradient>"));
-            player.sendMessage(miniMessage.deserialize("<gray>Opening master control console...</gray>"));
-            openControlRoomGUI(player);
+            teleportToPhysicalControlRoom(player);
         }
     }
-
-    /**
-     * Opens the 27-slot Liminal Null Master Control Room GUI.
-     */
-    public void openControlRoomGUI(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text("LIMINAL NULL CONTROL ROOM", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD));
 
         // Background filler glass
@@ -838,56 +903,81 @@ public class FinaleManager implements Listener {
     }
 
     @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
+    public void onPlayerInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        org.bukkit.block.Block clicked = event.getClickedBlock();
+        if (clicked == null) return;
 
-        // Check if clicking inside Liminal Null Control Room GUI
-        if (event.getView().title().equals(Component.text("LIMINAL NULL CONTROL ROOM", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD))) {
-            event.setCancelled(true);
-
-            if (!isJuggernaut(player.getUniqueId()) && !player.hasPermission("churchsmp.admin")) {
-                player.closeInventory();
+        // 1. Check for Altar interaction (Dragon Egg on Lodestone with Crying Obsidian)
+        if (clicked.getType() == Material.DRAGON_EGG) {
+            org.bukkit.block.Block below = clicked.getLocation().subtract(0, 1, 0).getBlock();
+            if (below.getType() == Material.LODESTONE) {
+                event.setCancelled(true); // Don't teleport the egg
+                if (!isPurgeActive()) {
+                    plugin.getFinaleManager().startPurge(player, false);
+                    Bukkit.broadcast(miniMessage.deserialize("<gold><bold>✦ THE ALTAR HAS BEEN CLAIMED ✦</bold></gold>"));
+                    Bukkit.broadcast(miniMessage.deserialize("<gray>" + player.getName() + " has become the Juggernaut!</gray>"));
+                } else {
+                    player.sendMessage(miniMessage.deserialize("<red>The Purge is already active.</red>"));
+                }
                 return;
             }
+        }
 
-            int slot = event.getRawSlot();
-            switch (slot) {
-                case 10 -> {
-                    // Cycle Armor Tier Cap
-                    this.maxArmorTier = this.maxArmorTier.next();
-                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
-                    openControlRoomGUI(player);
-                    Bukkit.broadcast(miniMessage.deserialize("<gold>✦ [CONTROL ROOM] Max Armor Tier adjusted to: </gold>" + maxArmorTier.getDisplay()));
+        // 2. Check for Control Room buttons
+        if (clicked.getType() == Material.WARPED_BUTTON && controlRoomLocation != null) {
+            if (clicked.getWorld().equals(controlRoomLocation.getWorld()) && clicked.getLocation().distanceSquared(controlRoomLocation) < 225) {
+                if (!isJuggernaut(player.getUniqueId()) && !player.hasPermission("churchsmp.admin")) {
+                    player.sendMessage(miniMessage.deserialize("<red>Only the Juggernaut commands the Liminal Null.</red>"));
+                    return;
                 }
-                case 12 -> {
-                    // Cycle Potion Cap
-                    this.maxPotionLevel = (this.maxPotionLevel + 1) % 3; // 0, 1, 2
-                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
-                    openControlRoomGUI(player);
-                    String potStr = (maxPotionLevel == 0) ? "UNCAPPED" : (maxPotionLevel == 1 ? "MAX LEVEL I" : "MAX LEVEL II");
-                    Bukkit.broadcast(miniMessage.deserialize("<aqua>✦ [CONTROL ROOM] Max Potion Potency adjusted to: </aqua><yellow>" + potStr + "</yellow>"));
-                }
-                case 14 -> {
-                    // Toggle Event
-                    if (plugin.getChurchEventManager().isEventActive()) {
-                        plugin.getChurchEventManager().stopCurrentEvent();
-                        player.sendMessage(miniMessage.deserialize("<yellow>✦ Active server event stopped.</yellow>"));
-                    } else {
-                        plugin.getChurchEventManager().startEvent(com.churchsmp.event.ChurchEventManager.EventType.BLOOD_MOON, 20 * 60 * 15);
-                        player.sendMessage(miniMessage.deserialize("<dark_red>✦ Blood Moon cataclysm invoked upon the realm.</dark_red>"));
+                
+                org.bukkit.block.Block signBlock = clicked.getLocation().add(0, 1, 0).getBlock();
+                if (signBlock.getState() instanceof org.bukkit.block.Sign sign) {
+                    String titleText = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(sign.line(0)).toLowerCase(java.util.Locale.ROOT);
+                    
+                    if (titleText.contains("armor tier")) {
+                        this.maxArmorTier = this.maxArmorTier.next();
+                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                        Bukkit.broadcast(miniMessage.deserialize("<gold>✦ [CONTROL ROOM] Max Armor Tier adjusted to: </gold>" + maxArmorTier.getDisplay()));
+                    } else if (titleText.contains("potion cap")) {
+                        this.maxPotionLevel = (this.maxPotionLevel + 1) % 3;
+                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                        String potStr = (maxPotionLevel == 0) ? "UNCAPPED" : (maxPotionLevel == 1 ? "MAX LEVEL I" : "MAX LEVEL II");
+                        Bukkit.broadcast(miniMessage.deserialize("<aqua>✦ [CONTROL ROOM] Max Potion Potency adjusted to: </aqua><yellow>" + potStr + "</yellow>"));
+                    } else if (titleText.contains("toggle event")) {
+                        if (plugin.getChurchEventManager().isEventActive()) {
+                            plugin.getChurchEventManager().stopCurrentEvent();
+                            player.sendMessage(miniMessage.deserialize("<yellow>✦ Active server event stopped.</yellow>"));
+                        } else {
+                            plugin.getChurchEventManager().startEvent(com.churchsmp.event.ChurchEventManager.EventType.BLOOD_MOON, 20 * 60 * 15);
+                            player.sendMessage(miniMessage.deserialize("<dark_red>✦ Blood Moon cataclysm invoked upon the realm.</dark_red>"));
+                        }
+                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+                    } else if (titleText.contains("revive all")) {
+                        decreeUtopiaRevive(player);
+                    } else if (titleText.contains("great reset")) {
+                        decreeGreatReset(player);
+                    } else if (titleText.contains("natural regen")) {
+                        boolean gamerule = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(org.bukkit.GameRule.NATURAL_REGENERATION));
+                        for (World w : Bukkit.getWorlds()) {
+                            w.setGameRule(org.bukkit.GameRule.NATURAL_REGENERATION, !gamerule);
+                        }
+                        Bukkit.broadcast(miniMessage.deserialize("<green>✦ [CONTROL ROOM] Natural Regeneration is now " + (!gamerule ? "ON" : "OFF") + ".</green>"));
+                    } else if (titleText.contains("time lock")) {
+                        boolean gamerule = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE));
+                        for (World w : Bukkit.getWorlds()) {
+                            w.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, !gamerule);
+                        }
+                        Bukkit.broadcast(miniMessage.deserialize("<blue>✦ [CONTROL ROOM] Time Cycle is now " + (!gamerule ? "ON" : "OFF") + ".</blue>"));
+                    } else if (titleText.contains("keep inventory")) {
+                        boolean gamerule = Boolean.TRUE.equals(player.getWorld().getGameRuleValue(org.bukkit.GameRule.KEEP_INVENTORY));
+                        for (World w : Bukkit.getWorlds()) {
+                            w.setGameRule(org.bukkit.GameRule.KEEP_INVENTORY, !gamerule);
+                        }
+                        Bukkit.broadcast(miniMessage.deserialize("<yellow>✦ [CONTROL ROOM] Keep Inventory is now " + (!gamerule ? "ON" : "OFF") + ".</yellow>"));
                     }
-                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-                    openControlRoomGUI(player);
-                }
-                case 16 -> {
-                    // Revive Everyone (Utopia)
-                    decreeUtopiaRevive(player);
-                    player.closeInventory();
-                }
-                case 22 -> {
-                    // End the Server (Great Reset)
-                    decreeGreatReset(player);
-                    player.closeInventory();
                 }
             }
         }

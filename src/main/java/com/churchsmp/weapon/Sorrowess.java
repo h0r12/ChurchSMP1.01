@@ -56,7 +56,7 @@ public class Sorrowess extends LegendaryWeapon {
     public static class GloomData {
         private final UUID victimId;
         private final double reductionPercent = 0.25; // Flat 25% armor reduction
-        private final long expireTime;
+        private long expireTime;
 
         public GloomData(UUID victimId) {
             this.victimId = victimId;
@@ -69,6 +69,10 @@ public class Sorrowess extends LegendaryWeapon {
 
         public boolean isExpired() {
             return System.currentTimeMillis() > expireTime;
+        }
+
+        public void refresh() {
+            this.expireTime = System.currentTimeMillis() + 15000L;
         }
 
         public long getRemainingSeconds() {
@@ -103,7 +107,9 @@ public class Sorrowess extends LegendaryWeapon {
             meta.displayName(displayName);
             meta.lore(buildCleanLore(List.of("Forming", "Brave", "Gloom"), "Grief Shards", "Bloody Rain"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
+            // Apply standard enchants but DO NOT add Riptide
             applyStandardEnchants(meta);
+            meta.removeEnchant(Enchantment.RIPTIDE);
 
             // Netherite Sword Sharpness 7 damage (12.0 attribute bonus = 13.0 total attack damage)
             NamespacedKey dmgKey = new NamespacedKey(plugin, "sorrowess_damage");
@@ -413,6 +419,7 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.displayName = null;
         cfg.showNameTag = false;
         cfg.hasArms = true;
+        cfg.modelType = CloneUtil.CloneModelType.KINETIC; // Use kinetic puppet
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
         cfg.durationTicks = 400;
@@ -572,8 +579,10 @@ public class Sorrowess extends LegendaryWeapon {
         // Visual crit feedback with Sorrowess soul flame
         target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
 
-        // If target already has active gloom, no need to count
+        // If target already has active gloom, refresh it and don't count crits
         if (hasGloom(target)) {
+            activeGloom.get(target.getUniqueId()).refresh();
+            attacker.sendActionBar(miniMessage.deserialize("<dark_purple>✦ Gloom duration refreshed! ✦</dark_purple>"));
             return;
         }
 

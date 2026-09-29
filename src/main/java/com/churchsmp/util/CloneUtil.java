@@ -324,18 +324,20 @@ public class CloneUtil {
                             stand.setLeftArmPose(new EulerAngle(-swing * 0.8, 0, Math.toRadians(-6)));
                         }
                     } else {
-                        // In combat range
+                        // Standing still
                         stand.setRightLegPose(new EulerAngle(0, 0, 0));
                         stand.setLeftLegPose(new EulerAngle(0, 0, 0));
-                        if (enemy != null && dist <= config.attackRange && attackTicks <= 0) {
-                            attackTicks = 6;
-                            stand.getWorld().playSound(current, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 1.2f);
-                            stand.getWorld().spawnParticle(Particle.SWEEP_ATTACK, enemy.getLocation().add(0, 1.0, 0), 1);
-                            if (config.onAttack != null) {
-                                config.onAttack.accept(stand, enemy);
-                            } else if (config.attackDamage > 0) {
-                                enemy.damage(config.attackDamage, config.owner);
-                            }
+                    }
+
+                    // Always check attack if in range, even while moving
+                    if (enemy != null && dist <= config.attackRange && attackTicks <= 0) {
+                        attackTicks = 6;
+                        stand.getWorld().playSound(current, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 1.2f);
+                        stand.getWorld().spawnParticle(Particle.SWEEP_ATTACK, enemy.getLocation().add(0, 1.0, 0), 1);
+                        if (config.onAttack != null) {
+                            config.onAttack.accept(stand, enemy);
+                        } else if (config.attackDamage > 0) {
+                            enemy.damage(config.attackDamage, config.owner);
                         }
                     }
                 }

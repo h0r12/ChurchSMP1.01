@@ -458,52 +458,60 @@ public class ForsakingRitualManager implements Listener {
                     Location itemLoc = pChest.clone().add(Math.cos(angle) * orbitRadius, yOffset, Math.sin(angle) * orbitRadius);
                     it.teleport(itemLoc);
 
-                    // Clean directed straight line from gem to chest
-                    Vector toPlayer = pChest.toVector().subtract(itemLoc.toVector());
-                    int beamPoints = 8;
-                    for (int step = 1; step <= beamPoints; step++) {
-                        Location beamPoint = itemLoc.clone().add(toPlayer.clone().multiply((double) step / beamPoints));
-                        player.getWorld().spawnParticle(Particle.DUST, beamPoint, 1, 0, 0, 0, 0, (step % 2 == 0) ? sinDust : accentDust);
+                    // Clean directed straight line from gem to chest (reduced density)
+                    if (t % 3 == 0) {
+                        Vector toPlayer = pChest.toVector().subtract(itemLoc.toVector());
+                        int beamPoints = 4;
+                        for (int step = 1; step <= beamPoints; step++) {
+                            Location beamPoint = itemLoc.clone().add(toPlayer.clone().multiply((double) step / beamPoints));
+                            player.getWorld().spawnParticle(Particle.DUST, beamPoint, 1, 0, 0, 0, 0, (step % 2 == 0) ? sinDust : accentDust);
+                        }
                     }
                 }
 
                 // 3. Directed upward power column: flowing straight upward from player's chest into the scaling gem
-                Vector upVector = pGemLoc.toVector().subtract(pChest.toVector());
-                int colSteps = 6;
-                for (int step = 1; step <= colSteps; step++) {
-                    Location colPt = pChest.clone().add(upVector.clone().multiply((double) step / colSteps));
-                    player.getWorld().spawnParticle(Particle.DUST, colPt, 1, 0, 0, 0, 0, sinDust);
-                    if (step % 2 == 0) {
-                        player.getWorld().spawnParticle(Particle.END_ROD, colPt, 1, 0, 0.04, 0, 0.01);
+                if (t % 2 == 0) {
+                    Vector upVector = pGemLoc.toVector().subtract(pChest.toVector());
+                    int colSteps = 4;
+                    for (int step = 1; step <= colSteps; step++) {
+                        Location colPt = pChest.clone().add(upVector.clone().multiply((double) step / colSteps));
+                        player.getWorld().spawnParticle(Particle.DUST, colPt, 1, 0, 0, 0, 0, sinDust);
+                        if (step % 2 == 0) {
+                            player.getWorld().spawnParticle(Particle.END_ROD, colPt, 1, 0, 0.04, 0, 0.01);
+                        }
                     }
                 }
 
                 // 4. Structured geometric horizontal mandala rings around the player
-                // Waist ring (rotating clockwise)
-                for (int d = 0; d < 360; d += 30) {
-                    double rad = Math.toRadians(d + (rotation * 40));
-                    Location ring1 = pChest.clone().add(Math.cos(rad) * 1.3, -0.2, Math.sin(rad) * 1.3);
-                    player.getWorld().spawnParticle(Particle.DUST, ring1, 1, 0, 0, 0, 0, sinDust);
-                }
-                // Feet ring (rotating counter-clockwise)
-                for (int d = 0; d < 360; d += 24) {
-                    double rad = Math.toRadians(d - (rotation * 30));
-                    Location ring2 = player.getLocation().add(Math.cos(rad) * 1.7, 0.1, Math.sin(rad) * 1.7);
-                    player.getWorld().spawnParticle(Particle.DUST, ring2, 1, 0, 0, 0, 0, accentDust);
+                if (t % 2 == 0) {
+                    // Waist ring (rotating clockwise)
+                    for (int d = 0; d < 360; d += 60) {
+                        double rad = Math.toRadians(d + (rotation * 40));
+                        Location ring1 = pChest.clone().add(Math.cos(rad) * 1.3, -0.2, Math.sin(rad) * 1.3);
+                        player.getWorld().spawnParticle(Particle.DUST, ring1, 1, 0, 0, 0, 0, sinDust);
+                    }
+                    // Feet ring (rotating counter-clockwise)
+                    for (int d = 0; d < 360; d += 45) {
+                        double rad = Math.toRadians(d - (rotation * 30));
+                        Location ring2 = player.getLocation().add(Math.cos(rad) * 1.7, 0.1, Math.sin(rad) * 1.7);
+                        player.getWorld().spawnParticle(Particle.DUST, ring2, 1, 0, 0, 0, 0, accentDust);
+                    }
                 }
 
                 // 5. Clean astrolabe dual rings around the scaling gem overhead
-                // Horizontal ring around the gem
-                for (int d = 0; d < 360; d += 45) {
-                    double rad = Math.toRadians(d + (rotation * 50));
-                    Location gemRing = pGemLoc.clone().add(Math.cos(rad) * 0.85, 0, Math.sin(rad) * 0.85);
-                    player.getWorld().spawnParticle(Particle.DUST, gemRing, 1, 0, 0, 0, 0, sinDust);
-                }
-                // Tilted 45-degree vertical ring around the gem
-                for (int d = 0; d < 360; d += 45) {
-                    double rad = Math.toRadians(d - (rotation * 50));
-                    Location tiltedPt = pGemLoc.clone().add(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, Math.cos(rad) * 0.4);
-                    player.getWorld().spawnParticle(Particle.DUST, tiltedPt, 1, 0, 0, 0, 0, accentDust);
+                if (t % 2 == 0) {
+                    // Horizontal ring around the gem
+                    for (int d = 0; d < 360; d += 90) {
+                        double rad = Math.toRadians(d + (rotation * 50));
+                        Location gemRing = pGemLoc.clone().add(Math.cos(rad) * 0.85, 0, Math.sin(rad) * 0.85);
+                        player.getWorld().spawnParticle(Particle.DUST, gemRing, 1, 0, 0, 0, 0, sinDust);
+                    }
+                    // Tilted 45-degree vertical ring around the gem
+                    for (int d = 0; d < 360; d += 90) {
+                        double rad = Math.toRadians(d - (rotation * 50));
+                        Location tiltedPt = pGemLoc.clone().add(Math.cos(rad) * 0.7, Math.sin(rad) * 0.7, Math.cos(rad) * 0.4);
+                        player.getWorld().spawnParticle(Particle.DUST, tiltedPt, 1, 0, 0, 0, 0, accentDust);
+                    }
                 }
 
                 // 6. Rhythmic pulse beats (clean and harmonic)

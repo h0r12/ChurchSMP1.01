@@ -199,12 +199,21 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
             }
             case "purge" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(Component.text("Usage: /churchadmin purge <player|clear>", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Usage: /churchadmin purge <player|clear|spawn_altar>", NamedTextColor.RED));
                     return true;
                 }
                 if (args[1].equalsIgnoreCase("clear") || args[1].equalsIgnoreCase("stop") || args[1].equalsIgnoreCase("reset")) {
                     plugin.getFinaleManager().clearPurge(sender instanceof Player p ? p : null);
                     sender.sendMessage(Component.text("ChurchSMP Finale Purge cleared successfully.", NamedTextColor.GREEN));
+                    return true;
+                }
+                if (args[1].equalsIgnoreCase("spawn_altar")) {
+                    if (sender instanceof Player p) {
+                        plugin.getFinaleManager().spawnAltar(p.getLocation());
+                        sender.sendMessage(Component.text("Spawned the Purge Altar at your location!", NamedTextColor.GOLD));
+                    } else {
+                        sender.sendMessage(Component.text("Only players can spawn the altar.", NamedTextColor.RED));
+                    }
                     return true;
                 }
                 Player target = Bukkit.getPlayer(args[1]);

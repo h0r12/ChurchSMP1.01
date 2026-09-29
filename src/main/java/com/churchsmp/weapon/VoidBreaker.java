@@ -40,6 +40,7 @@ public class VoidBreaker extends LegendaryWeapon {
     // --- Crumble ---
     private final Map<UUID, Integer> crumbleHits = new ConcurrentHashMap<>();
     private final Set<UUID> shockwaveArmed = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, UUID> shockwaveTarget = new ConcurrentHashMap<>();
     /** Prevents recursive onHit when shockwave/WoS deals programmatic damage */
     private final Set<UUID> abilityDamaging = ConcurrentHashMap.newKeySet();
 
@@ -48,10 +49,8 @@ public class VoidBreaker extends LegendaryWeapon {
     private final Map<UUID, Long> lastDashTime = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> boundMarkedTarget = new ConcurrentHashMap<>();
 
-    // --- Voidfeels / Rifted ---
+    // --- Voidfeels ---
     private final Map<UUID, Long> doubleJumpCooldown = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> riftedCooldown = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> riftedCDDuration = new ConcurrentHashMap<>();
 
     // --- Weight of Sin ---
     /** caster UUID -> target UUID */
@@ -76,7 +75,7 @@ public class VoidBreaker extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            meta.lore(buildCleanLore(List.of("Voidfeels", "Rifted", "Crumble"), "Bound", "Weight of Sin"));
+            meta.lore(buildCleanLore(List.of("Voidfeels", "Crumble"), "Bound", "Weight of Sin"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             applyStandardEnchants(meta);
             try {
@@ -193,7 +192,7 @@ public class VoidBreaker extends LegendaryWeapon {
             return false;
         }
 
-        int cd = plugin.getConfig().getInt("weapons.voidbreaker.secondary_cooldown", 75);
+        int cd = plugin.getConfig().getInt("weapons.voidbreaker.secondary_cooldown", 60);
         plugin.getCooldownManager().setCooldown(player, key, cd);
 
         final LivingEntity finalTarget = target;
@@ -248,32 +247,43 @@ public class VoidBreaker extends LegendaryWeapon {
                 double progress = (double) ticks / totalTicks; // 0.0 → 1.0
                 double hammerY = targetLoc.getY() + startHeight * (1.0 - progress);
 
-                // === PARTICLE HAMMER (cross-shaped) ===
-                Location hammerCenter = new Location(world, targetLoc.getX(), hammerY, targetLoc.getZ());
+                // === PARTICLE AXE (Spinning) ===
+                Location axeCenter = new Location(world, targetLoc.getX(), hammerY, targetLoc.getZ());
                 Particle.DustOptions darkDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 2.5f);
                 Particle.DustOptions purpleDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(75, 0, 130), 1.8f);
-                Particle.DustOptions greyDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(100, 100, 100), 2.0f);
 
-                // Hammer head — horizontal bar
-                for (double dx = -1.5; dx <= 1.5; dx += 0.4) {
-                    for (double dz = -0.4; dz <= 0.4; dz += 0.4) {
-                        world.spawnParticle(Particle.DUST, hammerCenter.clone().add(dx, 0, dz), 1, 0, 0, 0, 0, darkDust);
-                    }
+                double rotationAngle = ticks * 0.4; // Spins over time
+
+                // Handle — vertical column
+                for (double dy = -1.0; dy <= 2.0; dy += 0.4) {
+                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(0, dy, 0), 1, 0, 0, 0, 0, purpleDust);
                 }
-                // Cross bar — perpendicular
-                for (double dz = -1.5; dz <= 1.5; dz += 0.4) {
-                    for (double dx = -0.4; dx <= 0.4; dx += 0.4) {
-                        world.spawnParticle(Particle.DUST, hammerCenter.clone().add(dx, 0, dz), 1, 0, 0, 0, 0, darkDust);
-                    }
+
+                // Double axe heads (rotating)
+                for (double r = 0.4; r <= 1.8; r += 0.3) {
+                    double bladeY = Math.sin(r * 2) * 0.5; // Curve of the blade
+
+                    // Head 1
+                    double h1x = Math.cos(rotationAngle) * r;
+                    double h1z = Math.sin(rotationAngle) * r;
+                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h1x, bladeY, h1z), 1, 0, 0, 0, 0, darkDust);
+                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h1x, -bladeY, h1z), 1, 0, 0, 0, 0, darkDust);
+
+                    // Head 2 (opposite side)
+                    double h2x = Math.cos(rotationAngle + Math.PI) * r;
+                    double h2z = Math.sin(rotationAngle + Math.PI) * r;
+                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h2x, bladeY, h2z), 1, 0, 0, 0, 0, darkDust);
+                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h2x, -bladeY, h2z), 1, 0, 0, 0, 0, darkDust);
                 }
-                // Handle — vertical column above the head
-                for (double dy = 0.5; dy <= 2.5; dy += 0.4) {
-                    world.spawnParticle(Particle.DUST, hammerCenter.clone().add(0, dy, 0), 1, 0, 0, 0, 0, purpleDust);
-                }
-                // Soul flame trail
-                world.spawnParticle(Particle.SOUL_FIRE_FLAME, hammerCenter, 3, 0.8, 0.3, 0.8, 0.02);
+
+                // Soul flame trail at the tips of the blades
+                double tipX = Math.cos(rotationAngle) * 2.0;
+                double tipZ = Math.sin(rotationAngle) * 2.0;
+                world.spawnParticle(Particle.SOUL_FIRE_FLAME, axeCenter.clone().add(tipX, 0, tipZ), 1, 0, 0, 0, 0.02);
+                world.spawnParticle(Particle.SOUL_FIRE_FLAME, axeCenter.clone().add(-tipX, 0, -tipZ), 1, 0, 0, 0, 0.02);
 
                 // === GROUND PRESSURE EFFECTS ===
+                Particle.DustOptions greyDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(100, 100, 100), 2.0f);
                 // Pulsing ring on the ground beneath target
                 double ringRadius = 1.5 + progress * 2.5;
                 int ringPoints = 20 + (int) (progress * 12);
@@ -416,7 +426,7 @@ public class VoidBreaker extends LegendaryWeapon {
             if (e.equals(caster) || e.equals(target)) continue;
             Vector kb = e.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.3).setY(0.6);
             e.setVelocity(kb);
-            e.damage(8.0, caster);
+            e.damage(22.0, caster);
         }
 
         // Messages
@@ -432,33 +442,10 @@ public class VoidBreaker extends LegendaryWeapon {
     }
 
     // =========================================================================
-    // DOUBLE JUMP: Voidfeels (Space) / Rifted (Shift+Space) — works mid-air
+    // DOUBLE JUMP: Voidfeels (Space) — works mid-air
     // =========================================================================
     public void handleDoubleJump(Player player) {
         long now = System.currentTimeMillis();
-
-        if (player.isSneaking()) {
-            // Rifted: crosshair launch (30s CD, halved per mace slam)
-            long lastRifted = riftedCooldown.getOrDefault(player.getUniqueId(), 0L);
-            long cdDuration = riftedCDDuration.getOrDefault(player.getUniqueId(), 30000L);
-
-            if (now - lastRifted < cdDuration) {
-                double remaining = Math.round((cdDuration - (now - lastRifted)) / 100.0) / 10.0;
-                player.sendMessage(Component.text("Rifted launch on cooldown: " + remaining + "s", NamedTextColor.RED));
-                return;
-            }
-
-            riftedCooldown.put(player.getUniqueId(), now);
-            plugin.getBossBarManager().showPassiveCooldown(player, this, "Rifted", (int) (cdDuration / 1000));
-            Vector launch = player.getEyeLocation().getDirection().normalize().multiply(2.2);
-            player.setVelocity(launch);
-            player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 1.5f, 1.4f);
-            player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation(), 25, 0.5, 0.5, 0.5, 0.05);
-            player.sendMessage(Component.text("✦ Rifted Crosshair Launch!", NamedTextColor.DARK_PURPLE));
-
-            reEnableFlightDelayed(player);
-            return;
-        }
 
         // Voidfeels: standard double jump (5s CD)
         long lastDJ = doubleJumpCooldown.getOrDefault(player.getUniqueId(), 0L);
@@ -503,8 +490,8 @@ public class VoidBreaker extends LegendaryWeapon {
         if (!shockwaveArmed.remove(player.getUniqueId())) return;
         crumbleHits.put(player.getUniqueId(), 0);
 
-        // Detonation location: bound marked target or player's own location
-        UUID markedId = boundMarkedTarget.remove(player.getUniqueId());
+        // Detonation location: the enemy who took the 5th hit
+        UUID markedId = shockwaveTarget.remove(player.getUniqueId());
         org.bukkit.entity.Entity markedEnt = (markedId != null) ? Bukkit.getEntity(markedId) : null;
         Location detonateLoc = (markedEnt instanceof LivingEntity le && le.isValid() && !le.isDead())
                 ? le.getLocation() : player.getLocation();
@@ -573,10 +560,6 @@ public class VoidBreaker extends LegendaryWeapon {
             attacker.sendMessage(Component.text("✦ Bound: All 3 Dash Charges recharged! (3/3)", NamedTextColor.LIGHT_PURPLE));
             attacker.playSound(attacker.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 1.6f);
 
-            // Halve Rifted cooldown on mace slam
-            long currentCD = riftedCDDuration.getOrDefault(attacker.getUniqueId(), 30000L);
-            riftedCDDuration.put(attacker.getUniqueId(), Math.max(3750L, currentCD / 2));
-
             // --- Crumble: count up to 5 hits ---
             if (!shockwaveArmed.contains(attacker.getUniqueId())) {
                 int hits = crumbleHits.getOrDefault(attacker.getUniqueId(), 0) + 1;
@@ -608,6 +591,7 @@ public class VoidBreaker extends LegendaryWeapon {
                 } else {
                     // === 5th HIT: ARM SHOCKWAVE ===
                     shockwaveArmed.add(attacker.getUniqueId());
+                    shockwaveTarget.put(attacker.getUniqueId(), target.getUniqueId());
                     attacker.sendMessage(Component.text("✦ CRUMBLE 5/5 — SEISMIC SHOCKWAVE ARMED! Right-Click to DETONATE!",
                             NamedTextColor.DARK_PURPLE).decorate(TextDecoration.BOLD));
                     attacker.playSound(attacker.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1.5f, 0.6f);

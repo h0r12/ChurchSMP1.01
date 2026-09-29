@@ -102,6 +102,10 @@ public class Grim extends LegendaryWeapon {
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             meta.getPersistentDataContainer().set(killCountKey, PersistentDataType.INTEGER, startingKills);
             applyStandardEnchants(meta);
+            
+            int sharpnessLevel = Math.min(10, 5 + startingKills);
+            meta.addEnchant(Enchantment.SHARPNESS, sharpnessLevel, true);
+            
             meta.setCustomModelData(1007);
             item.setItemMeta(meta);
         }
@@ -376,35 +380,77 @@ public class Grim extends LegendaryWeapon {
         plugin.getCooldownManager().setCooldown(player, key, cd);
         plugin.getBossBarManager().showActiveCountdown(player, "Dark Particle: Gravity Vortex", BossBar.Color.PURPLE, 5);
 
-        Location spawnLoc = player.getLocation().add(player.getLocation().getDirection().setY(0).normalize().multiply(3.5));
-        spawnLoc.setY(player.getWorld().getHighestBlockYAt(spawnLoc) + 1.0);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDER_PEARL_THROW, 1.2f, 0.5f);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 0.8f, 0.6f);
+        player.sendMessage(miniMessage.deserialize("<dark_purple>✦ Dark Particle [Ground Variant]: Threw Gravity Vortex! ✦</dark_purple>"));
+
+        Location start = player.getEyeLocation();
+        Vector dir = start.getDirection().normalize().multiply(1.2);
+
+        // Throwing a dark particle projectile
+        new BukkitRunnable() {
+            int ticks = 0;
+            Location current = start.clone();
+
+            @Override
+            public void run() {
+                ticks++;
+                if (ticks > 40) { // Max range
+                    spawnGravityVortex(player, current);
+                    cancel();
+                    return;
+                }
+
+                current.add(dir);
+                current.getWorld().spawnParticle(Particle.LARGE_SMOKE, current, 3, 0.1, 0.1, 0.1, 0.01);
+                current.getWorld().spawnParticle(Particle.SOUL, current, 2, 0.1, 0.1, 0.1, 0.02);
+                current.getWorld().spawnParticle(Particle.DUST, current, 4, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(Color.fromRGB(20, 20, 20), 1.5f));
+
+                // Check block hit
+                if (current.getBlock().getType().isSolid()) {
+                    spawnGravityVortex(player, current);
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+
+        return true;
+    }
+
+    private void spawnGravityVortex(Player player, Location spawnLoc) {
+        spawnLoc.setY(spawnLoc.getWorld().getHighestBlockYAt(spawnLoc) + 1.0);
 
         player.getWorld().playSound(spawnLoc, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.5f, 0.5f);
         player.getWorld().playSound(spawnLoc, Sound.ENTITY_WITHER_AMBIENT, 1.2f, 0.6f);
-        player.sendMessage(miniMessage.deserialize("<dark_purple>✦ Dark Particle [Ground Variant]: Summoned Gravity Vortex! ✦</dark_purple>"));
 
         Set<LivingEntity> trappedEntities = Collections.synchronizedSet(new HashSet<>());
 
         new BukkitRunnable() {
             int ticks = 0;
             final int maxTicks = 80; // 4 seconds duration
-            final Particle.DustOptions blackHoleDust = new Particle.DustOptions(Color.fromRGB(15, 15, 15), 2.5f);
-            final Particle.DustOptions ringDust = new Particle.DustOptions(Color.fromRGB(80, 0, 30), 1.6f);
+            final Particle.DustOptions blackHoleDust = new Particle.DustOptions(Color.fromRGB(15, 15, 15), 3.5f);
+            final Particle.DustOptions ringDust = new Particle.DustOptions(Color.fromRGB(80, 0, 30), 1.8f);
 
             @Override
             public void run() {
                 ticks += 2;
 
-                // Central Black Hole Orb visual
-                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 12, 0.4, 0.4, 0.4, 0, blackHoleDust);
-                spawnLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, spawnLoc, 6, 0.3, 0.3, 0.3, 0.02);
-                spawnLoc.getWorld().spawnParticle(Particle.SOUL, spawnLoc, 4, 0.2, 0.2, 0.2, 0.02);
+                // Central Black Hole Orb visual - Bigger
+                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 30, 0.8, 0.8, 0.8, 0, blackHoleDust);
+                spawnLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, spawnLoc, 12, 0.6, 0.6, 0.6, 0.02);
+                spawnLoc.getWorld().spawnParticle(Particle.SOUL, spawnLoc, 8, 0.5, 0.5, 0.5, 0.02);
 
-                // 3-Block Ring on the ground
-                for (int d = 0; d < 360; d += 20) {
-                    double rad = Math.toRadians(d);
-                    Location ringPoint = spawnLoc.clone().add(Math.cos(rad) * 3.0, 0.15, Math.sin(rad) * 3.0);
+                // 7x7 Ring on the ground (radius 3.5 = diameter 7)
+                double radius = 3.5;
+                for (int d = 0; d < 360; d += 12) {
+                    double rad = Math.toRadians(d + ticks); // Rotating ring
+                    Location ringPoint = spawnLoc.clone().add(Math.cos(rad) * radius, 0.15, Math.sin(rad) * radius);
                     spawnLoc.getWorld().spawnParticle(Particle.DUST, ringPoint, 1, 0, 0, 0, 0, ringDust);
+                    // Inner dense vortex particles
+                    if (d % 36 == 0) {
+                        Location inner = spawnLoc.clone().add(Math.cos(rad) * (radius * Math.random()), Math.random() * 0.5, Math.sin(rad) * (radius * Math.random()));
+                        spawnLoc.getWorld().spawnParticle(Particle.DUST, inner, 1, 0, 0, 0, 0, blackHoleDust);
+                    }
                 }
 
                 // Ambient hum
@@ -412,7 +458,7 @@ public class Grim extends LegendaryWeapon {
                     spawnLoc.getWorld().playSound(spawnLoc, Sound.BLOCK_RESPAWN_ANCHOR_AMBIENT, 1.0f, 0.7f);
                 }
 
-                // Gravitational pull & 3-block damage/slowness
+                // Gravitational pull & 7x7 damage/slowness
                 for (LivingEntity e : spawnLoc.getWorld().getNearbyLivingEntities(spawnLoc, 7.0)) {
                     if (e.equals(player)) continue;
 
@@ -531,14 +577,12 @@ public class Grim extends LegendaryWeapon {
 
         isDivingAirVariant.add(player.getUniqueId());
 
-        // Dive downward with high velocity
-        Vector aim = player.getLocation().getDirection();
-        Vector dive = aim.clone().setY(0).normalize().multiply(1.2).setY(-1.8);
+        // Dive downward with high velocity (removed forward momentum, just straight down)
+        Vector dive = new Vector(0, -1.8, 0);
         player.setVelocity(dive);
 
-        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_CHAIN_PLACE, 1.5f, 0.7f);
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_2, 1.2f, 0.6f);
-        player.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#9400D3><bold>✦ Dark Particle [Air Variant]: CHAIN DIVE SLAM! ✦</bold></gradient>"));
+        player.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#9400D3><bold>✦ Dark Particle [Air Variant]: AIR SLAM! ✦</bold></gradient>"));
 
         new BukkitRunnable() {
             int ticks = 0;
@@ -553,8 +597,7 @@ public class Grim extends LegendaryWeapon {
                     return;
                 }
 
-                // Chain link trail
-                player.getWorld().spawnParticle(Particle.ITEM, player.getLocation(), 4, 0.2, 0.2, 0.2, 0.02, new ItemStack(Material.IRON_BARS));
+                // Dark trail
                 player.getWorld().spawnParticle(Particle.DUST, player.getLocation(), 4, 0.2, 0.2, 0.2, 0, new Particle.DustOptions(Color.fromRGB(20, 20, 20), 1.8f));
 
                 // Check ground impact
@@ -699,13 +742,10 @@ public class Grim extends LegendaryWeapon {
             }
             meta.lore(lore);
         }
+        // Reaper: Sharpness increases up to 10
+        int sharpnessLevel = Math.min(10, 5 + kills);
+        meta.addEnchant(Enchantment.SHARPNESS, sharpnessLevel, true);
         weapon.setItemMeta(meta);
-
-        // Reaper: +1 max heart per kill permanently
-        AttributeInstance attr = player.getAttribute(Attribute.MAX_HEALTH);
-        if (attr != null) {
-            attr.setBaseValue(attr.getBaseValue() + 2.0);
-        }
 
         // Soultaking passive: triggers on kill with 10s cooldown, grants 5s Regen + Absorption
         plugin.getBossBarManager().showPassiveCooldown(player, this, "Soultaking", 10);
