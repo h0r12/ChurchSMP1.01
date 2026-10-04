@@ -54,9 +54,6 @@ public class DoppelgangerManager {
 
     private final NamespacedKey doppelgangerKey;
 
-    public enum Axis {
-        NORTH, SOUTH, EAST, WEST
-    }
 
     // ─────────────────────────────────── inner types ───────────────────────────
 
@@ -65,18 +62,22 @@ public class DoppelgangerManager {
         public final UUID fakeUUID;
         public final WrappedGameProfile profile;
         public Location currentLocation;
-        public Axis axis;
-        public double baseDist;
+        public double mirrorAngle; // Angle of the reflection plane
+        public double baseDist;    // Distance from domain origin
+        public double phase;       // Individual sway phase
+        public double swaySpeed;   // Feint / strafe frequency
         public ArmorStand hitbox;
         public UUID ownerUUID;
 
-        Doppelganger(int id, UUID uuid, WrappedGameProfile p, Location loc, Axis axis, double dist, UUID owner) {
+        Doppelganger(int id, UUID uuid, WrappedGameProfile p, Location loc, double angle, double dist, UUID owner) {
             this.fakeEntityId = id;
             this.fakeUUID = uuid;
             this.profile = p;
             this.currentLocation = loc.clone();
-            this.axis = axis;
+            this.mirrorAngle = angle;
             this.baseDist = dist;
+            this.phase = RANDOM.nextDouble() * Math.PI * 2;
+            this.swaySpeed = 0.08 + RANDOM.nextDouble() * 0.08;
             this.ownerUUID = owner;
         }
     }
@@ -112,33 +113,35 @@ public class DoppelgangerManager {
 
     // ─────────────────────────────────── public API ──────────────────────────
 
-    /** Spawn initial 4 clones in 4 cardinal mirror axes. */
+    /** Spawn initial 4 clones scattered in 4 quadrants with natural angular jitter. */
     public DoppelgangerSession spawnInitial(Player owner) {
         cleanup(owner.getUniqueId());
 
         DoppelgangerSession session = new DoppelgangerSession(owner.getUniqueId(), owner.getLocation());
         sessions.put(owner.getUniqueId(), session);
 
-        spawnOne(owner, Axis.NORTH, 3.5, session);
-        spawnOne(owner, Axis.EAST, 3.5, session);
-        spawnOne(owner, Axis.SOUTH, 3.5, session);
-        spawnOne(owner, Axis.WEST, 3.5, session);
+        // 4 quadrants with chaotic angular jitter so they scatter naturally
+        double[] baseAngles = {
+            Math.toRadians(45  + (RANDOM.nextDouble() - 0.5) * 40),
+            Math.toRadians(135 + (RANDOM.nextDouble() - 0.5) * 40),
+            Math.toRadians(225 + (RANDOM.nextDouble() - 0.5) * 40),
+            Math.toRadians(315 + (RANDOM.nextDouble() - 0.5) * 40)
+        };
+
+        for (double ang : baseAngles) {
+            double dist = 3.2 + RANDOM.nextDouble() * 2.5; // Staggered distances
+            spawnOne(owner, ang, dist, session);
+        }
 
         startMirrorTask(owner, session);
         return session;
     }
 
-    /** Spawn a single clone along an axis at base distance. Returns null if at cap. */
-    public Doppelganger spawnOne(Player owner, Axis axis, double dist, DoppelgangerSession session) {
+    /** Spawn a single clone at a scattered angle and distance. Returns null if at cap. */
+    public Doppelganger spawnOne(Player owner, double angle, double dist, DoppelgangerSession session) {
         if (session.clones.size() >= DoppelgangerSession.MAX) return null;
 
-        Location loc = session.origin.clone();
-        switch (axis) {
-            case NORTH -> loc.add(0, 0, -dist);
-            case SOUTH -> loc.add(0, 0, dist);
-            case EAST  -> loc.add(dist, 0, 0);
-            case WEST  -> loc.add(-dist, 0, 0);
-        }
+        Location loc = session.origin.clone().add(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
 
         int fakeId = ENTITY_ID_COUNTER.getAndIncrement();
         UUID fakeUuid = UUID.randomUUID();
@@ -148,7 +151,7 @@ public class DoppelgangerManager {
         WrappedGameProfile fakeProfile = new WrappedGameProfile(fakeUuid, "");
         fakeProfile.getProperties().putAll(ownerProfile.getProperties());
 
-        Doppelganger dg = new Doppelganger(fakeId, fakeUuid, fakeProfile, loc, axis, dist, owner.getUniqueId());
+        Doppelganger dg = new Doppelganger(fakeId, fakeUuid, fakeProfile, loc, angle, dist, owner.getUniqueId());
 
         // Invisible ArmorStand as hit-box
         ArmorStand as = owner.getWorld().spawn(loc, ArmorStand.class, a -> {
@@ -202,15 +205,24 @@ public class DoppelgangerManager {
         shatterLoc.getWorld().spawnParticle(Particle.SOUL, shatterLoc.clone().add(0, 1.2, 0), 12,
                 0.3, 0.4, 0.3, 0.06);
 
-        // Multiply: spawn 3 more if under 27 cap (3^3), strictly along the 4 mirror axes
+        // DISORIENTATION SHUFFLE: Surviving clones scatter & shift positions slightly!
+        for (Doppelganger surviving : session.clones) {
+            surviving.mirrorAngle += (RANDOM.nextDouble() - 0.5) * 0.55; // Scatter angular shift
+            surviving.baseDist = Math.max(2.5, Math.min(8.5, surviving.baseDist + (RANDOM.nextDouble() - 0.5) * 1.5));
+            surviving.phase += RANDOM.nextDouble() * 2.0;
+            // Quick purple puff at surviving clone location
+            surviving.currentLocation.getWorld().spawnParticle(Particle.PORTAL,
+                    surviving.currentLocation.clone().add(0, 1, 0), 5, 0.2, 0.3, 0.2, 0.05);
+        }
+
+        // Multiply: spawn 3 more scattered around the arena if under 27 cap (3^3)
         Player owner = Bukkit.getPlayer(ownerUUID);
         if (owner != null && owner.isOnline() && session.clones.size() < DoppelgangerSession.MAX) {
             int toSpawn = Math.min(3, DoppelgangerSession.MAX - session.clones.size());
-            Axis[] axes = Axis.values();
             for (int i = 0; i < toSpawn; i++) {
-                Axis axis = axes[RANDOM.nextInt(axes.length)];
-                double dist = 2.5 + (RANDOM.nextInt(5) + 1) * 1.6;
-                spawnOne(owner, axis, dist, session);
+                double scatterAngle = RANDOM.nextDouble() * Math.PI * 2; // Any angle 360°
+                double scatterDist = 2.5 + RANDOM.nextDouble() * 5.8;   // Clustered across the domain
+                spawnOne(owner, scatterAngle, scatterDist, session);
             }
         }
         return ownerUUID;
@@ -260,39 +272,37 @@ public class DoppelgangerManager {
                 double relX = ownerLoc.getX() - session.origin.getX();
                 double relZ = ownerLoc.getZ() - session.origin.getZ();
                 Vector dir = ownerLoc.getDirection();
+                double dirX = dir.getX();
+                double dirZ = dir.getZ();
+                long tick = Bukkit.getCurrentTick();
 
                 for (Doppelganger dg : new ArrayList<>(session.clones)) {
-                    Location newLoc = session.origin.clone();
-                    Vector reflectedDir;
+                    // Normal unit vector for this clone's mirror facet
+                    double cosA = Math.cos(dg.mirrorAngle);
+                    double sinA = Math.sin(dg.mirrorAngle);
 
-                    switch (dg.axis) {
-                        case NORTH -> {
-                            // Mirror across North plane (reflects Z)
-                            newLoc.add(relX, 0, -dg.baseDist - relZ);
-                            reflectedDir = new Vector(dir.getX(), dir.getY(), -dir.getZ());
-                        }
-                        case SOUTH -> {
-                            // Mirror across South plane (reflects Z)
-                            newLoc.add(relX, 0, dg.baseDist - relZ);
-                            reflectedDir = new Vector(dir.getX(), dir.getY(), -dir.getZ());
-                        }
-                        case EAST -> {
-                            // Mirror across East plane (reflects X)
-                            newLoc.add(dg.baseDist - relX, 0, relZ);
-                            reflectedDir = new Vector(-dir.getX(), dir.getY(), dir.getZ());
-                        }
-                        case WEST -> {
-                            // Mirror across West plane (reflects X)
-                            newLoc.add(-dg.baseDist - relX, 0, relZ);
-                            reflectedDir = new Vector(-dir.getX(), dir.getY(), dir.getZ());
-                        }
-                        default -> {
-                            newLoc.add(relX, 0, relZ);
-                            reflectedDir = dir;
-                        }
-                    }
+                    // Decompose displacement into parallel (normal) and perpendicular (tangent)
+                    double rParallel = relX * cosA + relZ * sinA;
+                    double rTangent  = -relX * sinA + relZ * cosA;
 
+                    // Subtle micro-sway / feinting to mimic human PvP strafing
+                    double sway = Math.sin(tick * dg.swaySpeed + dg.phase) * 0.45;
+                    rTangent += sway;
+
+                    // Optical reflection: normal reflects (D - rParallel), tangent persists
+                    double refNorm = dg.baseDist - rParallel;
+                    double refX = refNorm * cosA - rTangent * sinA;
+                    double refZ = refNorm * sinA + rTangent * cosA;
+
+                    Location newLoc = session.origin.clone().add(refX, 0, refZ);
                     newLoc.setY(ownerLoc.getY());
+
+                    // Reflected facing direction: d' = d - 2(d . n)n
+                    double dot = dirX * cosA + dirZ * sinA;
+                    double refDirX = dirX - 2.0 * dot * cosA;
+                    double refDirZ = dirZ - 2.0 * dot * sinA;
+                    Vector reflectedDir = new Vector(refDirX, dir.getY(), refDirZ);
+
                     if (reflectedDir.lengthSquared() > 0.001) {
                         newLoc.setDirection(reflectedDir);
                     }
