@@ -278,7 +278,7 @@ public class FinaleManager implements Listener {
         }
 
         // Apply Juggernaut Colossal Attributes
-        AttributeInstance maxHealthAttr = juggernaut.getAttribute(Attribute.MAX_HEALTH);
+        AttributeInstance maxHealthAttr = juggernaut.getAttribute(Attribute.GENERIC_MAX_HEALTH);
         if (maxHealthAttr != null) {
             maxHealthAttr.setBaseValue(100.0); // 50 Hearts
             juggernaut.setHealth(100.0);
@@ -329,7 +329,7 @@ public class FinaleManager implements Listener {
         if (juggernautUuid != null) {
             Player juggernaut = Bukkit.getPlayer(juggernautUuid);
             if (juggernaut != null && juggernaut.isOnline()) {
-                AttributeInstance maxHealthAttr = juggernaut.getAttribute(Attribute.MAX_HEALTH);
+                AttributeInstance maxHealthAttr = juggernaut.getAttribute(Attribute.GENERIC_MAX_HEALTH);
                 if (maxHealthAttr != null) {
                     maxHealthAttr.setBaseValue(20.0);
                     if (juggernaut.getHealth() > 20.0) juggernaut.setHealth(20.0);
@@ -515,7 +515,7 @@ public class FinaleManager implements Listener {
         lostSouls.remove(soul.getUniqueId());
         soul.setGameMode(GameMode.SURVIVAL);
 
-        AttributeInstance maxHealthAttr = soul.getAttribute(Attribute.MAX_HEALTH);
+        AttributeInstance maxHealthAttr = soul.getAttribute(Attribute.GENERIC_MAX_HEALTH);
         if (maxHealthAttr != null) {
             maxHealthAttr.setBaseValue(20.0);
             soul.setHealth(20.0);

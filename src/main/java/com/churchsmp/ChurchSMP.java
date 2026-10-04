@@ -20,6 +20,7 @@ import com.churchsmp.recipe.ChurchRecipeManager;
 import com.churchsmp.ritual.ForsakingRitualManager;
 import com.churchsmp.weapon.WeaponManager;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class ChurchSMP extends JavaPlugin {

@@ -85,8 +85,8 @@ public class VoidBreaker extends LegendaryWeapon {
 
             // Base attack damage modifier (+11.0 = 12.0 total base attack damage)
             NamespacedKey dmgKey = new NamespacedKey(plugin, "voidbreaker_damage");
-            meta.removeAttributeModifier(Attribute.ATTACK_DAMAGE);
-            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(dmgKey, 11.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.removeAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE);
+            meta.addAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE, new AttributeModifier(dmgKey, 11.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
 
             meta.setCustomModelData(1006);
             item.setItemMeta(meta);

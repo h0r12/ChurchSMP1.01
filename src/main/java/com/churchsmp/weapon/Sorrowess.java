@@ -115,13 +115,13 @@ public class Sorrowess extends LegendaryWeapon {
 
             // Netherite Sword Sharpness 7 damage (12.0 attribute bonus = 13.0 total attack damage)
             NamespacedKey dmgKey = new NamespacedKey(plugin, "sorrowess_damage");
-            meta.removeAttributeModifier(Attribute.ATTACK_DAMAGE);
-            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.removeAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE);
+            meta.addAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
 
             // Attack speed of sword (1.6)
             NamespacedKey speedKey = new NamespacedKey(plugin, "sorrowess_speed");
-            meta.removeAttributeModifier(Attribute.ATTACK_SPEED);
-            meta.addAttributeModifier(Attribute.ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.removeAttributeModifier(Attribute.GENERIC_ATTACK_SPEED);
+            meta.addAttributeModifier(Attribute.GENERIC_ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
 
             meta.setCustomModelData(1005);
             item.setItemMeta(meta);
@@ -549,7 +549,7 @@ public class Sorrowess extends LegendaryWeapon {
             }
         }
 
-        AttributeInstance attr = player.getAttribute(Attribute.MAX_HEALTH);
+        AttributeInstance attr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
         if (attr != null) {
             if (hasSorrowess) {
                 if (attr.getBaseValue() < 24.0) {
@@ -720,7 +720,7 @@ public class Sorrowess extends LegendaryWeapon {
     }
 
     private void applyGloomArmorModifier(LivingEntity target, double reductionPercent) {
-        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.ARMOR);
+        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.GENERIC_ARMOR);
         if (attr != null) {
             attr.removeModifier(gloomArmorKey);
             double totalArmor = attr.getValue();
@@ -738,7 +738,7 @@ public class Sorrowess extends LegendaryWeapon {
 
     public void removeGloomArmorModifier(LivingEntity target) {
         if (target == null) return;
-        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.ARMOR);
+        org.bukkit.attribute.AttributeInstance attr = target.getAttribute(Attribute.GENERIC_ARMOR);
         if (attr != null) {
             attr.removeModifier(gloomArmorKey);
         }

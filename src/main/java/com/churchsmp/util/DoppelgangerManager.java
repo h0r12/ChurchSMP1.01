@@ -165,7 +165,7 @@ public class DoppelgangerManager {
             a.setSilent(true);
             a.getPersistentDataContainer().set(doppelgangerKey, PersistentDataType.STRING,
                     owner.getUniqueId().toString());
-            var attr = a.getAttribute(Attribute.MAX_HEALTH);
+            var attr = a.getAttribute(Attribute.GENERIC_MAX_HEALTH);
             if (attr != null) attr.setBaseValue(1.0);
         });
         dg.hitbox = as;
@@ -328,8 +328,8 @@ public class DoppelgangerManager {
 
     private void sendSpawn(Player viewer, Doppelganger dg, Player owner) {
         try {
-            // 1. PLAYER_INFO_UPDATE — add fake profile (with skin) to tab
-            PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO_UPDATE);
+            // 1. PLAYER_INFO — add fake profile (with skin) to tab
+            PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO);
             info.getPlayerInfoActions().write(0,
                     EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER,
                                EnumWrappers.PlayerInfoAction.UPDATE_LISTED));

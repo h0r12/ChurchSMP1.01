@@ -81,13 +81,13 @@ public class LuminescenceSpear extends LegendaryWeapon {
 
             // Trident damage equivalent to Netherite Sword Sharpness 7 (+12.0 base damage modifier)
             NamespacedKey dmgKey = new NamespacedKey(plugin, "spear_damage");
-            meta.removeAttributeModifier(Attribute.ATTACK_DAMAGE);
-            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.removeAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE);
+            meta.addAttributeModifier(Attribute.GENERIC_ATTACK_DAMAGE, new AttributeModifier(dmgKey, 12.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
 
             // BurningBones: attack speed of sword (1.6)
             NamespacedKey speedKey = new NamespacedKey(plugin, "spear_speed");
-            meta.removeAttributeModifier(Attribute.ATTACK_SPEED);
-            meta.addAttributeModifier(Attribute.ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
+            meta.removeAttributeModifier(Attribute.GENERIC_ATTACK_SPEED);
+            meta.addAttributeModifier(Attribute.GENERIC_ATTACK_SPEED, new AttributeModifier(speedKey, -2.4, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.MAINHAND));
             meta.setCustomModelData(1002);
 
             item.setItemMeta(meta);

@@ -90,12 +90,12 @@ public class AdvancementManager {
                 for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
                     if (item == null) continue;
                     
-                    if (com.churchsmp.item.LiminalCoreItem.isLiminalCore(plugin, item)) hasCore = true;
-                    else if (com.churchsmp.item.RelicItem.isRelic(plugin, item, com.churchsmp.item.RelicItem.RelicType.INIQUITY)) hasIniq = true;
-                    else if (com.churchsmp.item.RelicItem.isRelic(plugin, item, com.churchsmp.item.RelicItem.RelicType.IMPIETY)) hasImp = true;
-                    else if (com.churchsmp.item.RelicItem.isRelic(plugin, item, com.churchsmp.item.RelicItem.RelicType.OBSCURA)) hasObs = true;
+                    if (com.churchsmp.item.LiminalCoreItem.isLiminalCore(item, plugin)) hasCore = true;
+                    else if (com.churchsmp.item.RelicItem.getRelicType(item, plugin) == com.churchsmp.item.RelicItem.RelicType.INIQUITY) hasIniq = true;
+                    else if (com.churchsmp.item.RelicItem.getRelicType(item, plugin) == com.churchsmp.item.RelicItem.RelicType.IMPIETY) hasImp = true;
+                    else if (com.churchsmp.item.RelicItem.getRelicType(item, plugin) == com.churchsmp.item.RelicItem.RelicType.OBSCURA) hasObs = true;
                     
-                    com.churchsmp.weapon.LegendaryWeapon weapon = plugin.getWeaponManager().getWeaponFromItem(item);
+                    com.churchsmp.weapon.LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
                     if (weapon != null) {
                         String id = weapon.getId();
                         if (id.equals("voidbreaker")) hasVoid = true;

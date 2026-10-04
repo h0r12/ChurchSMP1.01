@@ -141,11 +141,11 @@ public class CloneUtil {
             }
 
             z.setAI(true);
-            if (z.getAttribute(Attribute.MOVEMENT_SPEED) != null) {
-                z.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(config.movementSpeed);
+            if (z.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
+                z.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(config.movementSpeed);
             }
-            if (z.getAttribute(Attribute.FOLLOW_RANGE) != null) {
-                z.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(config.followRange);
+            if (z.getAttribute(Attribute.GENERIC_FOLLOW_RANGE) != null) {
+                z.getAttribute(Attribute.GENERIC_FOLLOW_RANGE).setBaseValue(config.followRange);
             }
         });
 
