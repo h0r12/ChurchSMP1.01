@@ -139,7 +139,7 @@ public class VoidBreaker extends LegendaryWeapon {
 
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
         player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 30, 0.4, 0.4, 0.4, 0.1);
-        player.getWorld().spawnParticle(Particle.DRAGON_BREATH, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
+        player.getWorld().spawnParticle(Particle.LARGE_SMOKE, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
 
         // Re-enable flight after dash so double jump works mid-air
         reEnableFlightDelayed(player);

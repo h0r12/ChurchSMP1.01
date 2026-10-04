@@ -187,12 +187,18 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
         Mayim.restoreOffhand(event.getPlayer());
+        if (plugin.getDoppelgangerManager() != null) {
+            plugin.getDoppelgangerManager().cleanup(event.getPlayer().getUniqueId());
+        }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         Mayim.restoreOffhand(event.getPlayer());
         plugin.getBossBarManager().removeBossBar(event.getPlayer());
+        if (plugin.getDoppelgangerManager() != null) {
+            plugin.getDoppelgangerManager().cleanup(event.getPlayer().getUniqueId());
+        }
     }
 
     @EventHandler(priority = EventPriority.NORMAL)

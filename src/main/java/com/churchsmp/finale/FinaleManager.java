@@ -184,7 +184,7 @@ public class FinaleManager implements Listener {
 
             // Decorate inside
             w.getBlockAt(cx, cy, cz).setType(Material.CRYING_OBSIDIAN); // Center floor
-            w.getBlockAt(cx, cy + 1, cz).setType(Material.END_CRYSTAL); // Visual center (will be entity later or just leave block)
+            w.getBlockAt(cx, cy + 1, cz).setType(Material.LODESTONE); // Visual center
             w.getBlockAt(cx, cy + 6, cz).setType(Material.GLOWSTONE);
 
             // Place Buttons on the North Wall (z = -4)
@@ -206,6 +206,10 @@ public class FinaleManager implements Listener {
         player.setGameMode(GameMode.ADVENTURE);
         player.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ WELCOME TO THE LIMINAL NULL ✦</bold></dark_purple>"));
         player.sendMessage(miniMessage.deserialize("<gray>Use the buttons on the walls to rewrite the laws of the universe.</gray>"));
+        
+        if (plugin.getAdvancementManager() != null) {
+            plugin.getAdvancementManager().grantAdvancement(player, "liminal_null");
+        }
     }
 
     private void placeControlButton(World w, int x, int y, int z, String title, String sub) {
@@ -807,6 +811,14 @@ public class FinaleManager implements Listener {
                     plugin.getFinaleManager().startPurge(player, false);
                     Bukkit.broadcast(miniMessage.deserialize("<gold><bold>✦ THE ALTAR HAS BEEN CLAIMED ✦</bold></gold>"));
                     Bukkit.broadcast(miniMessage.deserialize("<gray>" + player.getName() + " has become the Juggernaut!</gray>"));
+                    
+                    if (plugin.getAdvancementManager() != null) {
+                        plugin.getAdvancementManager().grantAdvancement(player, "become_juggernaut");
+                        // Also grant to anyone online that the altar spawned, if not already
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            plugin.getAdvancementManager().grantAdvancement(p, "altar_spawn");
+                        }
+                    }
                 } else {
                     player.sendMessage(miniMessage.deserialize("<red>The Purge is already active.</red>"));
                 }

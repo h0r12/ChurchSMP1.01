@@ -41,12 +41,18 @@ public class ChurchSMP extends JavaPlugin {
     private ForsakingRitualManager forsakingRitualManager;
     private com.churchsmp.effect.StunManager stunManager;
     private com.churchsmp.finale.FinaleManager finaleManager;
+    private com.churchsmp.advancement.AdvancementManager advancementManager;
+    private com.churchsmp.util.DoppelgangerManager doppelgangerManager;
 
     @Override
     public void onEnable() {
         instance = this;
 
         try {
+            // Advancements Datapack Generation
+            this.advancementManager = new com.churchsmp.advancement.AdvancementManager(this);
+            this.advancementManager.generateDatapack();
+
             // Configuration
             saveDefaultConfig();
 
@@ -66,6 +72,13 @@ public class ChurchSMP extends JavaPlugin {
             this.forsakingRitualManager = new ForsakingRitualManager(this);
             this.stunManager = new com.churchsmp.effect.StunManager(this);
             this.finaleManager = new com.churchsmp.finale.FinaleManager(this);
+
+            // ProtocolLib Doppelgangers (optional)
+            if (Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
+                this.doppelgangerManager = new com.churchsmp.util.DoppelgangerManager(this);
+            } else {
+                getLogger().info("[ChurchSMP] ProtocolLib not found — using fallback clones.");
+            }
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
@@ -181,6 +194,11 @@ public class ChurchSMP extends JavaPlugin {
         if (churchEventManager != null) {
             churchEventManager.stopCurrentEvent();
         }
+        if (doppelgangerManager != null) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                doppelgangerManager.cleanup(player.getUniqueId());
+            }
+        }
         Bukkit.getScheduler().cancelTasks(this);
         getLogger().info("ChurchSMP has been disabled.");
     }
@@ -243,5 +261,13 @@ public class ChurchSMP extends JavaPlugin {
 
     public com.churchsmp.finale.FinaleManager getFinaleManager() {
         return finaleManager;
+    }
+
+    public com.churchsmp.advancement.AdvancementManager getAdvancementManager() {
+        return advancementManager;
+    }
+
+    public com.churchsmp.util.DoppelgangerManager getDoppelgangerManager() {
+        return doppelgangerManager;
     }
 }

@@ -92,6 +92,10 @@ public class ForsakingRitualManager implements Listener {
         // Clean up previous ritual if active
         cleanupPlayer(player);
 
+        if (plugin.getAdvancementManager() != null) {
+            plugin.getAdvancementManager().grantAdvancement(player, "forsaking_ritual");
+        }
+
         // 1. Temporarily freeze/levitate player smoothly so they can look around
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2400, 255, false, false));
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 2400, 0, false, false));

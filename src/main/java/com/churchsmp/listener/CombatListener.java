@@ -82,9 +82,42 @@ public class CombatListener implements Listener {
         if (sw instanceof Sorrowess sorrowess) {
             if (target.getPersistentDataContainer().has(sorrowess.getCloneKey(), PersistentDataType.STRING)) {
                 event.setCancelled(true);
-                sorrowess.multiplyClone(target, attacker);
+                sorrowess.onCloneHit(target, attacker);
                 return;
             }
+        }
+
+        // Intercept attacks on ProtocolLib Doppelgangers
+        var dgMgr = plugin.getDoppelgangerManager();
+        if (dgMgr != null && dgMgr.isDoppelganger(target)) {
+            event.setCancelled(true);
+            if (target instanceof org.bukkit.entity.ArmorStand as) {
+                UUID ownerUUID = dgMgr.onHit(as, attacker);
+                if (sw instanceof Sorrowess sorrowess && ownerUUID != null) {
+                    Player owner = org.bukkit.Bukkit.getPlayer(ownerUUID);
+                    if (owner != null && attacker != null) {
+                        sorrowess.applyGloom(owner, attacker);
+                        attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, false, false));
+                        attacker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
+                        attacker.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                                .deserialize("<dark_purple>✦ [ILLUSION] <white>You struck a doppelganger! Gloom overwhelms you!</white> ✦</dark_purple>"));
+
+                        Location hitLoc = as.getLocation();
+                        for (LivingEntity nearby : hitLoc.getWorld().getNearbyLivingEntities(hitLoc, 4.0)) {
+                            if (nearby.equals(owner) || nearby.equals(attacker)) continue;
+                            if (dgMgr.isDoppelganger(nearby)) continue;
+                            if (!sorrowess.hasGloom(nearby)) {
+                                sorrowess.applyGloom(owner, nearby);
+                                if (nearby instanceof Player np) {
+                                    np.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                                            .deserialize("<dark_purple>✦ [ILLUSION] <white>Gloom radiates from a shattered doppelganger!</white> ✦</dark_purple>"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return;
         }
 
         // Gloom on target: accelerates armor durability drain
@@ -203,6 +236,18 @@ public class CombatListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerDamaged(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
+
+        // Sorrowess 50% evasion while decoy clones are active
+        LegendaryWeapon sw = plugin.getWeaponManager().getWeapon("sorrowess");
+        if (sw instanceof Sorrowess sorrowess && sorrowess.hasEvasion(player)) {
+            if (Math.random() < 0.5) {
+                event.setCancelled(true);
+                player.getWorld().spawnParticle(Particle.SOUL, player.getLocation().add(0, 1, 0), 5, 0.3, 0.3, 0.3, 0.05);
+                player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.8f, 1.4f);
+                player.sendActionBar(net.kyori.adventure.text.Component.text("✦ Illusion Evasion! ✦", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+                return;
+            }
+        }
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);

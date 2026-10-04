@@ -4,6 +4,7 @@ main: com.churchsmp.ChurchSMP
 api-version: '1.21'
 description: Bible/morality-themed Minecraft plugin with alignment gating, 7 legendary weapons, and 7 sin relics.
 author: ChurchSMP Team
+softdepend: [ProtocolLib]
 
 commands:
   church:

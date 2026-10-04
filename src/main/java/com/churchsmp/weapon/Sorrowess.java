@@ -46,6 +46,8 @@ public class Sorrowess extends LegendaryWeapon {
 
     // Mirror clones: Player UUID -> List of active humanoid clones
     private final Map<UUID, List<LivingEntity>> activeClones = new ConcurrentHashMap<>();
+    // 50% evasion while decoy clones are active
+    private final java.util.Set<UUID> evasionActive = ConcurrentHashMap.newKeySet();
     private final Random random = new Random();
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
@@ -135,6 +137,8 @@ public class Sorrowess extends LegendaryWeapon {
         LivingEntity target = null;
         for (LivingEntity e : player.getWorld().getNearbyLivingEntities(player.getLocation(), 16.0)) {
             if (e.equals(player)) continue;
+            if (e.getPersistentDataContainer().has(cloneKey, PersistentDataType.STRING)) continue;
+            if (plugin.getDoppelgangerManager() != null && plugin.getDoppelgangerManager().isDoppelganger(e)) continue;
             Vector toE = e.getLocation().toVector().subtract(player.getEyeLocation().toVector()).normalize();
             if (player.getEyeLocation().getDirection().dot(toE) > 0.8) {
                 target = e;
@@ -258,8 +262,8 @@ public class Sorrowess extends LegendaryWeapon {
 
         int cd = plugin.getConfig().getInt("weapons.sorrowess.secondary_cooldown", 100);
         plugin.getCooldownManager().setCooldown(player, key, cd);
-        plugin.getCooldownManager().setActiveDuration(player, key, 20);
-        plugin.getBossBarManager().showActiveCountdown(player, "Bloody Rain Arena", BossBar.Color.PURPLE, 20);
+        plugin.getCooldownManager().setActiveDuration(player, key, 15);
+        plugin.getBossBarManager().showActiveCountdown(player, "Bloody Rain Arena", BossBar.Color.PURPLE, 15);
 
         player.playSound(player.getLocation(), Sound.WEATHER_RAIN, 1.5f, 0.8f);
         player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 1.2f, 1.0f);
@@ -269,32 +273,53 @@ public class Sorrowess extends LegendaryWeapon {
         Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
         Particle.DustOptions purpleDust = new Particle.DustOptions(Color.fromRGB(128, 0, 128), 1.2f);
 
-        // Spawn 4 illusion clones in 4 cardinal directions
-        List<LivingEntity> clones = activeClones.computeIfAbsent(player.getUniqueId(), k -> new ArrayList<>());
-        for (LivingEntity old : clones) {
+        // --- Spawn clones: ProtocolLib doppelgangers if available, else CloneUtil fallback ---
+        var dgMgr = plugin.getDoppelgangerManager();
+        boolean usingDoppelgangers = dgMgr != null && dgMgr.isEnabled();
+
+        List<LivingEntity> fallbackClones = activeClones.computeIfAbsent(player.getUniqueId(), k -> new ArrayList<>());
+        for (LivingEntity old : fallbackClones) {
             if (old.isValid()) old.remove();
         }
-        clones.clear();
+        fallbackClones.clear();
 
-        double[] angles = {0, 90, 180, 270};
-        for (double deg : angles) {
-            double rad = Math.toRadians(deg);
-            Vector dir = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.18);
-            Location spawn = spawnCenter.clone().add(Math.cos(rad) * 2.0, 0, Math.sin(rad) * 2.0);
-            spawnClone(player, spawn, dir, clones);
+        if (usingDoppelgangers) {
+            // TRUE DOPPELGANGERS: 4 initial, multiply to 27 on hit, mirror owner movement
+            dgMgr.spawnInitial(player);
+        } else {
+            // FALLBACK: CloneUtil decoys
+            double[] angles = {0, 90, 180, 270};
+            for (double deg : angles) {
+                double rad = Math.toRadians(deg);
+                Vector walkDir = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.16);
+                Location spawn = spawnCenter.clone().add(Math.cos(rad) * 1.5, 0, Math.sin(rad) * 1.5);
+                spawnDecoyClone(player, spawn, walkDir, fallbackClones);
+            }
         }
 
-        // Arena loop: 20s with rain effects and boundary FOLLOWING THE PLAYER
+        // Enable 50% evasion while clones are active
+        evasionActive.add(player.getUniqueId());
+
+        // Arena loop: 15s with rain effects and boundary following the player
         new BukkitRunnable() {
-            int ticks = 200;
+            int ticks = 300; // 15 seconds (300 ticks / 20 = 15s, but we decrement by 4 each run so 300/4 = 75 runs × 4t = 15s)
 
             @Override
             public void run() {
                 if (!player.isOnline() || ticks <= 0) {
-                    for (LivingEntity c : clones) {
-                        if (c.isValid()) c.remove();
+                    // Cleanup doppelgangers (ProtocolLib)
+                    if (dgMgr != null) {
+                        dgMgr.cleanup(player.getUniqueId());
                     }
-                    clones.clear();
+                    // Cleanup fallback clones
+                    for (LivingEntity c : fallbackClones) {
+                        if (c.isValid()) {
+                            c.getWorld().spawnParticle(Particle.SOUL, c.getLocation().add(0, 1, 0), 8, 0.3, 0.3, 0.3, 0.05);
+                            c.remove();
+                        }
+                    }
+                    fallbackClones.clear();
+                    evasionActive.remove(player.getUniqueId());
                     cancel();
                     return;
                 }
@@ -315,7 +340,7 @@ public class Sorrowess extends LegendaryWeapon {
                     arenaCenter.getWorld().spawnParticle(Particle.DUST, arenaCenter.clone().add(-6, 0.1, d), 1, 0, 0, 0, 0, purpleDust);
                 }
 
-                // Dense blood-crimson particles and runes at player's and clones' feet
+                // Dense blood-crimson particles and runes at player's feet
                 for (int d = 0; d < 360; d += 30) {
                     double rad = Math.toRadians(d + (ticks * 5));
                     arenaCenter.getWorld().spawnParticle(Particle.DUST,
@@ -327,7 +352,7 @@ public class Sorrowess extends LegendaryWeapon {
                 }
                 arenaCenter.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, arenaCenter.clone().add(0, 0.1, 0), 2, 0.5, 0.05, 0.5, 0.01);
 
-                // Raining red blood mist (no water droplets)
+                // Raining red blood mist
                 for (int r = 0; r < 10; r++) {
                     double rx = (random.nextDouble() - 0.5) * 12.0;
                     double rz = (random.nextDouble() - 0.5) * 12.0;
@@ -339,7 +364,7 @@ public class Sorrowess extends LegendaryWeapon {
             }
         }.runTaskTimer(plugin, 0L, 4L);
 
-        player.sendMessage(Component.text("✦ Bloody Rain! 4 illusion clones summoned in mobile arena.", NamedTextColor.LIGHT_PURPLE));
+        player.sendMessage(Component.text("✦ Bloody Rain! 4 illusion decoys scatter — 50% evasion active.", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -390,6 +415,7 @@ public class Sorrowess extends LegendaryWeapon {
                 for (LivingEntity nearby : player.getWorld().getNearbyLivingEntities(pLoc, 2.6)) {
                     if (nearby.equals(player) || hitTargets.contains(nearby.getUniqueId())) continue;
                     if (nearby.getPersistentDataContainer().has(cloneKey, PersistentDataType.STRING)) continue;
+                    if (plugin.getDoppelgangerManager() != null && plugin.getDoppelgangerManager().isDoppelganger(nearby)) continue;
 
                     hitTargets.add(nearby.getUniqueId());
                     nearby.damage(13.0, player);
@@ -409,8 +435,8 @@ public class Sorrowess extends LegendaryWeapon {
         return true;
     }
 
-    // Spawns a humanoid clone: armless and no nametag as requested
-    private void spawnClone(Player owner, Location loc, Vector dir, List<LivingEntity> cloneList) {
+    // Spawns a passive decoy clone: walks in a direction, no attacks, purely visual confusion
+    private void spawnDecoyClone(Player owner, Location loc, Vector walkDir, List<LivingEntity> cloneList) {
         if (cloneList.size() >= 16) return; // hard cap
 
         CloneUtil.CloneConfig cfg = new CloneUtil.CloneConfig();
@@ -419,23 +445,26 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.displayName = null;
         cfg.showNameTag = false;
         cfg.hasArms = true;
-        cfg.modelType = CloneUtil.CloneModelType.KINETIC; // Use kinetic puppet
+        cfg.modelType = CloneUtil.CloneModelType.KINETIC;
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
-        cfg.durationTicks = 400;
-        cfg.movementSpeed = 0.32;
-        cfg.formationOffset = dir.clone().multiply(3.0);
-        cfg.followOwner = true;
-        cfg.syncSneak = true;
-        cfg.attackRange = 3.2;
-        cfg.attackDamage = 1.0;
-        cfg.jumpCrit = true;
+        cfg.durationTicks = 300; // 15 seconds matching Bloody Rain
+        cfg.movementSpeed = 0.24; // Slightly slower than sprint — eerie wandering pace
+        cfg.formationOffset = walkDir.clone().multiply(4.0);
+        cfg.followOwner = false; // Walk away, don't follow owner
+        cfg.syncSneak = false;
+        cfg.attackRange = 0; // NO ATTACKING
+        cfg.attackDamage = 0;
+        cfg.jumpCrit = false;
         cfg.mainHandOverride = null;
         cfg.offHandOverride = null;
         cfg.onTick = z -> {
             Location cLoc = z.getLocation();
+            // Ghostly red particle trail at feet
             cLoc.getWorld().spawnParticle(Particle.DUST, cLoc.clone().add(0, 0.1, 0), 1, 0, 0, 0, 0,
                     new Particle.DustOptions(Color.fromRGB(150, 0, 50), 1.0f));
+            // Subtle soul flame above head for an eerie look
+            cLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, cLoc.clone().add(0, 1.8, 0), 1, 0.05, 0.05, 0.05, 0.01);
         };
         cfg.onDespawn = z -> cloneList.remove(z);
 
@@ -445,8 +474,12 @@ public class Sorrowess extends LegendaryWeapon {
         }
     }
 
-    // Called from CombatListener when a clone is attacked
-    public void multiplyClone(LivingEntity hitClone, LivingEntity attacker) {
+    /**
+     * Called from CombatListener when a decoy clone is attacked.
+     * Instead of multiplying, it applies Gloom to the attacker and nearby enemies,
+     * then the clone shatters.
+     */
+    public void onCloneHit(LivingEntity hitClone, LivingEntity attacker) {
         String ownerStr = hitClone.getPersistentDataContainer().get(cloneKey, PersistentDataType.STRING);
         if (ownerStr == null) return;
         UUID ownerId = UUID.fromString(ownerStr);
@@ -455,30 +488,48 @@ public class Sorrowess extends LegendaryWeapon {
         if (clones == null) return;
 
         Location hitLoc = hitClone.getLocation();
+
+        // Visual shatter: glass break + crimson burst
         hitLoc.getWorld().playSound(hitLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.2f);
         hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.2f);
         hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc.clone().add(0, 1, 0), 1, Color.WHITE);
         hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc.clone().add(0, 1, 0), 30, 0.4, 0.5, 0.4, 0,
                 new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.5f));
+        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc.clone().add(0, 1.2, 0), 12, 0.3, 0.4, 0.3, 0.06);
 
+        // Remove the clone
         hitClone.remove();
         clones.remove(hitClone);
 
-        // Weakness on attacker
-        if (attacker != null) {
-            attacker.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 80, 0));
-        }
+        // Apply Gloom to the attacker
+        if (attacker != null && owner != null && owner.isOnline()) {
+            applyGloom(owner, attacker);
+            attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, false, false));
+            attacker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
 
-        // Multiply: spawn 4 new clones in cardinal directions if under limit (max 16)
-        if (owner != null && owner.isOnline() && clones.size() < 16) {
-            double[] dirs = {0, 90, 180, 270};
-            for (double deg : dirs) {
-                double rad = Math.toRadians(deg);
-                Vector v = new Vector(Math.cos(rad), 0, Math.sin(rad)).normalize().multiply(0.18);
-                Location spawn = hitLoc.clone().add(Math.cos(rad) * 0.8, 0, Math.sin(rad) * 0.8);
-                spawnClone(owner, spawn, v, clones);
+            if (attacker instanceof Player ap) {
+                ap.sendMessage(miniMessage.deserialize("<dark_purple>✦ [ILLUSION] <white>You struck a decoy! Gloom overwhelms you!</white> ✦</dark_purple>"));
+            }
+
+            // Spread Gloom to nearby enemies within 4 blocks of the shattered clone
+            for (LivingEntity nearby : hitLoc.getWorld().getNearbyLivingEntities(hitLoc, 4.0)) {
+                if (nearby.equals(owner) || nearby.equals(attacker)) continue;
+                if (nearby.getPersistentDataContainer().has(cloneKey, PersistentDataType.STRING)) continue;
+                if (!hasGloom(nearby)) {
+                    applyGloom(owner, nearby);
+                    if (nearby instanceof Player np) {
+                        np.sendMessage(miniMessage.deserialize("<dark_purple>✦ [ILLUSION] <white>Gloom radiates from a shattered illusion!</white> ✦</dark_purple>"));
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Returns whether the Sorrowess user has 50% evasion active (decoy clones are alive).
+     */
+    public boolean hasEvasion(Player player) {
+        return evasionActive.contains(player.getUniqueId());
     }
 
     // Returns the cloneKey for use in CombatListener
