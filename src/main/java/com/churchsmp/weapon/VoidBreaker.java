@@ -260,7 +260,7 @@ public class VoidBreaker extends LegendaryWeapon {
                         world.playSound(targetLoc, Sound.BLOCK_HEAVY_CORE_STEP, 1.0f, 0.4f + (float) (openProgress * 0.5));
                     }
                     if (ticks % 4 == 0) {
-                        world.spawnParticle(Particle.SONIC_CHARGE, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
+                        world.spawnParticle(Particle.PORTAL, targetLoc.clone().add(0, startHeight + 0.5, 0), 8, 0.3, 0.3, 0.3, 0.1);
                     }
 
                     // The second opening animation finishes: sharp snap and charge release!

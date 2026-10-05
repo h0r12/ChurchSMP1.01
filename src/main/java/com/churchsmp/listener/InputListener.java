@@ -134,7 +134,8 @@ public class InputListener implements Listener {
             if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
                 event.setCancelled(true);
                 int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
-                player.sendActionBar(miniMessage.deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
                 return;
             }
