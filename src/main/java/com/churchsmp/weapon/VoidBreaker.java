@@ -212,11 +212,12 @@ public class VoidBreaker extends LegendaryWeapon {
 
         plugin.getBossBarManager().showActiveCountdown(player, "Weight of Sin", BossBar.Color.PURPLE, 3);
 
-        // Descending hammer task — 60 ticks (3 seconds), runs every 2 ticks
+        // Descending Black Mace task — Phase 1: Opening (0-30 ticks), Phase 2: Rapid Slam Down (30-42 ticks)
         new BukkitRunnable() {
             int ticks = 0;
-            final int totalTicks = 60;
-            final double startHeight = 10.0;
+            final int openDuration = 30; // 1.5s opening animation at apex
+            final int slamDuration = 12; // 0.6s violent downward slam
+            final double startHeight = 11.0;
 
             @Override
             public void run() {
@@ -244,64 +245,141 @@ public class VoidBreaker extends LegendaryWeapon {
 
                 Location targetLoc = finalTarget.getLocation();
                 World world = targetLoc.getWorld();
-                double progress = (double) ticks / totalTicks; // 0.0 → 1.0
-                double hammerY = targetLoc.getY() + startHeight * (1.0 - progress);
 
-                // === PARTICLE AXE (Spinning) ===
-                Location axeCenter = new Location(world, targetLoc.getX(), hammerY, targetLoc.getZ());
-                Particle.DustOptions darkDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 2.5f);
-                Particle.DustOptions purpleDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(75, 0, 130), 1.8f);
+                double openProgress;
+                double hammerY;
 
-                double rotationAngle = ticks * 0.4; // Spins over time
+                if (ticks <= openDuration) {
+                    // === PHASE 1: OPENING (Hovering at apex above target) ===
+                    openProgress = (double) ticks / openDuration; // 0.0 -> 1.0
+                    hammerY = targetLoc.getY() + startHeight;
 
-                // Handle — vertical column
-                for (double dy = -1.0; dy <= 2.0; dy += 0.4) {
-                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(0, dy, 0), 1, 0, 0, 0, 0, purpleDust);
+                    // Ominous mechanical opening sounds and energy charging
+                    if (ticks % 6 == 0) {
+                        world.playSound(targetLoc, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.8f, 0.5f + (float) (openProgress * 0.7));
+                        world.playSound(targetLoc, Sound.BLOCK_HEAVY_CORE_STEP, 1.0f, 0.4f + (float) (openProgress * 0.5));
+                    }
+                    if (ticks % 4 == 0) {
+                        world.spawnParticle(Particle.SONIC_CHARGE, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
+                    }
+
+                    // The second opening animation finishes: sharp snap and charge release!
+                    if (ticks == openDuration) {
+                        world.playSound(targetLoc, Sound.BLOCK_VAULT_OPEN_SHUTTER, 1.8f, 0.5f);
+                        world.playSound(targetLoc, Sound.BLOCK_IRON_TRAPDOOR_CLOSE, 1.8f, 0.4f);
+                        world.playSound(targetLoc, Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.4f, 1.3f);
+                        world.playSound(targetLoc, Sound.BLOCK_HEAVY_CORE_BREAK, 1.6f, 0.6f);
+                        world.spawnParticle(Particle.SONIC_BOOM, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
+                        world.spawnParticle(Particle.FLASH, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
+                    }
+                } else {
+                    // === PHASE 2: RAPID SLAM DOWN (Plunges the instant opening completes) ===
+                    openProgress = 1.0;
+                    int slamTicks = ticks - openDuration;
+                    double slamProgress = Math.min(1.0, (double) slamTicks / slamDuration);
+                    // Exponential downward plunge acceleration
+                    double plunge = Math.pow(slamProgress, 2.2);
+                    hammerY = targetLoc.getY() + startHeight * (1.0 - plunge);
+
+                    // Plunge trail effects
+                    Location plungeLoc = new Location(world, targetLoc.getX(), hammerY, targetLoc.getZ());
+                    world.spawnParticle(Particle.SWEEP_ATTACK, plungeLoc, 2, 0.4, 0.1, 0.4, 0);
+                    world.spawnParticle(Particle.LARGE_SMOKE, plungeLoc.clone().add(0, 1.0, 0), 3, 0.2, 0.5, 0.2, 0.05);
+                    world.spawnParticle(Particle.DUST, plungeLoc.clone().add(0, 0.8, 0), 5, 0.2, 0.6, 0.2, 0,
+                            new Particle.DustOptions(org.bukkit.Color.fromRGB(20, 20, 20), 2.5f));
+
+                    world.playSound(plungeLoc, Sound.ENTITY_PHANTOM_SWOOP, 1.2f, 0.4f);
+                    world.playSound(plungeLoc, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.5f);
                 }
 
-                // Double axe heads (rotating)
-                for (double r = 0.4; r <= 1.8; r += 0.3) {
-                    double bladeY = Math.sin(r * 2) * 0.5; // Curve of the blade
+                // === PARTICLE BLACK MACE ===
+                Location maceHead = new Location(world, targetLoc.getX(), hammerY, targetLoc.getZ());
+                Particle.DustOptions blackMaceDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(15, 15, 15), 2.4f);
+                Particle.DustOptions ironDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(45, 45, 45), 1.8f);
+                Particle.DustOptions voidPurpleDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(80, 10, 130), 1.9f);
+                Particle.DustOptions glowEdgeDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(130, 20, 210), 1.5f);
 
-                    // Head 1
-                    double h1x = Math.cos(rotationAngle) * r;
-                    double h1z = Math.sin(rotationAngle) * r;
-                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h1x, bladeY, h1z), 1, 0, 0, 0, 0, darkDust);
-                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h1x, -bladeY, h1z), 1, 0, 0, 0, 0, darkDust);
+                double rotationAngle = ticks * 0.08;
 
-                    // Head 2 (opposite side)
-                    double h2x = Math.cos(rotationAngle + Math.PI) * r;
-                    double h2z = Math.sin(rotationAngle + Math.PI) * r;
-                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h2x, bladeY, h2z), 1, 0, 0, 0, 0, darkDust);
-                    world.spawnParticle(Particle.DUST, axeCenter.clone().add(h2x, -bladeY, h2z), 1, 0, 0, 0, 0, darkDust);
+                // 1. Mace Shaft & Grip (extends upward from mace head)
+                for (double dy = 0.2; dy <= 3.5; dy += 0.35) {
+                    world.spawnParticle(Particle.DUST, maceHead.clone().add(0, dy, 0), 1, 0, 0, 0, 0, blackMaceDust);
+                }
+                // Collar / Handguard rings along shaft
+                for (double dy : new double[]{1.2, 2.4}) {
+                    for (int deg = 0; deg < 360; deg += 90) {
+                        double rad = Math.toRadians(deg + (ticks * 2));
+                        world.spawnParticle(Particle.DUST, maceHead.clone().add(Math.cos(rad) * 0.22, dy, Math.sin(rad) * 0.22),
+                                1, 0, 0, 0, 0, voidPurpleDust);
+                    }
+                }
+                // Pommel at top of shaft
+                world.spawnParticle(Particle.DUST, maceHead.clone().add(0, 3.6, 0), 2, 0.1, 0.05, 0.1, 0, blackMaceDust);
+                world.spawnParticle(Particle.SOUL_FIRE_FLAME, maceHead.clone().add(0, 3.75, 0), 1, 0, 0, 0, 0.01);
+
+                // 2. Mace Head Core (Dense center)
+                world.spawnParticle(Particle.DUST, maceHead.clone().add(0, 0.3, 0), 3, 0.15, 0.2, 0.15, 0, blackMaceDust);
+                world.spawnParticle(Particle.DUST, maceHead.clone().add(0, 0.5, 0), 2, 0.1, 0.15, 0.1, 0, ironDust);
+                if (ticks % 3 == 0) {
+                    world.spawnParticle(Particle.BLOCK, maceHead.clone().add(0, 0.3, 0), 2, 0.1, 0.1, 0.1, 0.02,
+                            Material.HEAVY_CORE.createBlockData());
                 }
 
-                // Soul flame trail at the tips of the blades
-                double tipX = Math.cos(rotationAngle) * 2.0;
-                double tipZ = Math.sin(rotationAngle) * 2.0;
-                world.spawnParticle(Particle.SOUL_FIRE_FLAME, axeCenter.clone().add(tipX, 0, tipZ), 1, 0, 0, 0, 0.02);
-                world.spawnParticle(Particle.SOUL_FIRE_FLAME, axeCenter.clone().add(-tipX, 0, -tipZ), 1, 0, 0, 0, 0.02);
+                // 3. Opening Chamber Core Energy (singularity charging inside open head)
+                if (openProgress > 0.15) {
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, maceHead.clone().add(0, 0.25, 0), 1, 0.05, 0.05, 0.05, 0.01);
+                    world.spawnParticle(Particle.DUST, maceHead.clone().add(0, 0.25, 0), 1, 0, 0, 0, 0, glowEdgeDust);
+                }
 
-                // === GROUND PRESSURE EFFECTS ===
-                Particle.DustOptions greyDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(100, 100, 100), 2.0f);
-                // Pulsing ring on the ground beneath target
-                double ringRadius = 1.5 + progress * 2.5;
-                int ringPoints = 20 + (int) (progress * 12);
+                // 4. Mace Flanges (4 heavy blades opening outward)
+                for (int i = 0; i < 4; i++) {
+                    double flangeAngle = rotationAngle + (i * (Math.PI / 2.0));
+                    double cosA = Math.cos(flangeAngle);
+                    double sinA = Math.sin(flangeAngle);
+
+                    // Each flange extends from dy = -0.3 (lower striking tip) up to dy = 1.0 (shoulder)
+                    for (double dy = -0.3; dy <= 0.95; dy += 0.25) {
+                        double normY = (dy + 0.3) / 1.25; // 0.0 at bottom tip, 1.0 at shoulder
+                        double profile = Math.sin(normY * Math.PI); // wider in the belly
+                        // Flange radius expands as mace opens:
+                        // Closed: r ~ 0.35, Open: r flares up to 2.1 blocks wide
+                        double r = 0.35 + openProgress * (0.45 + profile * 1.3);
+
+                        Location fLoc = maceHead.clone().add(cosA * r, dy, sinA * r);
+                        // Blade spine
+                        world.spawnParticle(Particle.DUST, fLoc, 1, 0, 0, 0, 0, blackMaceDust);
+                        // Outer sharpened razor edge with void energy
+                        Location edgeLoc = maceHead.clone().add(cosA * (r + 0.15), dy, sinA * (r + 0.15));
+                        world.spawnParticle(Particle.DUST, edgeLoc, 1, 0, 0, 0, 0, voidPurpleDust);
+                    }
+
+                    // Flange tip particle (bottom striking spikes)
+                    double tipR = 0.35 + openProgress * 0.7;
+                    Location tipLoc = maceHead.clone().add(cosA * tipR, -0.35, sinA * tipR);
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, tipLoc, 1, 0, 0, 0, 0, 0.01);
+                }
+
+                // === GROUND PRESSURE & IMPENDING DOOM EFFECTS ===
+                double groundProgress = (ticks <= openDuration) ? openProgress : 1.0;
+                Particle.DustOptions greyDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(80, 80, 80), 2.0f);
+                double ringRadius = 1.5 + groundProgress * 1.8;
+                int ringPoints = 20 + (int) (groundProgress * 10);
                 for (int i = 0; i < ringPoints; i++) {
-                    double angle = (2 * Math.PI / ringPoints) * i + (ticks * 0.1);
+                    double angle = (2 * Math.PI / ringPoints) * i + (ticks * 0.08);
                     double rx = Math.cos(angle) * ringRadius;
                     double rz = Math.sin(angle) * ringRadius;
-                    world.spawnParticle(Particle.DUST, targetLoc.clone().add(rx, 0.1, rz), 1, 0, 0, 0, 0, greyDust);
+                    world.spawnParticle(Particle.DUST, targetLoc.clone().add(rx, 0.1, rz), 1, 0, 0, 0, 0,
+                            (i % 2 == 0) ? greyDust : voidPurpleDust);
                 }
 
-                // Downward pressure-wave columns (every 5 ticks)
-                if (ticks % 5 == 0) {
-                    Particle.DustOptions pressureDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(60, 0, 80), 1.2f);
-                    for (int i = 0; i < 8; i++) {
-                        double angle = (2 * Math.PI / 8) * i;
-                        double px = Math.cos(angle) * (0.5 + progress);
-                        double pz = Math.sin(angle) * (0.5 + progress);
-                        for (double py = hammerY; py > targetLoc.getY(); py -= 1.5) {
+                // Downward pressure-wave columns
+                if (ticks % 4 == 0) {
+                    Particle.DustOptions pressureDust = new Particle.DustOptions(org.bukkit.Color.fromRGB(50, 0, 70), 1.2f);
+                    for (int i = 0; i < 6; i++) {
+                        double angle = (2 * Math.PI / 6) * i;
+                        double px = Math.cos(angle) * (0.6 + groundProgress * 0.6);
+                        double pz = Math.sin(angle) * (0.6 + groundProgress * 0.6);
+                        for (double py = hammerY; py > targetLoc.getY(); py -= 1.8) {
                             world.spawnParticle(Particle.DUST,
                                     new Location(world, targetLoc.getX() + px, py, targetLoc.getZ() + pz),
                                     1, 0, 0, 0, 0, pressureDust);
@@ -309,22 +387,23 @@ public class VoidBreaker extends LegendaryWeapon {
                     }
                 }
 
-                // Ground crack particles (increasing intensity)
-                if (ticks % 10 == 0) {
-                    int crackCount = 3 + (int) (progress * 12);
+                // Ground tremors / crack particles beneath target
+                if (ticks <= openDuration) {
+                    if (ticks % 10 == 0) {
+                        int crackCount = 3 + (int) (openProgress * 10);
+                        world.spawnParticle(Particle.BLOCK, targetLoc.clone().add(0, 0.1, 0),
+                                crackCount, 1.0 + openProgress, 0.1, 1.0 + openProgress, 0.05, Material.GRAVEL.createBlockData());
+                    }
+                } else {
+                    // Slamming phase: intense ground upheaval
                     world.spawnParticle(Particle.BLOCK, targetLoc.clone().add(0, 0.1, 0),
-                            crackCount, 1.0 + progress, 0.1, 1.0 + progress, 0.05, Material.GRAVEL.createBlockData());
+                            8, 1.2, 0.1, 1.2, 0.08, Material.OBSIDIAN.createBlockData());
                 }
 
-                // Ominous ticking sound
-                if (ticks % 10 == 0) {
-                    world.playSound(targetLoc, Sound.BLOCK_HEAVY_CORE_STEP, 1.0f, 0.5f + (float) (progress * 0.8));
-                }
-
-                // === PROGRESSIVE DEBUFFS ===
+                // Progressive debuffs on target
                 if (ticks < 20) {
                     finalTarget.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 25, 0, false, false, true));
-                } else if (ticks < 40) {
+                } else if (ticks < openDuration) {
                     finalTarget.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 25, 1, false, false, true));
                 } else {
                     finalTarget.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 25, 2, false, false, true));
@@ -333,7 +412,7 @@ public class VoidBreaker extends LegendaryWeapon {
                 // Progressively suppress jumping
                 if (finalTarget instanceof Player tp) {
                     Vector vel = tp.getVelocity();
-                    double maxJump = 0.42 * (1.0 - progress * 0.8);
+                    double maxJump = 0.42 * (1.0 - groundProgress * 0.85);
                     if (vel.getY() > maxJump && vel.getY() > 0) {
                         vel.setY(maxJump);
                         tp.setVelocity(vel);
@@ -342,11 +421,14 @@ public class VoidBreaker extends LegendaryWeapon {
 
                 ticks += 2;
 
-                // === FULL DESCENT REACHED: CRUSH ===
-                if (ticks >= totalTicks) {
-                    resolveWeightOfSin(caster, finalTarget, finalTarget.getLocation());
-                    cleanup();
-                    cancel();
+                // === SLAM IMPACT GROUND CONTACT REACHED ===
+                if (ticks > openDuration) {
+                    int slamTicks = ticks - openDuration;
+                    if (slamTicks >= slamDuration || hammerY <= targetLoc.getY() + 0.6) {
+                        resolveWeightOfSin(caster, finalTarget, finalTarget.getLocation());
+                        cleanup();
+                        cancel();
+                    }
                 }
             }
 

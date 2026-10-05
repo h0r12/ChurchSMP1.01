@@ -107,7 +107,7 @@ public class Sorrowess extends LegendaryWeapon {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(displayName);
-            meta.lore(buildCleanLore(List.of("Forming", "Brave", "Gloom"), "Grief Shards", "Bloody Rain"));
+            meta.lore(buildCleanLore(List.of("Brave", "Gloom"), "Grief Shards", "Bloody Rain"));
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "weapon_id"), PersistentDataType.STRING, id);
             // Apply standard enchants but DO NOT add Riptide
             applyStandardEnchants(meta);
@@ -445,18 +445,19 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.displayName = null;
         cfg.showNameTag = false;
         cfg.hasArms = true;
+        cfg.forceSkinHead = true;
         cfg.modelType = CloneUtil.CloneModelType.KINETIC;
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
         cfg.durationTicks = 300; // 15 seconds matching Bloody Rain
         cfg.movementSpeed = 0.24; // Slightly slower than sprint — eerie wandering pace
-        cfg.formationOffset = walkDir.clone().multiply(4.0);
+        cfg.formationOffset = walkDir.clone().multiply(8.0);
         cfg.followOwner = false; // Walk away, don't follow owner
         cfg.syncSneak = false;
         cfg.attackRange = 0; // NO ATTACKING
         cfg.attackDamage = 0;
         cfg.jumpCrit = false;
-        cfg.mainHandOverride = null;
+        cfg.mainHandOverride = owner.getInventory().getItemInMainHand();
         cfg.offHandOverride = null;
         cfg.onTick = z -> {
             Location cLoc = z.getLocation();
@@ -565,29 +566,7 @@ public class Sorrowess extends LegendaryWeapon {
 
     @Override
     public void onCrouch(Player player, boolean isSneaking) {
-        if (!isSneaking) return;
-        // Forming: Crouching summons non-flowing water + ripple ring (20s revert)
-        Block block = player.getLocation().getBlock();
-        if (block.getType() == Material.AIR) {
-            block.setType(Material.WATER);
-
-            Particle.DustOptions waterRing = new Particle.DustOptions(Color.fromRGB(0, 150, 255), 1.5f);
-            Location loc = player.getLocation();
-            for (int d = 0; d < 360; d += 25) {
-                double rad = Math.toRadians(d);
-                loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(Math.cos(rad) * 1.2, 0.1, Math.sin(rad) * 1.2), 1, 0, 0, 0, 0, waterRing);
-            }
-
-            // Revert after 3s (was 60L = 3s, kept the same)
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    if (block.getType() == Material.WATER) {
-                        block.setType(Material.AIR);
-                    }
-                }
-            }.runTaskLater(plugin, 60L);
-        }
+        // Sneaking water removed per request
     }
 
     private void startGloomTicker() {

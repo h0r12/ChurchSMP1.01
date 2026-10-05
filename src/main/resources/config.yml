@@ -73,7 +73,7 @@ weapons:
     secondary_cooldown: 100
   voidbreaker:
     primary_cooldown: 75
-    secondary_cooldown: 10
+    secondary_cooldown: 60
   grim:
     primary_cooldown: 60
     secondary_cooldown: 80

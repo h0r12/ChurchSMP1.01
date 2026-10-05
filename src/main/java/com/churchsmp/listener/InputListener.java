@@ -16,8 +16,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
 
@@ -120,12 +122,27 @@ public class InputListener implements Listener {
             return;
         }
 
-        if (weapon instanceof com.churchsmp.weapon.Sorrowess) {
+        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+            if (player.isSneaking()) {
+                // Sneak + Right Click triggers Sorrowess secondary (Bloody Rain Clones)!
+                event.setCancelled(true);
+                triggerWeaponAbility(player, weapon, true);
+                return;
+            }
+            // Block charging if Riptide is currently on cooldown
+            String cdKey = sorrowess.getId() + "_riptide";
+            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+                event.setCancelled(true);
+                int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+                player.sendActionBar(miniMessage.deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
+                return;
+            }
             if (offHand.getType() == Material.SHIELD) {
                 // Cancel main-hand interaction so the offhand shield can block
                 event.setCancelled(true);
             }
-            // If no shield, allow vanilla Trident charge -> ProjectileLaunchEvent -> Riptide dash
+            // If no shield and not on cooldown, allow vanilla Trident charge -> ProjectileLaunchEvent -> Riptide dash
             return;
         }
 
@@ -188,10 +205,38 @@ public class InputListener implements Listener {
                 LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
                 if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
                     event.setCancelled(true);
+                    String cdKey = sorrowess.getId() + "_riptide";
+                    if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+                        int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+                        player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                                .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
+                        return;
+                    }
                     // Instead of throwing, trigger the custom Riptide dash!
                     sorrowess.executeRiptide(player);
                 }
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerRiptide(org.bukkit.event.player.PlayerRiptideEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
+        if (weapon instanceof com.churchsmp.weapon.Sorrowess sorrowess) {
+            String cdKey = sorrowess.getId() + "_riptide";
+            if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
+                // Arrest velocity if attempting vanilla riptide while on cooldown
+                player.setVelocity(new Vector(0, -0.1, 0));
+                int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
+                return;
+            }
+            sorrowess.executeRiptide(player);
         }
     }
 

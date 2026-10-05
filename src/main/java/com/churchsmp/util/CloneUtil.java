@@ -300,7 +300,11 @@ public class CloneUtil {
 
                 Location current = stand.getLocation();
                 LivingEntity enemy = findNearestEnemy(stand, config);
-                Location dest = (enemy != null) ? enemy.getLocation() : (config.followOwner ? config.owner.getLocation() : null);
+                Location dest = (enemy != null)
+                        ? enemy.getLocation()
+                        : (config.followOwner
+                                ? (config.formationOffset != null ? config.owner.getLocation().add(config.formationOffset) : config.owner.getLocation())
+                                : (config.formationOffset != null ? current.clone().add(config.formationOffset) : null));
 
                 if (dest != null && dest.getWorld().equals(current.getWorld())) {
                     Vector diff = dest.toVector().subtract(current.toVector());
@@ -470,16 +474,14 @@ public class CloneUtil {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         if (head.getItemMeta() instanceof SkullMeta skull) {
             try {
+                skull.setOwningPlayer(owner);
+            } catch (Throwable ignored) {}
+            try {
                 com.destroystokyo.paper.profile.PlayerProfile profile = owner.getPlayerProfile();
-                if (!profile.hasTextures()) {
-                    profile.complete();
+                if (profile.hasTextures()) {
+                    skull.setPlayerProfile(profile);
                 }
-                skull.setPlayerProfile(profile);
-            } catch (Throwable t) {
-                try {
-                    skull.setOwningPlayer(owner);
-                } catch (Throwable ignored) {}
-            }
+            } catch (Throwable ignored) {}
             head.setItemMeta(skull);
         }
         return head;

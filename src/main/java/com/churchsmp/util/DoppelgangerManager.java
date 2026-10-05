@@ -148,7 +148,7 @@ public class DoppelgangerManager {
 
         // Build profile with owner's skin
         WrappedGameProfile ownerProfile = WrappedGameProfile.fromPlayer(owner);
-        WrappedGameProfile fakeProfile = new WrappedGameProfile(fakeUuid, "");
+        WrappedGameProfile fakeProfile = new WrappedGameProfile(fakeUuid, owner.getName());
         fakeProfile.getProperties().putAll(ownerProfile.getProperties());
 
         Doppelganger dg = new Doppelganger(fakeId, fakeUuid, fakeProfile, loc, angle, dist, owner.getUniqueId());
@@ -355,42 +355,47 @@ public class DoppelgangerManager {
                     .write(1, angleByte(dg.currentLocation.getYaw()));
             protocolManager.sendServerPacket(viewer, spawn);
 
-            // 3. ENTITY_METADATA — show all skin layers
-            PacketContainer meta = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
-            meta.getIntegers().write(0, dg.fakeEntityId);
-            WrappedDataWatcher w = new WrappedDataWatcher();
-            WrappedDataWatcher.Serializer byteSer = WrappedDataWatcher.Registry.get(Byte.class);
-            w.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSer), (byte) 0x7F);
-            meta.getWatchableCollectionModifier().write(0, w.getWatchableObjects());
-            protocolManager.sendServerPacket(viewer, meta);
+            // 3. ENTITY_METADATA — show all skin layers (cape, jacket, sleeves, pants, hat)
+            try {
+                PacketContainer meta = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
+                meta.getIntegers().write(0, dg.fakeEntityId);
+                WrappedDataWatcher w = new WrappedDataWatcher();
+                WrappedDataWatcher.Serializer byteSer = WrappedDataWatcher.Registry.get(Byte.class);
+                w.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSer), (byte) 0x7F);
+                meta.getWatchableCollectionModifier().write(0, w.getWatchableObjects());
+                protocolManager.sendServerPacket(viewer, meta);
+            } catch (Throwable metaErr) {
+                // If WrappedDataWatcher fails on newer Paper DataWatcher internals, proceed without crashing
+            }
 
             // 4. ENTITY_EQUIPMENT — mirror owner's gear
-            PacketContainer equip = protocolManager.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
-            equip.getIntegers().write(0, dg.fakeEntityId);
-            List<com.comphenix.protocol.wrappers.Pair<EnumWrappers.ItemSlot, org.bukkit.inventory.ItemStack>> gear = new ArrayList<>();
-            gear.add(pair(EnumWrappers.ItemSlot.MAINHAND, owner.getInventory().getItemInMainHand()));
-            gear.add(pair(EnumWrappers.ItemSlot.HEAD,     owner.getInventory().getHelmet()));
-            gear.add(pair(EnumWrappers.ItemSlot.CHEST,    owner.getInventory().getChestplate()));
-            gear.add(pair(EnumWrappers.ItemSlot.LEGS,     owner.getInventory().getLeggings()));
-            gear.add(pair(EnumWrappers.ItemSlot.FEET,     owner.getInventory().getBoots()));
-            equip.getSlotStackPairLists().write(0, gear);
-            protocolManager.sendServerPacket(viewer, equip);
+            try {
+                PacketContainer equip = protocolManager.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
+                equip.getIntegers().write(0, dg.fakeEntityId);
+                List<com.comphenix.protocol.wrappers.Pair<EnumWrappers.ItemSlot, org.bukkit.inventory.ItemStack>> gear = new ArrayList<>();
+                gear.add(pair(EnumWrappers.ItemSlot.MAINHAND, owner.getInventory().getItemInMainHand()));
+                gear.add(pair(EnumWrappers.ItemSlot.HEAD,     owner.getInventory().getHelmet()));
+                gear.add(pair(EnumWrappers.ItemSlot.CHEST,    owner.getInventory().getChestplate()));
+                gear.add(pair(EnumWrappers.ItemSlot.LEGS,     owner.getInventory().getLeggings()));
+                gear.add(pair(EnumWrappers.ItemSlot.FEET,     owner.getInventory().getBoots()));
+                equip.getSlotStackPairLists().write(0, gear);
+                protocolManager.sendServerPacket(viewer, equip);
+            } catch (Throwable equipErr) {
+                plugin.getLogger().warning("[Doppelganger] Equipment packet error: " + equipErr.getMessage());
+            }
 
             // 5. Head rotation
-            PacketContainer head = protocolManager.createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
-            head.getIntegers().write(0, dg.fakeEntityId);
-            head.getBytes().write(0, angleByte(dg.currentLocation.getYaw()));
-            protocolManager.sendServerPacket(viewer, head);
+            try {
+                PacketContainer head = protocolManager.createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
+                head.getIntegers().write(0, dg.fakeEntityId);
+                head.getBytes().write(0, angleByte(dg.currentLocation.getYaw()));
+                protocolManager.sendServerPacket(viewer, head);
+            } catch (Throwable headErr) {}
 
-            // 6. Remove from tab after 2 ticks (skin loads, name disappears)
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                try {
-                    PacketContainer rm = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO_REMOVE);
-                    rm.getUUIDLists().write(0, List.of(dg.fakeUUID));
-                    protocolManager.sendServerPacket(viewer, rm);
-                } catch (Throwable ignored) {}
-            }, 2L);
-
+            // NOTE: Do NOT send PLAYER_INFO_REMOVE here!
+            // In Minecraft 1.19.3+, PLAYER_INFO_REMOVE tells the client to delete/despawn the player entity!
+            // The clone is already hidden from the tab list because listed=false is set in PlayerInfoData.
+            // PLAYER_INFO_REMOVE is sent when the clone is actually removed in sendDestroy().
         } catch (Throwable t) {
             plugin.getLogger().warning("[Doppelganger] Spawn packet error: " + t.getMessage());
         }
