@@ -123,7 +123,9 @@ public class StartEventManager implements Listener {
                 Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))
         );
 
+        Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
         for (Player p : Bukkit.getOnlinePlayers()) {
+            p.teleport(spawnLoc);
             p.showTitle(title);
             p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 1.4f, 1.0f);
             p.playSound(p.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 0.8f);
@@ -697,6 +699,17 @@ public class StartEventManager implements Listener {
             } else {
                 p.getInventory().setChestplate(null);
             }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoinDuringEvent(org.bukkit.event.player.PlayerJoinEvent event) {
+        if (isEventActive()) {
+            World world = Bukkit.getWorlds().get(0);
+            Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
+            event.getPlayer().teleport(spawnLoc);
+            event.getPlayer().sendMessage(miniMessage.deserialize("<gold>✦ A Genesis Ceremony is currently active at Spawn! Type <yellow><bold>/church ready</bold></yellow>! ✦</gold>"));
+            updateReadyActionBar();
         }
     }
 

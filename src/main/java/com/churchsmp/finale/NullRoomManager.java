@@ -613,7 +613,7 @@ public class NullRoomManager implements Listener {
 
     public void releasePlayerFromRing(Player target) {
         frozenInRing.remove(target.getUniqueId());
-        plugin.getStunManager().removeTrueStun(target);
+        plugin.getStunManager().removeStun(target);
 
         Location prev = frozenPreviousLocs.remove(target.getUniqueId());
         if (prev == null || prev.getWorld() == null) {

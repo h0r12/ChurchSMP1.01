@@ -129,6 +129,13 @@ public class StunManager implements Listener {
         }
     }
 
+    /**
+     * Removes the true stun immediately (alias for removeStun).
+     */
+    public void removeTrueStun(LivingEntity target) {
+        removeStun(target);
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();

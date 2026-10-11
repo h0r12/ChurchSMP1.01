@@ -241,8 +241,8 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     }
                     return true;
                 }
-                String sub = args[1].toLowerCase(Locale.ROOT);
-                switch (sub) {
+                String nullSub = args[1].toLowerCase(Locale.ROOT);
+                switch (nullSub) {
                     case "enchant" -> {
                         if (sender instanceof Player p) {
                             plugin.getNullRoomManager().openEnchantmentMenu(p);
