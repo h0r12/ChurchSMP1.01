@@ -12,12 +12,17 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.EnderDragon;
+import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -63,6 +68,7 @@ public class StartEventManager implements Listener {
     }
 
     private EventState state = EventState.IDLE;
+    private World eventWorld = null;
     private final Set<UUID> readyPlayers = Collections.synchronizedSet(new HashSet<>());
     private final Set<UUID> attunedPlayers = Collections.synchronizedSet(new HashSet<>());
     private final Map<UUID, ItemStack> cachedChestplates = new ConcurrentHashMap<>();
@@ -70,10 +76,12 @@ public class StartEventManager implements Listener {
     private final Map<SinGemType, Location> sinSoulLocations = new ConcurrentHashMap<>();
     private final List<ItemDisplay> activeSoulDisplays = new ArrayList<>();
     private final List<TextDisplay> activeTextDisplays = new ArrayList<>();
+    private final List<Interaction> activeInteractions = new ArrayList<>();
 
     private double originalBorderSize = 10000;
     private Location originalBorderCenter = null;
     private BukkitTask mainLoopTask = null;
+    private BukkitTask autoTimeoutTask = null;
 
     public StartEventManager(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -88,6 +96,26 @@ public class StartEventManager implements Listener {
     }
 
     /**
+     * Purges existing Ender Dragons in the event world.
+     */
+    private void purgeEnderDragons(World world) {
+        if (world == null) return;
+        for (EnderDragon dragon : world.getEntitiesByClass(EnderDragon.class)) {
+            dragon.remove();
+        }
+    }
+
+    /**
+     * Suppresses any Ender Dragon spawning during the Genesis event.
+     */
+    @EventHandler
+    public void onEntitySpawn(EntitySpawnEvent event) {
+        if (isEventActive() && event.getEntity() instanceof EnderDragon) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
      * Initiates the Genesis Start Event via /churchadmin start.
      */
     public boolean startEvent(Player admin) {
@@ -98,7 +126,12 @@ public class StartEventManager implements Listener {
             return false;
         }
 
-        World world = Bukkit.getWorlds().get(0);
+        World world = (admin != null) ? admin.getWorld() : Bukkit.getWorlds().get(0);
+        this.eventWorld = world;
+
+        // 0. Purge any Ender Dragons present in the event world
+        purgeEnderDragons(world);
+
         WorldBorder border = world.getWorldBorder();
         this.originalBorderSize = border.getSize();
         this.originalBorderCenter = border.getCenter();
@@ -209,7 +242,7 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Phase 2: Tree-Vein Soul Extraction to (0, 0).
+     * Phase 2: Tree-Vein Soul Extraction and guaranteed SLOW drift to (0, 0).
      */
     private void triggerSoulExtraction() {
         this.state = EventState.SOUL_EXTRACTION;
@@ -220,37 +253,37 @@ public class StartEventManager implements Listener {
             p.sendActionBar(miniMessage.deserialize("<gradient:#FFFFFF:#ADD8E6><bold>✦ SOULS CONVERGING TO CENTER (0, 0)... ✦</bold></gradient>"));
         }
 
-        World world = Bukkit.getWorlds().get(0);
-        Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.5, 0.5);
+        World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
+        Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.2, 0.5);
 
-        // Map of player positions to animate tree-vein soul particles
         List<Player> participants = new ArrayList<>(Bukkit.getOnlinePlayers());
+        final Map<UUID, Location> startSoulLocs = new HashMap<>();
+        final Map<UUID, Double> soulAngles = new HashMap<>();
 
         new BukkitRunnable() {
             int ticks = 0;
-            final int tremblingTicks = 60; // 3 seconds of trembling tree veins
-            final Map<UUID, Location> currentSoulLocs = new HashMap<>();
+            final int veinTicks = 70; // 3.5 seconds of trembling tree veins descending from sky
+            final int pulseTicks = 20; // 1.0 second of soul detachment pulse
+            final int driftDuration = 160; // Exactly 8.0 seconds of guaranteed slow cinematic drift
 
             @Override
             public void run() {
                 ticks++;
 
-                // 1. Initial 3 seconds: Tree-vein descending particle string with unstable jitter
-                if (ticks <= tremblingTicks) {
+                // 1. Initial 3.5 seconds: Unstable tree-vein particle strings descending from sky onto players
+                if (ticks <= veinTicks) {
                     for (Player p : participants) {
                         if (!p.isOnline()) continue;
                         Location head = p.getLocation().add(0, 1.8, 0);
 
-                        // Branching downward from y+12
-                        for (double y = 0; y <= 10; y += 0.5) {
-                            double swayX = Math.sin((ticks * 0.4) + y) * 0.25 + (Math.random() - 0.5) * 0.12;
-                            double swayZ = Math.cos((ticks * 0.3) + y) * 0.25 + (Math.random() - 0.5) * 0.12;
+                        for (double y = 0; y <= 12; y += 0.5) {
+                            double swayX = Math.sin((ticks * 0.4) + y) * 0.28 + (Math.random() - 0.5) * 0.12;
+                            double swayZ = Math.cos((ticks * 0.3) + y) * 0.28 + (Math.random() - 0.5) * 0.12;
                             Location veinPt = head.clone().add(swayX, y, swayZ);
 
-                            world.spawnParticle(Particle.DUST, veinPt, 1, 0.05, 0.05, 0.05, 0,
+                            world.spawnParticle(Particle.DUST, veinPt, 1, 0.04, 0.04, 0.04, 0,
                                     new Particle.DustOptions(Color.fromRGB(245, 248, 255), 1.2f));
                             if (y > 4 && Math.random() < 0.25) {
-                                // Branch off
                                 world.spawnParticle(Particle.END_ROD, veinPt.clone().add((Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4), 1, 0, 0, 0, 0.01);
                             }
                         }
@@ -258,44 +291,78 @@ public class StartEventManager implements Listener {
 
                     if (ticks % 10 == 0) {
                         for (Player p : participants) {
-                            p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 1.2f + (ticks * 0.01f));
+                            p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 1.0f + (ticks * 0.015f));
                         }
                     }
                     return;
                 }
 
-                // Initialize soul positions at start of drift
-                if (ticks == tremblingTicks + 1) {
-                    for (Player p : participants) {
-                        if (p.isOnline()) {
-                            currentSoulLocs.put(p.getUniqueId(), p.getLocation().add(0, 1.8, 0));
-                            p.playSound(p.getLocation(), Sound.ENTITY_VEX_AMBIENT, 1.2f, 0.6f);
+                // 2. Pulse of soul detachment (1.0 second)
+                int extractionTick = ticks - veinTicks;
+                if (extractionTick <= pulseTicks) {
+                    if (extractionTick == 1) {
+                        int idx = 0;
+                        for (Player p : participants) {
+                            if (p.isOnline()) {
+                                startSoulLocs.put(p.getUniqueId(), p.getLocation().add(0, 2.0, 0));
+                                double baseAngle = idx * (2 * Math.PI / Math.max(1, participants.size()));
+                                soulAngles.put(p.getUniqueId(), baseAngle);
+                                p.playSound(p.getLocation(), Sound.ENTITY_VEX_AMBIENT, 1.2f, 0.7f);
+                                p.playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.0f, 1.2f);
+                            }
+                            idx++;
                         }
                     }
-                }
 
-                // 2. Souls slowly drift toward (0, 0)
-                boolean allArrived = true;
-                for (Player p : participants) {
-                    Location cur = currentSoulLocs.get(p.getUniqueId());
-                    if (cur == null) continue;
-
-                    Vector dir = center.toVector().subtract(cur.toVector());
-                    double dist = dir.length();
-
-                    if (dist > 1.2) {
-                        allArrived = false;
-                        dir.normalize().multiply(0.28); // Slow graceful drift
-                        cur.add(dir);
-
-                        world.spawnParticle(Particle.DUST, cur, 2, 0.1, 0.1, 0.1, 0,
-                                new Particle.DustOptions(Color.fromRGB(230, 240, 255), 1.4f));
-                        world.spawnParticle(Particle.END_ROD, cur, 1, 0.02, 0.02, 0.02, 0.01);
+                    for (Player p : participants) {
+                        Location sLoc = startSoulLocs.get(p.getUniqueId());
+                        if (sLoc != null) {
+                            world.spawnParticle(Particle.DUST, sLoc, 3, 0.15, 0.15, 0.15, 0,
+                                    new Particle.DustOptions(Color.fromRGB(225, 240, 255), 1.6f));
+                            world.spawnParticle(Particle.FIREWORK, sLoc, 1, 0.02, 0.02, 0.02, 0.01);
+                        }
                     }
+                    return;
                 }
 
-                // Arrived at (0, 0) -> Blinding flash!
-                if (allArrived || ticks > 240) {
+                // 3. Guaranteed SLOW Cinematic Drift to Center (0, 0) for 160 ticks (8 seconds)
+                int currentDrift = extractionTick - pulseTicks;
+                double t = Math.min(1.0, currentDrift / (double) driftDuration);
+
+                for (Player p : participants) {
+                    Location start = startSoulLocs.get(p.getUniqueId());
+                    if (start == null) continue;
+
+                    // Interpolate base trajectory from start to center
+                    double lx = start.getX() + (center.getX() - start.getX()) * t;
+                    double ly = start.getY() + (center.getY() - start.getY()) * t;
+                    double lz = start.getZ() + (center.getZ() - start.getZ()) * t;
+
+                    // High arc lift (rises up to 3.5 blocks and arcs down into center)
+                    double arcY = Math.sin(t * Math.PI) * 3.5;
+
+                    // Spiral swirl converging into center
+                    double baseAngle = soulAngles.getOrDefault(p.getUniqueId(), 0.0);
+                    double swirlAngle = baseAngle + (t * 4.0 * Math.PI);
+                    double spiralRadius = (1.0 - t) * 3.0 + 0.2;
+                    double sx = Math.cos(swirlAngle) * spiralRadius;
+                    double sz = Math.sin(swirlAngle) * spiralRadius;
+
+                    Location soulPt = new Location(world, lx + sx, ly + arcY, lz + sz);
+
+                    // Bliss SMP style particle visuals: clean, ethereal trails
+                    world.spawnParticle(Particle.DUST, soulPt, 2, 0.06, 0.06, 0.06, 0,
+                            new Particle.DustOptions(Color.fromRGB(235, 245, 255), 1.5f));
+                    world.spawnParticle(Particle.END_ROD, soulPt, 1, 0.01, 0.01, 0.01, 0.005);
+                }
+
+                if (currentDrift % 15 == 0) {
+                    world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 0.6f + (float) (t * 0.8));
+                    world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 0.8f + (float) (t * 0.6));
+                }
+
+                // Completed 8-second slow travel -> Singularity triggers blinding flash!
+                if (currentDrift >= driftDuration) {
                     cancel();
                     triggerBlindingFlashAndStar(center);
                 }
@@ -311,27 +378,32 @@ public class StartEventManager implements Listener {
         World world = center.getWorld();
 
         // 1. Blinding Flash of Light
-        world.spawnParticle(Particle.FLASH, center, 4, 0.5, 0.5, 0.5, 0);
+        world.spawnParticle(Particle.FLASH, center, 6, 0.5, 0.5, 0.5, 0);
+        world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 1);
         world.spawnParticle(Particle.SONIC_BOOM, center, 1);
-        world.playSound(center, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 0.9f);
-        world.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1.1f);
+        world.playSound(center, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 0.8f);
+        world.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 2.0f, 1.0f);
 
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 30, 0, false, false, false));
+            p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 45, 0, false, false, false));
+            p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, 45, 0, false, false, false));
         }
 
         // 2. Expand into spinning star cycling through 7 Sins colors
         final SinGemType[] sins = SinGemType.values(); // WRATH, GREED, GLUTTONY, LUST, ENVY, PRIDE, SLOTH
+        final double ringRadius = 9.0;
+        final double angleStep = (2 * Math.PI) / sins.length;
 
         new BukkitRunnable() {
             int ticks = 0;
-            final int starDuration = 100; // 5 seconds of star spinning before souls appear
+            final int starDuration = 140; // 7.0 seconds of star spinning and screen cycling (20 ticks per Sin)
+            int lastSinIndex = -1;
 
             @Override
             public void run() {
                 ticks++;
 
-                int sinIdx = (ticks / 10) % sins.length;
+                int sinIdx = (ticks / 20) % sins.length;
                 SinGemType currentSin = sins[sinIdx];
                 Color c = Color.fromRGB(
                         (currentSin.getColor().value() >> 16) & 0xFF,
@@ -340,13 +412,42 @@ public class StartEventManager implements Listener {
                 );
                 Particle.DustOptions dust = new Particle.DustOptions(c, 1.5f);
 
-                // Render spinning 5-pointed star
-                double rot = ticks * 0.12;
-                renderSpinningStar(center, rot, 2.8, dust);
+                // Render spinning 5-pointed star at (0, 0)
+                double rot = ticks * 0.10;
+                renderSpinningStar(center, rot, 3.2, dust);
 
-                // Subtle audio hum
-                if (ticks % 8 == 0) {
-                    world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_AMBIENT, 0.8f, 1.0f + (sinIdx * 0.08f));
+                // Screen Cycle & Soul Materialization
+                if (sinIdx != lastSinIndex) {
+                    lastSinIndex = sinIdx;
+
+                    Title sinTitle = Title.title(
+                            miniMessage.deserialize("<bold><color:" + currentSin.getColor().asHexString() + ">✦ " + currentSin.getDisplayName() + " ✦</color></bold>"),
+                            miniMessage.deserialize("<gray>✦ Sin Essence Manifesting... ✦</gray>"),
+                            Title.Times.times(Duration.ofMillis(100), Duration.ofMillis(750), Duration.ofMillis(150))
+                    );
+
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        p.showTitle(sinTitle);
+                        p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 1.0f, 1.0f + (sinIdx * 0.1f));
+                        p.playSound(p.getLocation(), Sound.BLOCK_BELL_USE, 0.8f, 1.2f);
+                    }
+                }
+
+                // In the 9-block ring, faint colored souls begin to slowly appear
+                for (int i = 0; i <= sinIdx; i++) {
+                    SinGemType sin = sins[i];
+                    double angle = i * angleStep;
+                    double sx = center.getX() + Math.cos(angle) * ringRadius;
+                    double sz = center.getZ() + Math.sin(angle) * ringRadius;
+                    double sy = Math.max(world.getHighestBlockYAt((int) sx, (int) sz) + 1.2, center.getY());
+
+                    Color sc = Color.fromRGB(
+                            (sin.getColor().value() >> 16) & 0xFF,
+                            (sin.getColor().value() >> 8) & 0xFF,
+                            sin.getColor().value() & 0xFF
+                    );
+                    Location soulLoc = new Location(world, sx, sy, sz);
+                    world.spawnParticle(Particle.DUST, soulLoc, 1, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(sc, 1.2f));
                 }
 
                 if (ticks >= starDuration) {
@@ -378,14 +479,15 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Phase 4: 7 Spinning Sin Souls manifest within 20 blocks of spawn for players to choose.
+     * Phase 4: 7 Spinning Sin Souls manifest within the 25-block Sanctuary.
+     * Uses modern Interaction entities to guarantee 100% clickability and responsive selection.
      */
     private void spawnSinSoulsRing(Location center) {
         this.state = EventState.SIN_CHOICE;
         World world = center.getWorld();
 
         SinGemType[] sins = SinGemType.values();
-        double ringRadius = 10.0; // 10 blocks radius (fits safely inside 25-block border)
+        double ringRadius = 9.0; // 9 blocks radius (fits safely inside 25-block diameter sanctuary)
         double angleStep = (2 * Math.PI) / sins.length;
 
         sinSoulLocations.clear();
@@ -396,42 +498,61 @@ public class StartEventManager implements Listener {
             double angle = i * angleStep;
             double x = center.getX() + Math.cos(angle) * ringRadius;
             double z = center.getZ() + Math.sin(angle) * ringRadius;
-            double y = world.getHighestBlockYAt((int) x, (int) z) + 1.2;
+            double y = Math.max(world.getHighestBlockYAt((int) x, (int) z) + 1.2, center.getY());
 
             Location soulLoc = new Location(world, x, y, z);
             sinSoulLocations.put(sin, soulLoc);
 
-            // Spawn floating ItemDisplay
+            // 1. Floating ItemDisplay (visual icon)
             ItemDisplay id = world.spawn(soulLoc, ItemDisplay.class, d -> {
                 d.setItemStack(new ItemStack(sin.getIconMaterial()));
                 d.setTransformation(new Transformation(
                         new Vector3f(0, 0, 0),
                         new AxisAngle4f(0, 0, 1, 0),
-                        new Vector3f(0.8f, 0.8f, 0.8f),
+                        new Vector3f(0.85f, 0.85f, 0.85f),
                         new AxisAngle4f(0, 0, 1, 0)
                 ));
                 d.getPersistentDataContainer().set(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING, sin.name());
             });
             activeSoulDisplays.add(id);
 
-            // Floating TextDisplay title
-            TextDisplay td = world.spawn(soulLoc.clone().add(0, 1.1, 0), TextDisplay.class, t -> {
-                t.text(miniMessage.deserialize("<bold>" + sin.getDisplayName() + "</bold>"));
+            // 2. Floating TextDisplay holographic title
+            TextDisplay td = world.spawn(soulLoc.clone().add(0, 1.2, 0), TextDisplay.class, t -> {
+                t.text(miniMessage.deserialize("<bold><color:" + sin.getColor().asHexString() + ">" + sin.getDisplayName() + "</color></bold>\n<yellow><bold>[Right-Click to Choose]</bold></yellow>"));
                 t.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
             });
             activeTextDisplays.add(td);
+
+            // 3. Dedicated Interaction Hitbox Entity (Fixes display entities having no hitbox!)
+            Interaction hitbox = world.spawn(soulLoc.clone().subtract(0, 0.4, 0), Interaction.class, it -> {
+                it.setInteractionWidth(1.8f);
+                it.setInteractionHeight(2.2f);
+                it.setResponsive(true);
+                it.getPersistentDataContainer().set(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING, sin.name());
+            });
+            activeInteractions.add(hitbox);
         }
 
+        // Broadcast interactive chat selection roster
         Bukkit.broadcast(miniMessage.deserialize("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"));
-        Bukkit.broadcast(miniMessage.deserialize("<yellow><bold>✦ THE 7 SIN SOULS HAVE MANIFESTED! ✦</bold></yellow>"));
-        Bukkit.broadcast(miniMessage.deserialize("<gray>Approach a spinning soul and right-click to choose your attunement!</gray>"));
+        Bukkit.broadcast(miniMessage.deserialize("<yellow><bold>✦ THE 7 SIN SOULS HAVE AWAKENED! ✦</bold></yellow>"));
+        Bukkit.broadcast(miniMessage.deserialize("<gray>Approach a spinning soul and right-click, or click below in chat:</gray>"));
+
+        Component roster = Component.empty();
+        for (SinGemType s : sins) {
+            Component btn = Component.text("[" + s.name() + "] ", TextColor.color(s.getColor().value()), TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand("/church confirm " + s.name()))
+                    .hoverEvent(HoverEvent.showText(Component.text("Attune to " + s.getDisplayName(), NamedTextColor.YELLOW)));
+            roster = roster.append(btn);
+        }
+        Bukkit.broadcast(roster);
         Bukkit.broadcast(miniMessage.deserialize("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"));
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.playSound(p.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.4f, 1.0f);
         }
 
-        // Active animation task for spinning souls
+        // Active animation & proximity prompt task
         this.mainLoopTask = new BukkitRunnable() {
             int ticks = 0;
 
@@ -454,30 +575,84 @@ public class StartEventManager implements Listener {
                     );
 
                     // Gentle floating bob + orbiting particle aura
-                    double rad = Math.toRadians((ticks * 4) % 360);
-                    Location pLoc = loc.clone().add(Math.cos(rad) * 0.6, 0.4 + Math.sin(ticks * 0.1) * 0.15, Math.sin(rad) * 0.6);
-                    world.spawnParticle(Particle.DUST, pLoc, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.3f));
-                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 0.3, 0), 1, 0.05, 0.05, 0.05, 0.01);
+                    double rad = Math.toRadians((ticks * 5) % 360);
+                    Location pLoc = loc.clone().add(Math.cos(rad) * 0.7, 0.4 + Math.sin(ticks * 0.12) * 0.15, Math.sin(rad) * 0.7);
+                    world.spawnParticle(Particle.DUST, pLoc, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.4f));
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 0.3, 0), 1, 0.04, 0.04, 0.04, 0.01);
                 }
 
-                // Keep spinning the central star
-                renderSpinningStar(center, ticks * 0.08, 3.0, new Particle.DustOptions(Color.fromRGB(240, 240, 255), 1.2f));
+                // Proximity check for action bar prompt
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (attunedPlayers.contains(p.getUniqueId())) continue;
+
+                    for (Map.Entry<SinGemType, Location> entry : sinSoulLocations.entrySet()) {
+                        if (p.getLocation().distanceSquared(entry.getValue()) <= 8.0) { // Within ~2.8 blocks
+                            SinGemType sin = entry.getKey();
+                            p.sendActionBar(miniMessage.deserialize(
+                                    "<gold>✦ <bold>" + sin.getDisplayName() + "</bold> ✦ Type or Click: <yellow><click:run_command:'/church confirm " + sin.name() + "'><bold>[CONFIRM ATTUNEMENT]</bold></click></yellow>"
+                            ));
+                            break;
+                        }
+                    }
+                }
+
+                // Keep central star spinning
+                renderSpinningStar(center, ticks * 0.08, 3.2, new Particle.DustOptions(Color.fromRGB(240, 240, 255), 1.2f));
             }
         }.runTaskTimer(plugin, 0L, 2L);
+
+        // Fail-safe auto-timeout task (75 seconds max, prevents event from ever freezing permanently)
+        this.autoTimeoutTask = new BukkitRunnable() {
+            int secondsLeft = 75;
+
+            @Override
+            public void run() {
+                if (state != EventState.SIN_CHOICE) {
+                    cancel();
+                    return;
+                }
+                secondsLeft -= 5;
+
+                if (secondsLeft == 15) {
+                    Bukkit.broadcast(miniMessage.deserialize("<red><bold>✦ 15 seconds remaining to choose your Sin Attunement! ✦</bold></red>"));
+                } else if (secondsLeft <= 0) {
+                    cancel();
+                    autoAssignRemainingSins();
+                }
+            }
+        }.runTaskTimer(plugin, 100L, 100L);
     }
 
     /**
-     * Handles player interaction with a spinning Sin Soul.
+     * Handles player right-clicking on an Interaction hitbox or Display entity.
      */
     @EventHandler
     public void onSoulInteract(PlayerInteractAtEntityEvent event) {
         if (state != EventState.SIN_CHOICE) return;
-        if (!(event.getRightClicked() instanceof ItemDisplay id)) return;
 
-        String sinName = id.getPersistentDataContainer().get(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING);
+        String sinName = event.getRightClicked().getPersistentDataContainer().get(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING);
         if (sinName == null) return;
 
-        Player player = event.getPlayer();
+        event.setCancelled(true);
+        handleSinSelectionPrompt(event.getPlayer(), sinName);
+    }
+
+    /**
+     * Handles player punching (left-clicking) an Interaction entity.
+     */
+    @EventHandler
+    public void onSoulDamage(EntityDamageByEntityEvent event) {
+        if (state != EventState.SIN_CHOICE) return;
+        if (!(event.getDamager() instanceof Player player)) return;
+
+        String sinName = event.getEntity().getPersistentDataContainer().get(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING);
+        if (sinName == null) return;
+
+        event.setCancelled(true);
+        handleSinSelectionPrompt(player, sinName);
+    }
+
+    private void handleSinSelectionPrompt(Player player, String sinName) {
         SinGemType sin;
         try {
             sin = SinGemType.valueOf(sinName);
@@ -490,7 +665,6 @@ public class StartEventManager implements Listener {
             return;
         }
 
-        // Send confirmation prompt in chat with clickable button
         Component confirmButton = Component.text("[CLICK TO CONFIRM]", NamedTextColor.GREEN, TextDecoration.BOLD)
                 .clickEvent(ClickEvent.runCommand("/church confirm " + sin.name()))
                 .hoverEvent(HoverEvent.showText(Component.text("Attune your soul to " + sin.getDisplayName(), NamedTextColor.YELLOW)));
@@ -519,7 +693,7 @@ public class StartEventManager implements Listener {
         plugin.getSinGemManager().forceAttune(player, sin);
         plugin.getSinGemManager().giveGemToPlayer(player, sin);
 
-        // Grant Invisibility
+        // Grant Invisibility for 60 seconds
         player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 1200, 0, false, false, true));
 
         // Audio & Visual pulse
@@ -545,21 +719,69 @@ public class StartEventManager implements Listener {
     }
 
     /**
+     * Auto-assigns remaining un-attuned players to ensure the event never halts indefinitely.
+     */
+    private void autoAssignRemainingSins() {
+        if (state != EventState.SIN_CHOICE) return;
+
+        List<SinGemType> availableSins = new ArrayList<>(Arrays.asList(SinGemType.values()));
+        Collections.shuffle(availableSins);
+
+        int sinIdx = 0;
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (!attunedPlayers.contains(p.getUniqueId())) {
+                SinGemType assign = availableSins.get(sinIdx % availableSins.size());
+                sinIdx++;
+                confirmSinChoice(p, assign);
+            }
+        }
+    }
+
+    /**
+     * Admin command force progression: /churchadmin start force.
+     */
+    public void forceProgress(CommandSender sender) {
+        if (state == EventState.IDLE) {
+            sender.sendMessage(miniMessage.deserialize("<red>No Start Event is currently running.</red>"));
+            return;
+        }
+
+        sender.sendMessage(miniMessage.deserialize("<green>Forcing progression of Start Event...</green>"));
+
+        if (state == EventState.READY_CHECK) {
+            readyPlayers.clear();
+            for (Player p : Bukkit.getOnlinePlayers()) readyPlayers.add(p.getUniqueId());
+            triggerSoulExtraction();
+        } else if (state == EventState.SOUL_EXTRACTION || state == EventState.STAR_CYCLE) {
+            World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
+            Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
+            spawnSinSoulsRing(center);
+        } else if (state == EventState.SIN_CHOICE) {
+            autoAssignRemainingSins();
+        } else if (state == EventState.VOID_CLIMAX) {
+            World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
+            Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
+            executeGrandLaunch(center);
+        }
+    }
+
+    /**
      * Phase 5: Void Climax, Lightning, & Sky Elytra Launch.
      */
     private void triggerVoidClimaxAndLaunch() {
         this.state = EventState.VOID_CLIMAX;
         if (mainLoopTask != null) mainLoopTask.cancel();
+        if (autoTimeoutTask != null) autoTimeoutTask.cancel();
         cleanupDisplays();
 
-        World world = Bukkit.getWorlds().get(0);
+        World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
         Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
 
         Bukkit.broadcast(miniMessage.deserialize("<dark_red><bold>✦ ALL SINS EMBRACED! THE ABYSS CONSUMES THE REALM! ✦</bold></dark_red>"));
 
         new BukkitRunnable() {
             int ticks = 0;
-            final int maxTicks = 80; // 4 seconds of black hole & widening beacon beam
+            final int maxTicks = 80; // Exactly 4.0 seconds of black hole & widening beacon beam
 
             @Override
             public void run() {
@@ -588,7 +810,7 @@ public class StartEventManager implements Listener {
                     world.playSound(center, Sound.ENTITY_WARDEN_HEARTBEAT, 1.2f, 0.8f + (ticks * 0.01f));
                 }
 
-                // Climax at 4 seconds
+                // Climax at exactly 4 seconds
                 if (ticks >= maxTicks) {
                     cancel();
                     executeGrandLaunch(center);
@@ -637,7 +859,7 @@ public class StartEventManager implements Listener {
             // Teleport smoothly to Y:200 and launch forward
             Location launchLoc = new Location(world, loc.getX(), 200, loc.getZ(), loc.getYaw(), loc.getPitch());
             p.teleport(launchLoc);
-            p.setVelocity(loc.getDirection().normalize().multiply(1.5).setY(0.2));
+            p.setVelocity(loc.getDirection().normalize().multiply(1.5).setY(0.25));
             p.setGliding(true);
 
             p.showTitle(launchTitle);
@@ -705,7 +927,7 @@ public class StartEventManager implements Listener {
     @EventHandler
     public void onPlayerJoinDuringEvent(org.bukkit.event.player.PlayerJoinEvent event) {
         if (isEventActive()) {
-            World world = Bukkit.getWorlds().get(0);
+            World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
             Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
             event.getPlayer().teleport(spawnLoc);
             event.getPlayer().sendMessage(miniMessage.deserialize("<gold>✦ A Genesis Ceremony is currently active at Spawn! Type <yellow><bold>/church ready</bold></yellow>! ✦</gold>"));
@@ -723,5 +945,10 @@ public class StartEventManager implements Listener {
             if (td != null && td.isValid()) td.remove();
         }
         activeTextDisplays.clear();
+
+        for (Interaction it : activeInteractions) {
+            if (it != null && it.isValid()) it.remove();
+        }
+        activeInteractions.clear();
     }
 }

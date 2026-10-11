@@ -225,9 +225,13 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Component.text("Initiated ChurchSMP Purge with " + target.getName() + " as the Juggernaut!", NamedTextColor.GOLD));
             }
             case "start" -> {
-                Player p = (sender instanceof Player player) ? player : null;
                 if (plugin.getStartEventManager() != null) {
-                    plugin.getStartEventManager().startEvent(p);
+                    if (args.length > 1 && args[1].equalsIgnoreCase("force")) {
+                        plugin.getStartEventManager().forceProgress(sender);
+                    } else {
+                        Player p = (sender instanceof Player player) ? player : null;
+                        plugin.getStartEventManager().startEvent(p);
+                    }
                 } else {
                     sender.sendMessage(Component.text("StartEventManager is not available.", NamedTextColor.RED));
                 }
@@ -324,7 +328,9 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return filter(List.of("menu", "start", "null", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "purge", "reload", "help"), args[0]);
         }
-        if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("start")) {
+                return filter(List.of("force"), args[1]);
+            }
             if (args[0].equalsIgnoreCase("null")) {
                 return filter(List.of("enchant", "border", "potions", "player"), args[1]);
             }

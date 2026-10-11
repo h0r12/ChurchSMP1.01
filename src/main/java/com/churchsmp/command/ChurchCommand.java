@@ -384,11 +384,20 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "ready", "testclone");
+            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "ready", "confirm", "testclone");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
                     matches.add(s);
+                }
+            }
+            return matches;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("confirm")) {
+            List<String> matches = new ArrayList<>();
+            for (SinGemType t : SinGemType.values()) {
+                if (t.name().toLowerCase().startsWith(args[1].toLowerCase())) {
+                    matches.add(t.name());
                 }
             }
             return matches;
