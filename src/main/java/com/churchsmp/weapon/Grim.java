@@ -620,7 +620,7 @@ public class Grim extends LegendaryWeapon {
 
                 // ── 2. Vivid Ethereal Trail ──
                 curr.getWorld().spawnParticle(Particle.CRIT, curr, 2, 0.1, 0.1, 0.1, 0.05);
-                curr.getWorld().spawnParticle(Particle.DRAGON_BREATH, curr, 1, 0.05, 0.05, 0.05, 0.01);
+                curr.getWorld().spawnParticle(Particle.DRAGON_BREATH, curr, 1, 0.05, 0.05, 0.05, 0.01, 0.5f);
                 curr.getWorld().spawnParticle(Particle.LARGE_SMOKE, curr, 1, 0.04, 0.04, 0.04, 0.01);
                 if (steps % 2 == 0) {
                     curr.getWorld().spawnParticle(Particle.SOUL, curr, 1, 0.05, 0.05, 0.05, 0.01);

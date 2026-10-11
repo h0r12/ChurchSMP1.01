@@ -1449,7 +1449,7 @@ public class StartEventManager implements Listener {
                     Location diskPt = center.clone().add(Math.cos(diskAngle) * diskRad, (Math.sin(ticks * 0.25 + a) * 0.25), Math.sin(diskAngle) * diskRad);
                     world.spawnParticle(Particle.DUST, diskPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(35, 25, 55), 1.6f));
                     if (a % 60 == 0) {
-                        world.spawnParticle(Particle.DRAGON_BREATH, diskPt, 1, 0, 0, 0, 0.01);
+                        world.spawnParticle(Particle.DRAGON_BREATH, diskPt, 1, 0, 0, 0, 0.01, 0.5f);
                     }
                 }
 
