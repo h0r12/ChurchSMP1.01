@@ -328,6 +328,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return filter(List.of("menu", "start", "null", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "purge", "reload", "help"), args[0]);
         }
+        if (args.length == 2) {
             if (args[0].equalsIgnoreCase("start")) {
                 return filter(List.of("force"), args[1]);
             }
