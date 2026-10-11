@@ -569,7 +569,7 @@ public class StartEventManager implements Listener {
         World world = center.getWorld();
 
         // 1. Blinding Flash of Light & Detonation with clean long decay
-        world.spawnParticle(Particle.FLASH, center, 14, 1.0, 1.0, 1.0, 0);
+        world.spawnParticle(Particle.FLASH, center, 14, 1.0, 1.0, 1.0, 0, Color.WHITE);
         world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 2);
         world.spawnParticle(Particle.SONIC_BOOM, center, 1);
         playRetroCrystalChime(center, 1.5f, 2.0f);
