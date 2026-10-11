@@ -1,0 +1,35 @@
+name: ChurchSMP
+version: 1.0.0
+main: com.churchsmp.ChurchSMP
+api-version: '1.21'
+description: Bible/morality-themed Minecraft plugin with alignment gating, 7 legendary weapons, and 7 sin relics.
+author: ChurchSMP Team
+softdepend: [ProtocolLib]
+
+commands:
+  church:
+    description: ChurchSMP guide, alignment, and information
+    usage: /<command> [guide|info|reroll|ritual|ready]
+    permission: churchsmp.use
+    aliases: [csmp, ready]
+  ritual:
+    description: Preload items into offhand Relic slot for Greed
+    usage: /<command>
+    permission: churchsmp.use
+  forsake:
+    description: Initiate or reclaim your Forsaking Sin Gem
+    usage: /<command>
+    permission: churchsmp.use
+  churchadmin:
+    description: Administrative commands for ChurchSMP
+    usage: /<command> [help|resetcooldown|setalignment|giveweapon|givegem|reload]
+    permission: churchsmp.admin
+    aliases: [ca, csmpadmin]
+
+permissions:
+  churchsmp.use:
+    description: Allows player to use /church commands
+    default: true
+  churchsmp.admin:
+    description: Allows administrative actions
+    default: op
