@@ -350,8 +350,8 @@ public class WeaponMenuManager implements Listener {
                 // Trigger Blood Moon event
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.6f);
-                    p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 2, 0), 40, 1.0, 1.0, 1.0, 0,
-                            new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 0, 0), 2.0f));
+                    p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 1.2, 0), 12, 0.35, 0.4, 0.35, 0.02,
+                            new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 0, 0), 1.4f));
                     p.sendMessage(miniMessage.deserialize("<gradient:#8B0000:#FF0000><bold>✦ ᴛʜᴇ ᴅɪꜱᴄɪᴘʟɪɴᴇ ʙʟᴏᴏᴅ ᴍᴏᴏɴ ʜᴀꜱ ᴀᴡᴀᴋᴇɴᴇᴅ!</bold></gradient>"));
                 }
                 player.closeInventory();
@@ -359,7 +359,7 @@ public class WeaponMenuManager implements Listener {
                 // Trigger Celestial Altar event
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     p.playSound(p.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 1.5f);
-                    p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, p.getLocation().add(0, 1, 0), 50, 0.8, 1.2, 0.8, 0.2);
+                    p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, p.getLocation().add(0, 1.2, 0), 10, 0.3, 0.35, 0.3, 0.03);
                     p.sendMessage(miniMessage.deserialize("<gradient:#FFFFFF:#FFD700><bold>✦ ᴛʜᴇ ᴄᴇʟᴇꜱᴛɪᴀʟ ᴀʟᴛᴀʀ ʙᴇꜱᴛᴏᴡꜱ ɪᴛꜱ ɢʀᴀᴄᴇ!</bold></gradient>"));
                 }
                 player.closeInventory();
@@ -367,7 +367,7 @@ public class WeaponMenuManager implements Listener {
                 // Trigger Void Rift event
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     p.playSound(p.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 1.2f);
-                    p.getWorld().spawnParticle(Particle.PORTAL, p.getLocation().add(0, 1, 0), 60, 0.8, 1.0, 0.8, 0.4);
+                    p.getWorld().spawnParticle(Particle.PORTAL, p.getLocation().add(0, 1.2, 0), 12, 0.35, 0.35, 0.35, 0.04);
                     p.sendMessage(miniMessage.deserialize("<gradient:#4B0082:#9400D3><bold>✦ ᴀ ᴠᴏɪᴅ ʀɪғᴛ ʜᴀꜱ ᴄᴏʟʟᴀᴘꜱᴇᴅ ᴛʜᴇ ᴀᴛᴍᴏꜱᴘʜᴇʀᴇ!</bold></gradient>"));
                 }
                 player.closeInventory();

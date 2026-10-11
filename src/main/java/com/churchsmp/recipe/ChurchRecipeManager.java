@@ -333,7 +333,7 @@ public class ChurchRecipeManager implements Listener {
         Location pCenter = player.getLocation().add(0, 1.5, 0);
         player.getWorld().strikeLightningEffect(pCenter);
         player.getWorld().spawnParticle(Particle.FLASH, pCenter, 1, Color.WHITE);
-        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 40, 0.6, 0.6, 0.6, 0.2);
+        player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, pCenter, 16, 0.35, 0.35, 0.35, 0.05);
         player.playSound(pCenter, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
 
         // Slow falling and safe landing

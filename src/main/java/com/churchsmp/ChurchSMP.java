@@ -42,6 +42,8 @@ public class ChurchSMP extends JavaPlugin {
     private ForsakingRitualManager forsakingRitualManager;
     private com.churchsmp.effect.StunManager stunManager;
     private com.churchsmp.finale.FinaleManager finaleManager;
+    private com.churchsmp.finale.NullRoomManager nullRoomManager;
+    private com.churchsmp.event.StartEventManager startEventManager;
     private com.churchsmp.advancement.AdvancementManager advancementManager;
     private com.churchsmp.util.DoppelgangerManager doppelgangerManager;
 
@@ -73,13 +75,11 @@ public class ChurchSMP extends JavaPlugin {
             this.forsakingRitualManager = new ForsakingRitualManager(this);
             this.stunManager = new com.churchsmp.effect.StunManager(this);
             this.finaleManager = new com.churchsmp.finale.FinaleManager(this);
+            this.nullRoomManager = new com.churchsmp.finale.NullRoomManager(this);
+            this.startEventManager = new com.churchsmp.event.StartEventManager(this);
 
-            // ProtocolLib Doppelgangers (optional)
-            if (Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
-                this.doppelgangerManager = new com.churchsmp.util.DoppelgangerManager(this);
-            } else {
-                getLogger().info("[ChurchSMP] ProtocolLib not found — using fallback clones.");
-            }
+            // Doppelganger Manager (reflection mirroring player clones)
+            this.doppelgangerManager = new com.churchsmp.util.DoppelgangerManager(this);
 
             // Listeners
             Bukkit.getPluginManager().registerEvents(new InputListener(this), this);
@@ -95,6 +95,8 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(this.forsakingRitualManager, this);
             Bukkit.getPluginManager().registerEvents(this.stunManager, this);
             Bukkit.getPluginManager().registerEvents(this.finaleManager, this);
+            Bukkit.getPluginManager().registerEvents(this.nullRoomManager, this);
+            Bukkit.getPluginManager().registerEvents(this.startEventManager, this);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -103,7 +105,7 @@ public class ChurchSMP extends JavaPlugin {
             try {
                 org.bukkit.command.CommandMap commandMap = Bukkit.getCommandMap();
 
-                org.bukkit.command.Command fallbackChurch = new org.bukkit.command.Command("church", "ChurchSMP guide and information", "/church [guide|reroll]", java.util.List.of("csmp")) {
+                org.bukkit.command.Command fallbackChurch = new org.bukkit.command.Command("church", "ChurchSMP guide and information", "/church [guide|reroll]", java.util.List.of("csmp", "ready")) {
                     @Override
                     public boolean execute(@org.jetbrains.annotations.NotNull org.bukkit.command.CommandSender sender, @org.jetbrains.annotations.NotNull String label, @org.jetbrains.annotations.NotNull String[] args) {
                         return churchCommand.onCommand(sender, this, label, args);
@@ -177,7 +179,7 @@ public class ChurchSMP extends JavaPlugin {
                     ca.setTabCompleter(adminCommand);
                 }
             } catch (Throwable ignored) {
-                // Paper throws an exception on getCommand() during startup if loaded as a paper-plugin — safely ignored
+                // Paper throws an exception on getCommand() during startup if loaded as a paper-plugin - safely ignored
             }
 
             // Action bar real-time cooldown/active display task (runs every 2 ticks = 100ms)
@@ -199,6 +201,12 @@ public class ChurchSMP extends JavaPlugin {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 doppelgangerManager.cleanup(player.getUniqueId());
             }
+        }
+        if (startEventManager != null) {
+            startEventManager.cleanupDisplays();
+        }
+        if (nullRoomManager != null) {
+            nullRoomManager.cleanupRoomEntities();
         }
         Bukkit.getScheduler().cancelTasks(this);
         getLogger().info("ChurchSMP has been disabled.");
@@ -264,6 +272,14 @@ public class ChurchSMP extends JavaPlugin {
         return finaleManager;
     }
 
+    public com.churchsmp.finale.NullRoomManager getNullRoomManager() {
+        return nullRoomManager;
+    }
+
+    public com.churchsmp.event.StartEventManager getStartEventManager() {
+        return startEventManager;
+    }
+
     public com.churchsmp.advancement.AdvancementManager getAdvancementManager() {
         return advancementManager;
     }
@@ -271,4 +287,5 @@ public class ChurchSMP extends JavaPlugin {
     public com.churchsmp.util.DoppelgangerManager getDoppelgangerManager() {
         return doppelgangerManager;
     }
+
 }

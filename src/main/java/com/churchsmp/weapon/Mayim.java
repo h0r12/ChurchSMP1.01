@@ -116,13 +116,13 @@ public class Mayim extends LegendaryWeapon {
 
         // Cold activation: frost ring at feet + snowflake burst + ice cracks
         Location feet = player.getLocation();
-        Particle.DustOptions cyanDust = new Particle.DustOptions(Color.fromRGB(0, 220, 255), 1.6f);
-        for (int d = 0; d < 360; d += 20) {
+        Particle.DustOptions cyanDust = new Particle.DustOptions(Color.fromRGB(0, 220, 255), 1.3f);
+        for (int d = 0; d < 360; d += 30) {
             double rad = Math.toRadians(d);
-            feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 1.8, 0.1, Math.sin(rad) * 1.8), 1, 0, 0, 0, 0, cyanDust);
+            feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(Math.cos(rad) * 1.6, 0.1, Math.sin(rad) * 1.6), 1, 0, 0, 0, 0, cyanDust);
         }
-        feet.getWorld().spawnParticle(Particle.SNOWFLAKE, feet.clone().add(0, 1.0, 0), 30, 0.8, 0.5, 0.8, 0.05);
-        feet.getWorld().spawnParticle(Particle.BLOCK, feet, 20, 0.6, 0.1, 0.6, 0.1, Material.BLUE_ICE.createBlockData());
+        feet.getWorld().spawnParticle(Particle.SNOWFLAKE, feet.clone().add(0, 1.0, 0), 8, 0.3, 0.35, 0.3, 0.02);
+        feet.getWorld().spawnParticle(Particle.BLOCK, feet, 5, 0.3, 0.1, 0.3, 0.03, Material.BLUE_ICE.createBlockData());
 
         player.sendMessage(Component.text("✦ Cold activated! Consecutive hits escalate enemy slowness.", NamedTextColor.AQUA));
         return true;
@@ -225,15 +225,15 @@ public class Mayim extends LegendaryWeapon {
                     // Explode in 5x5 giving Slowness II for 10s
                     curr.getWorld().playSound(curr, Sound.BLOCK_GLASS_BREAK, 1.8f, 0.7f);
                     curr.getWorld().playSound(curr, Sound.ITEM_TRIDENT_THUNDER, 1.2f, 1.6f);
-                    curr.getWorld().spawnParticle(Particle.FLASH, curr, 2, Color.WHITE);
-                    curr.getWorld().spawnParticle(Particle.EXPLOSION, curr, 2);
-                    curr.getWorld().spawnParticle(Particle.SNOWFLAKE, curr, 100, 2.5, 1.0, 2.5, 0.15);
-                    curr.getWorld().spawnParticle(Particle.BLOCK, curr, 50, 2.0, 0.8, 2.0, 0.2, Material.BLUE_ICE.createBlockData());
+                    curr.getWorld().spawnParticle(Particle.FLASH, curr, 1, Color.WHITE);
+                    curr.getWorld().spawnParticle(Particle.EXPLOSION, curr, 1);
+                    curr.getWorld().spawnParticle(Particle.SNOWFLAKE, curr, 16, 0.4, 0.4, 0.4, 0.04);
+                    curr.getWorld().spawnParticle(Particle.BLOCK, curr, 10, 0.35, 0.35, 0.35, 0.04, Material.BLUE_ICE.createBlockData());
 
                     // Expanding frost shockwave on the ground
-                    for (int d = 0; d < 360; d += 15) {
+                    for (int d = 0; d < 360; d += 30) {
                         double rad = Math.toRadians(d);
-                        curr.getWorld().spawnParticle(Particle.DUST, curr.clone().add(Math.cos(rad) * 3.5, 0.15, Math.sin(rad) * 3.5), 1, 0, 0, 0, 0, iceDust);
+                        curr.getWorld().spawnParticle(Particle.DUST, curr.clone().add(Math.cos(rad) * 3.0, 0.15, Math.sin(rad) * 3.0), 1, 0, 0, 0, 0, iceDust);
                     }
 
                     for (LivingEntity e : curr.getWorld().getNearbyLivingEntities(curr, 5.0, 3.0, 5.0)) {
@@ -253,7 +253,7 @@ public class Mayim extends LegendaryWeapon {
         // Finfuel: strength updates
         if (attacker.isInWater()) {
             attacker.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 60, 2, false, false)); // Strength III in water
-            attacker.getWorld().spawnParticle(Particle.DRIPPING_WATER, attacker.getLocation().add(0, 1, 0), 10, 0.3, 0.5, 0.3);
+            attacker.getWorld().spawnParticle(Particle.DRIPPING_WATER, attacker.getLocation().add(0, 1, 0), 6, 0.25, 0.35, 0.25);
         } else {
             attacker.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 60, 0, false, false)); // Strength I on land
         }
@@ -275,9 +275,9 @@ public class Mayim extends LegendaryWeapon {
                 victim.getWorld().playSound(vLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.5f);
                 attacker.playSound(attacker.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.5f, 1.5f);
                 // Rust particle effect
-                Particle.DustOptions rustDust = new Particle.DustOptions(Color.fromRGB(180, 80, 20), 1.5f);
-                victim.getWorld().spawnParticle(Particle.DUST, vLoc, 25, 0.4, 0.5, 0.4, 0, rustDust);
-                victim.getWorld().spawnParticle(Particle.BLOCK, vLoc, 15, 0.3, 0.4, 0.3, 0.1, Material.IRON_BLOCK.createBlockData());
+                Particle.DustOptions rustDust = new Particle.DustOptions(Color.fromRGB(180, 80, 20), 1.3f);
+                victim.getWorld().spawnParticle(Particle.DUST, vLoc, 8, 0.25, 0.3, 0.25, 0, rustDust);
+                victim.getWorld().spawnParticle(Particle.BLOCK, vLoc, 5, 0.2, 0.25, 0.2, 0.03, Material.IRON_BLOCK.createBlockData());
                 attacker.sendMessage(Component.text("✦ Rust stole 5% armor durability!", NamedTextColor.AQUA));
             }
         }
@@ -293,13 +293,13 @@ public class Mayim extends LegendaryWeapon {
 
             // Escalating frost circle around target's feet
             Location tFeet = target.getLocation();
-            double ringRadius = 0.7 + (current * 0.2);
-            Particle.DustOptions frostRing = new Particle.DustOptions(Color.fromRGB(100, 220, 255), 1.2f + (current * 0.2f));
-            for (int d = 0; d < 360; d += 25) {
+            double ringRadius = 0.7 + (current * 0.15);
+            Particle.DustOptions frostRing = new Particle.DustOptions(Color.fromRGB(100, 220, 255), Math.min(1.4f, 1.1f + (current * 0.1f)));
+            for (int d = 0; d < 360; d += 30) {
                 double rad = Math.toRadians(d);
                 tFeet.getWorld().spawnParticle(Particle.DUST, tFeet.clone().add(Math.cos(rad) * ringRadius, 0.1, Math.sin(rad) * ringRadius), 1, 0, 0, 0, 0, frostRing);
             }
-            target.getWorld().spawnParticle(Particle.SNOWFLAKE, target.getLocation().add(0, 1, 0), 15 + (current * 5), 0.3, 0.4, 0.3, 0.05);
+            target.getWorld().spawnParticle(Particle.SNOWFLAKE, target.getLocation().add(0, 1, 0), 4 + Math.min(6, current * 2), 0.25, 0.3, 0.25, 0.02);
             attacker.sendMessage(Component.text("✦ Cold streak: " + current + " (Slowness level " + (amplifier + 1) + ")", NamedTextColor.AQUA));
         }
     }

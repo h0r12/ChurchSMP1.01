@@ -12,6 +12,7 @@ import com.comphenix.protocol.wrappers.WrappedGameProfile;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -21,8 +22,13 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.EulerAngle;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -101,14 +107,18 @@ public class DoppelgangerManager {
         this.plugin = plugin;
         this.doppelgangerKey = new NamespacedKey(plugin, "doppelganger_hitbox");
         try {
-            this.protocolManager = ProtocolLibrary.getProtocolManager();
-            plugin.getLogger().info("[Doppelganger] ProtocolLib detected — true doppelgangers enabled.");
+            if (Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
+                this.protocolManager = ProtocolLibrary.getProtocolManager();
+                plugin.getLogger().info("[Doppelganger] ProtocolLib detected — true doppelgangers enabled.");
+            } else {
+                plugin.getLogger().info("[Doppelganger] ProtocolLib not present — physical optical puppets enabled.");
+            }
         } catch (Throwable t) {
-            plugin.getLogger().warning("[Doppelganger] ProtocolLib not found — doppelgangers disabled.");
+            plugin.getLogger().info("[Doppelganger] Physical optical puppets enabled.");
         }
     }
 
-    public boolean isEnabled() { return protocolManager != null; }
+    public boolean isEnabled() { return true; }
     public NamespacedKey getDoppelgangerKey() { return doppelgangerKey; }
 
     // ─────────────────────────────────── public API ──────────────────────────
@@ -146,16 +156,23 @@ public class DoppelgangerManager {
         int fakeId = ENTITY_ID_COUNTER.getAndIncrement();
         UUID fakeUuid = UUID.randomUUID();
 
-        // Build profile with owner's skin
-        WrappedGameProfile ownerProfile = WrappedGameProfile.fromPlayer(owner);
-        WrappedGameProfile fakeProfile = new WrappedGameProfile(fakeUuid, owner.getName());
-        fakeProfile.getProperties().putAll(ownerProfile.getProperties());
+        // Build profile with owner's skin (if ProtocolLib available)
+        WrappedGameProfile fakeProfile = null;
+        try {
+            if (protocolManager != null) {
+                WrappedGameProfile ownerProfile = WrappedGameProfile.fromPlayer(owner);
+                fakeProfile = new WrappedGameProfile(fakeUuid, owner.getName());
+                fakeProfile.getProperties().putAll(ownerProfile.getProperties());
+            }
+        } catch (Throwable ignored) {}
 
         Doppelganger dg = new Doppelganger(fakeId, fakeUuid, fakeProfile, loc, angle, dist, owner.getUniqueId());
 
-        // Invisible ArmorStand as hit-box
+        // Visible puppet ArmorStand with owner's exact player skin head, gear, and weapon
         ArmorStand as = owner.getWorld().spawn(loc, ArmorStand.class, a -> {
-            a.setVisible(false);
+            a.setVisible(false); // Frame hidden, equipped items & head are 100% visible!
+            a.setArms(true);
+            a.setBasePlate(false);
             a.setGravity(false);
             a.setInvulnerable(false);
             a.setSmall(false);
@@ -167,14 +184,22 @@ public class DoppelgangerManager {
                     owner.getUniqueId().toString());
             var attr = a.getAttribute(Attribute.GENERIC_MAX_HEALTH);
             if (attr != null) attr.setBaseValue(1.0);
+
+            // Equips player's skin head, armor, and weapon
+            equipCloneStand(a, owner);
         });
         dg.hitbox = as;
         hitboxMap.put(as.getEntityId(), dg);
         session.clones.add(dg);
 
-        // Send visual packets to all viewers
-        for (Player v : Bukkit.getOnlinePlayers()) {
-            sendSpawn(v, dg, owner);
+        // Spawn visual burst
+        loc.getWorld().spawnParticle(Particle.PORTAL, loc.clone().add(0, 1.0, 0), 8, 0.25, 0.3, 0.25, 0.03);
+
+        // Send visual packets to all viewers (if ProtocolLib is active)
+        if (protocolManager != null) {
+            for (Player v : Bukkit.getOnlinePlayers()) {
+                sendSpawn(v, dg, owner);
+            }
         }
         return dg;
     }
@@ -200,10 +225,10 @@ public class DoppelgangerManager {
         shatterLoc.getWorld().playSound(shatterLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.2f);
         shatterLoc.getWorld().playSound(shatterLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.2f);
         shatterLoc.getWorld().spawnParticle(Particle.FLASH, shatterLoc.clone().add(0, 1, 0), 1);
-        shatterLoc.getWorld().spawnParticle(Particle.DUST, shatterLoc.clone().add(0, 1, 0), 30,
-                0.4, 0.5, 0.4, 0, new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.5f));
-        shatterLoc.getWorld().spawnParticle(Particle.SOUL, shatterLoc.clone().add(0, 1.2, 0), 12,
-                0.3, 0.4, 0.3, 0.06);
+        shatterLoc.getWorld().spawnParticle(Particle.DUST, shatterLoc.clone().add(0, 1, 0), 12,
+                0.25, 0.3, 0.25, 0, new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.3f));
+        shatterLoc.getWorld().spawnParticle(Particle.SOUL, shatterLoc.clone().add(0, 1.2, 0), 5,
+                0.2, 0.25, 0.2, 0.03);
 
         // DISORIENTATION SHUFFLE: Surviving clones scatter & shift positions slightly!
         for (Doppelganger surviving : session.clones) {
@@ -308,14 +333,38 @@ public class DoppelgangerManager {
                     }
                     dg.currentLocation = newLoc;
 
-                    // Move invisible hitbox
-                    if (dg.hitbox != null && dg.hitbox.isValid()) dg.hitbox.teleport(newLoc);
+                    // Move and animate visible puppet
+                    if (dg.hitbox != null && dg.hitbox.isValid()) {
+                        dg.hitbox.teleport(newLoc);
 
-                    // Move fake player visual for nearby viewers
-                    for (Player v : Bukkit.getOnlinePlayers()) {
-                        if (v.getWorld().equals(ownerLoc.getWorld())
-                                && v.getLocation().distanceSquared(ownerLoc) < 4096) {
-                            sendTeleport(v, dg);
+                        // Live walking limb swing animation
+                        double speed = owner.getVelocity().lengthSquared();
+                        if (speed > 0.003) {
+                            double swing = Math.sin(tick * 0.45 + dg.phase) * 0.55;
+                            dg.hitbox.setRightLegPose(new EulerAngle(-swing, 0, 0));
+                            dg.hitbox.setLeftLegPose(new EulerAngle(swing, 0, 0));
+                            dg.hitbox.setRightArmPose(new EulerAngle(swing * 0.7 - 0.2, 0, Math.toRadians(8)));
+                            dg.hitbox.setLeftArmPose(new EulerAngle(-swing * 0.7, 0, Math.toRadians(-8)));
+                        } else {
+                            dg.hitbox.setRightLegPose(new EulerAngle(0, 0, 0));
+                            dg.hitbox.setLeftLegPose(new EulerAngle(0, 0, 0));
+                            dg.hitbox.setRightArmPose(new EulerAngle(Math.toRadians(12), 0, Math.toRadians(6)));
+                            dg.hitbox.setLeftArmPose(new EulerAngle(Math.toRadians(12), 0, Math.toRadians(-6)));
+                        }
+
+                        // Subtle mirror illusion particles
+                        if (tick % 6 == 0) {
+                            newLoc.getWorld().spawnParticle(Particle.PORTAL, newLoc.clone().add(0, 0.9, 0), 2, 0.2, 0.3, 0.2, 0.02);
+                        }
+                    }
+
+                    // Move fake player visual for nearby viewers (if ProtocolLib is active)
+                    if (protocolManager != null) {
+                        for (Player v : Bukkit.getOnlinePlayers()) {
+                            if (v.getWorld().equals(ownerLoc.getWorld())
+                                    && v.getLocation().distanceSquared(ownerLoc) < 4096) {
+                                sendTeleport(v, dg);
+                            }
                         }
                     }
                 }
@@ -324,24 +373,116 @@ public class DoppelgangerManager {
         session.mirrorTask.runTaskTimer(plugin, 0L, 1L);
     }
 
+    // ─────────────────────────────── equipment helper ────────────────────────
+
+    private void equipCloneStand(ArmorStand stand, Player owner) {
+        // 1. Head / Helmet
+        ItemStack helm = owner.getInventory().getHelmet();
+        if (helm != null && helm.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.HEAD, helm.clone());
+        } else {
+            stand.setItem(EquipmentSlot.HEAD, createPlayerSkinHead(owner));
+        }
+
+        // 2. Chestplate
+        ItemStack cp = owner.getInventory().getChestplate();
+        if (cp != null && cp.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.CHEST, cp.clone());
+        } else {
+            ItemStack tunic = new ItemStack(Material.LEATHER_CHESTPLATE);
+            if (tunic.getItemMeta() instanceof LeatherArmorMeta lam) {
+                lam.setColor(Color.fromRGB(45, 52, 71));
+                tunic.setItemMeta(lam);
+            }
+            stand.setItem(EquipmentSlot.CHEST, tunic);
+        }
+
+        // 3. Leggings
+        ItemStack leg = owner.getInventory().getLeggings();
+        if (leg != null && leg.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.LEGS, leg.clone());
+        } else {
+            ItemStack pants = new ItemStack(Material.LEATHER_LEGGINGS);
+            if (pants.getItemMeta() instanceof LeatherArmorMeta lam) {
+                lam.setColor(Color.fromRGB(30, 35, 48));
+                pants.setItemMeta(lam);
+            }
+            stand.setItem(EquipmentSlot.LEGS, pants);
+        }
+
+        // 4. Boots
+        ItemStack boots = owner.getInventory().getBoots();
+        if (boots != null && boots.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.FEET, boots.clone());
+        } else {
+            ItemStack bootItem = new ItemStack(Material.LEATHER_BOOTS);
+            if (bootItem.getItemMeta() instanceof LeatherArmorMeta lam) {
+                lam.setColor(Color.fromRGB(20, 24, 33));
+                bootItem.setItemMeta(lam);
+            }
+            stand.setItem(EquipmentSlot.FEET, bootItem);
+        }
+
+        // 5. Main Hand & Off Hand
+        ItemStack mainHand = owner.getInventory().getItemInMainHand();
+        if (mainHand != null && mainHand.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.HAND, mainHand.clone());
+        }
+        ItemStack offHand = owner.getInventory().getItemInOffHand();
+        if (offHand != null && offHand.getType() != Material.AIR) {
+            stand.setItem(EquipmentSlot.OFF_HAND, offHand.clone());
+        }
+
+        // Natural posture
+        stand.setRightArmPose(new EulerAngle(Math.toRadians(12), 0, Math.toRadians(6)));
+        stand.setLeftArmPose(new EulerAngle(Math.toRadians(12), 0, Math.toRadians(-6)));
+    }
+
+    public static ItemStack createPlayerSkinHead(Player owner) {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        if (head.getItemMeta() instanceof SkullMeta skull) {
+            try {
+                skull.setOwningPlayer(owner);
+            } catch (Throwable ignored) {}
+            try {
+                com.destroystokyo.paper.profile.PlayerProfile profile = owner.getPlayerProfile();
+                if (profile.hasTextures()) {
+                    skull.setPlayerProfile(profile);
+                }
+            } catch (Throwable ignored) {}
+            head.setItemMeta(skull);
+        }
+        return head;
+    }
+
     // ─────────────────────────────── packet helpers ──────────────────────────
 
     private void sendSpawn(Player viewer, Doppelganger dg, Player owner) {
+        if (protocolManager == null) return;
         try {
-            // 1. PLAYER_INFO — add fake profile (with skin) to tab
-            PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO);
-            info.getPlayerInfoActions().write(0,
-                    EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER,
-                               EnumWrappers.PlayerInfoAction.UPDATE_LISTED));
-            PlayerInfoData pid = new PlayerInfoData(
-                    dg.fakeUUID, 0, false,
-                    EnumWrappers.NativeGameMode.SURVIVAL,
-                    dg.profile, null
-            );
-            info.getPlayerInfoDataLists().write(0, List.of(pid));
-            protocolManager.sendServerPacket(viewer, info);
+            // Modern ProtocolLib 5.3+ packet support (fail-safe)
+            PacketType infoType = null;
+            try {
+                infoType = PacketType.Play.Server.getInstance().values().stream()
+                        .filter(pt -> pt.name().equals("PLAYER_INFO_UPDATE"))
+                        .findFirst().orElse(null);
+            } catch (Throwable ignored) {}
 
-            // 2. SPAWN_ENTITY (player type)
+            if (infoType != null) {
+                PacketContainer info = protocolManager.createPacket(infoType);
+                info.getPlayerInfoActions().write(0,
+                        EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER,
+                                   EnumWrappers.PlayerInfoAction.UPDATE_LISTED));
+                PlayerInfoData pid = new PlayerInfoData(
+                        dg.fakeUUID, 0, false,
+                        EnumWrappers.NativeGameMode.SURVIVAL,
+                        dg.profile, null
+                );
+                info.getPlayerInfoDataLists().write(0, List.of(pid));
+                protocolManager.sendServerPacket(viewer, info);
+            }
+
+            // SPAWN_ENTITY (player type)
             PacketContainer spawn = protocolManager.createPacket(PacketType.Play.Server.SPAWN_ENTITY);
             spawn.getIntegers().write(0, dg.fakeEntityId);
             spawn.getUUIDs().write(0, dg.fakeUUID);
@@ -355,20 +496,7 @@ public class DoppelgangerManager {
                     .write(1, angleByte(dg.currentLocation.getYaw()));
             protocolManager.sendServerPacket(viewer, spawn);
 
-            // 3. ENTITY_METADATA — show all skin layers (cape, jacket, sleeves, pants, hat)
-            try {
-                PacketContainer meta = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
-                meta.getIntegers().write(0, dg.fakeEntityId);
-                WrappedDataWatcher w = new WrappedDataWatcher();
-                WrappedDataWatcher.Serializer byteSer = WrappedDataWatcher.Registry.get(Byte.class);
-                w.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSer), (byte) 0x7F);
-                meta.getWatchableCollectionModifier().write(0, w.getWatchableObjects());
-                protocolManager.sendServerPacket(viewer, meta);
-            } catch (Throwable metaErr) {
-                // If WrappedDataWatcher fails on newer Paper DataWatcher internals, proceed without crashing
-            }
-
-            // 4. ENTITY_EQUIPMENT — mirror owner's gear
+            // ENTITY_EQUIPMENT — mirror owner's gear
             try {
                 PacketContainer equip = protocolManager.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
                 equip.getIntegers().write(0, dg.fakeEntityId);
@@ -380,28 +508,22 @@ public class DoppelgangerManager {
                 gear.add(pair(EnumWrappers.ItemSlot.FEET,     owner.getInventory().getBoots()));
                 equip.getSlotStackPairLists().write(0, gear);
                 protocolManager.sendServerPacket(viewer, equip);
-            } catch (Throwable equipErr) {
-                plugin.getLogger().warning("[Doppelganger] Equipment packet error: " + equipErr.getMessage());
-            }
+            } catch (Throwable ignored) {}
 
-            // 5. Head rotation
+            // Head rotation
             try {
                 PacketContainer head = protocolManager.createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
                 head.getIntegers().write(0, dg.fakeEntityId);
                 head.getBytes().write(0, angleByte(dg.currentLocation.getYaw()));
                 protocolManager.sendServerPacket(viewer, head);
-            } catch (Throwable headErr) {}
-
-            // NOTE: Do NOT send PLAYER_INFO_REMOVE here!
-            // In Minecraft 1.19.3+, PLAYER_INFO_REMOVE tells the client to delete/despawn the player entity!
-            // The clone is already hidden from the tab list because listed=false is set in PlayerInfoData.
-            // PLAYER_INFO_REMOVE is sent when the clone is actually removed in sendDestroy().
-        } catch (Throwable t) {
-            plugin.getLogger().warning("[Doppelganger] Spawn packet error: " + t.getMessage());
+            } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            // Physical puppet is already active and visible to all
         }
     }
 
     private void sendTeleport(Player viewer, Doppelganger dg) {
+        if (protocolManager == null) return;
         try {
             PacketContainer tp = protocolManager.createPacket(PacketType.Play.Server.ENTITY_TELEPORT);
             tp.getIntegers().write(0, dg.fakeEntityId);
@@ -423,6 +545,7 @@ public class DoppelgangerManager {
     }
 
     private void sendDestroy(Player viewer, Doppelganger dg) {
+        if (protocolManager == null) return;
         try {
             PacketContainer destroy = protocolManager.createPacket(PacketType.Play.Server.ENTITY_DESTROY);
             destroy.getIntLists().write(0, List.of(dg.fakeEntityId));

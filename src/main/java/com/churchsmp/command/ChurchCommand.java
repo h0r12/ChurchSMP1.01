@@ -43,6 +43,27 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // /church ready or /ready command — Ready up for Genesis Start Event
+        if (label.equalsIgnoreCase("ready") || (args.length > 0 && args[0].equalsIgnoreCase("ready"))) {
+            if (plugin.getStartEventManager() != null) {
+                plugin.getStartEventManager().markReady(player);
+            }
+            return true;
+        }
+
+        // /church confirm <sin> command — Confirm Sin choice in Genesis Start Event
+        if (args.length > 1 && args[0].equalsIgnoreCase("confirm")) {
+            if (plugin.getStartEventManager() != null) {
+                try {
+                    SinGemType sin = SinGemType.valueOf(args[1].toUpperCase(Locale.ROOT));
+                    plugin.getStartEventManager().confirmSinChoice(player, sin);
+                } catch (IllegalArgumentException e) {
+                    player.sendMessage(miniMessage.deserialize("<red>Invalid sin choice.</red>"));
+                }
+            }
+            return true;
+        }
+
         // /church null or /null — toggles entry and exit from the Liminal Null Control Room
         if (label.equalsIgnoreCase("null") || (args.length > 0 && (args[0].equalsIgnoreCase("null") || args[0].equalsIgnoreCase("liminalnull")))) {
             plugin.getFinaleManager().toggleLiminalNull(player);
@@ -74,6 +95,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+
         // /church testclone <living_rig|kinetic|spectral|all|clear>
         if (args.length > 0 && (args[0].equalsIgnoreCase("testclone") || args[0].equalsIgnoreCase("clone"))) {
             handleTestCloneCommand(player, args);
@@ -97,8 +119,26 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
 
         if (sub.equals("clear") || sub.equals("remove") || sub.equals("despawn")) {
             com.churchsmp.util.CloneUtil.clearTestClones(player);
+            if (plugin.getDoppelgangerManager() != null) {
+                plugin.getDoppelgangerManager().cleanup(player.getUniqueId());
+            }
             player.sendMessage(miniMessage.deserialize("<gold>✦ [TEST CLONE] <green>" + TextUtil.toSmallCaps("All test doppelgängers cleared!") + "</green> ✦</gold>"));
             return;
+        }
+
+        if (sub.equals("doppelganger") || sub.equals("mirror") || sub.equals("sorrowess")) {
+            com.churchsmp.util.CloneUtil.clearTestClones(player);
+            if (plugin.getDoppelgangerManager() != null) {
+                plugin.getDoppelgangerManager().spawnInitial(player);
+                player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+                player.sendMessage(miniMessage.deserialize("<gold>✦ <yellow><bold>" + TextUtil.toSmallCaps("Spawned Real-Time Mirror Doppelgängers") + "</bold></yellow> ✦</gold>"));
+                player.sendMessage(miniMessage.deserialize("<gray>4 symmetrical doppelgängers have spawned around you!</gray>"));
+                player.sendMessage(miniMessage.deserialize("<gray>• Walk, strafe, or jump — they mirror your movement & limb animations in real time.</gray>"));
+                player.sendMessage(miniMessage.deserialize("<gray>• Hit any clone to trigger shattering & multiplication (up to 27 cap).</gray>"));
+                player.sendMessage(miniMessage.deserialize("<gray>Type </gray><yellow>/church testclone clear</yellow> <gray>to remove them.</gray>"));
+                player.sendMessage(miniMessage.deserialize("<gold>══════════════════════════════════════════════════</gold>"));
+                return;
+            }
         }
 
         // Clear existing test clones first for clean side-by-side testing
@@ -343,7 +383,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "testclone");
+            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "ready", "testclone");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
@@ -353,7 +393,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return matches;
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("testclone") || args[0].equalsIgnoreCase("clone"))) {
-            List<String> sub = List.of("all", "living_rig", "kinetic", "spectral", "clear");
+            List<String> sub = List.of("all", "doppelganger", "living_rig", "kinetic", "spectral", "clear");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[1].toLowerCase())) {

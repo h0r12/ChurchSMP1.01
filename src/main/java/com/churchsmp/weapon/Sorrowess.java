@@ -183,9 +183,11 @@ public class Sorrowess extends LegendaryWeapon {
                     double spiralAngle = ticks * 0.5;
                     Vector spiralOffset = new Vector(Math.cos(spiralAngle) * 0.3, Math.sin(spiralAngle) * 0.3, 0);
 
-                    currentLoc.getWorld().spawnParticle(Particle.DUST, currentLoc.clone().add(spiralOffset), 2, 0, 0, 0, 0, trailDust);
+                    currentLoc.getWorld().spawnParticle(Particle.DUST, currentLoc.clone().add(spiralOffset), 1, 0, 0, 0, 0, trailDust);
                     currentLoc.getWorld().spawnParticle(Particle.DUST, currentLoc.clone().subtract(spiralOffset), 1, 0, 0, 0, 0, darkRed);
-                    currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0.02, 0.02, 0.02, 0.01);
+                    if (ticks % 2 == 0) {
+                        currentLoc.getWorld().spawnParticle(Particle.FLAME, currentLoc, 1, 0.02, 0.02, 0.02, 0.005);
+                    }
 
                     Vector dir = finalTarget.getLocation().add(0, 1.0, 0).toVector().subtract(currentLoc.toVector()).normalize().multiply(1.25);
                     currentLoc.add(dir);
@@ -194,7 +196,7 @@ public class Sorrowess extends LegendaryWeapon {
                         Location hitLoc = finalTarget.getLocation().add(0, 1.0, 0);
                         hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.2f, 1.4f);
                         hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc, 1, Color.RED);
-                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 18, 0.35, 0.35, 0.35, 0, brightRed);
+                        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc, 8, 0.25, 0.25, 0.25, 0, brightRed);
                         hitLoc.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, hitLoc, 2, 0.2, 0.2, 0.2, 0.05);
 
                         // Reduced damage: 0.4 HP per shard (2.0 HP = 1 heart total across all 5 shards)
@@ -424,7 +426,7 @@ public class Sorrowess extends LegendaryWeapon {
                     nearby.getWorld().playSound(nearby.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.2f, 1.0f);
                     nearby.getWorld().playSound(nearby.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 1.0f);
                     nearby.getWorld().spawnParticle(Particle.SWEEP_ATTACK, nearby.getLocation().add(0, 1.0, 0), 1);
-                    nearby.getWorld().spawnParticle(Particle.CRIT, nearby.getLocation().add(0, 1.0, 0), 10, 0.3, 0.3, 0.3, 0.1);
+                    nearby.getWorld().spawnParticle(Particle.CRIT, nearby.getLocation().add(0, 1.0, 0), 5, 0.2, 0.2, 0.2, 0.02);
 
                     // Inflict Gloom on Riptide strike
                     applyGloom(player, nearby);
@@ -494,9 +496,9 @@ public class Sorrowess extends LegendaryWeapon {
         hitLoc.getWorld().playSound(hitLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.2f);
         hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.2f);
         hitLoc.getWorld().spawnParticle(Particle.FLASH, hitLoc.clone().add(0, 1, 0), 1, Color.WHITE);
-        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc.clone().add(0, 1, 0), 30, 0.4, 0.5, 0.4, 0,
-                new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.5f));
-        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc.clone().add(0, 1.2, 0), 12, 0.3, 0.4, 0.3, 0.06);
+        hitLoc.getWorld().spawnParticle(Particle.DUST, hitLoc.clone().add(0, 1, 0), 12, 0.25, 0.3, 0.25, 0,
+                new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.3f));
+        hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc.clone().add(0, 1.2, 0), 5, 0.2, 0.25, 0.2, 0.03);
 
         // Remove the clone
         hitClone.remove();
@@ -607,7 +609,7 @@ public class Sorrowess extends LegendaryWeapon {
         if (target == null || !target.isValid()) return;
 
         // Visual crit feedback with Sorrowess soul flame
-        target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.05);
+        target.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, target.getLocation().add(0, 1.0, 0), 4, 0.15, 0.2, 0.15, 0.02);
 
         // If target already has active gloom, refresh it and don't count crits
         if (hasGloom(target)) {
@@ -649,17 +651,17 @@ public class Sorrowess extends LegendaryWeapon {
         loc.getWorld().playSound(loc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.4f, 1.2f);
         loc.getWorld().playSound(loc, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 1.0f);
 
-        Particle.DustOptions brightRed = new Particle.DustOptions(Color.fromRGB(255, 0, 0), 2.2f);
-        Particle.DustOptions veinRed = new Particle.DustOptions(Color.fromRGB(220, 20, 40), 1.5f);
+        Particle.DustOptions brightRed = new Particle.DustOptions(Color.fromRGB(255, 0, 0), 1.4f);
+        Particle.DustOptions veinRed = new Particle.DustOptions(Color.fromRGB(220, 20, 40), 1.2f);
 
         // Vertical red lightning thunder pillar descending from sky
-        for (double y = 0; y <= 14.0; y += 0.5) {
-            loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, y, 0), 2, 0.05, 0.05, 0.05, 0, brightRed);
-            loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.02);
+        for (double y = 0; y <= 14.0; y += 0.8) {
+            loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0, brightRed);
+            loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, y, 0), 1, 0.05, 0.05, 0.05, 0.01);
         }
 
         // Big bright orbital lightning rings around torso
-        for (int d = 0; d < 360; d += 20) {
+        for (int d = 0; d < 360; d += 30) {
             double rad = Math.toRadians(d);
             loc.getWorld().spawnParticle(Particle.DUST,
                     loc.clone().add(Math.cos(rad) * 1.6, 1.1, Math.sin(rad) * 1.6),

@@ -823,7 +823,7 @@ public class SinGemAbilityExecutor {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, 100, 1, false, false));
             player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EAT, 1.2f, 0.8f);
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 1.0f);
-            player.getWorld().spawnParticle(Particle.ITEM_SLIME, player.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, 0.05);
+            player.getWorld().spawnParticle(Particle.ITEM_SLIME, player.getLocation().add(0, 1.0, 0), 8, 0.25, 0.25, 0.25, 0.02);
             player.sendMessage(miniMessage.deserialize("<green>✦ [DEVOUR BUFF] <white>" + TextUtil.toSmallCaps("Self-Devoured! Gained Resistance II, Absorption II & Saturation.") + " ✦</white></green>"));
             return;
         }
@@ -846,7 +846,7 @@ public class SinGemAbilityExecutor {
 
         player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EAT, 1.2f, 0.8f);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 1.0f);
-        player.getWorld().spawnParticle(Particle.ITEM_SLIME, target.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, 0.05);
+        player.getWorld().spawnParticle(Particle.ITEM_SLIME, target.getLocation().add(0, 1.0, 0), 8, 0.25, 0.25, 0.25, 0.02);
         player.sendMessage(miniMessage.deserialize("<green>✦ [DEVOUR BUFF] <white>" + TextUtil.toSmallCaps("Devoured 10s from target buffs! Gained Resistance & Absorption.") + " ✦</white></green>"));
     }
 
@@ -865,8 +865,8 @@ public class SinGemAbilityExecutor {
                 }
 
                 // Green acid puddle particles
-                origin.getWorld().spawnParticle(Particle.DUST, origin, 8, 1.5, 0.1, 1.5, 0, new Particle.DustOptions(Color.fromRGB(50, 205, 50), 1.2f));
-                origin.getWorld().spawnParticle(Particle.ITEM_SLIME, origin, 3, 1.2, 0.1, 1.2, 0.02);
+                origin.getWorld().spawnParticle(Particle.DUST, origin, 5, 0.6, 0.05, 0.6, 0, new Particle.DustOptions(Color.fromRGB(50, 205, 50), 1.2f));
+                origin.getWorld().spawnParticle(Particle.ITEM_SLIME, origin, 2, 0.5, 0.05, 0.5, 0.01);
 
                 if (ticks % 10 == 0) {
                     for (LivingEntity e : origin.getWorld().getNearbyLivingEntities(origin, 2.5)) {
@@ -927,7 +927,7 @@ public class SinGemAbilityExecutor {
             cfg.onDespawn = z -> {
                 lustCloneIds.remove(z.getUniqueId());
                 cloneOwnerMap.remove(z.getUniqueId());
-                z.getWorld().spawnParticle(Particle.BLOCK, z.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.AMETHYST_BLOCK.createBlockData());
+                z.getWorld().spawnParticle(Particle.BLOCK, z.getLocation().add(0, 1.0, 0), 8, 0.25, 0.25, 0.25, 0.02, Material.AMETHYST_BLOCK.createBlockData());
             };
 
             LivingEntity clone = CloneUtil.spawnRealisticClone(plugin, cfg);
@@ -1127,8 +1127,8 @@ public class SinGemAbilityExecutor {
             }
         };
         cfg.onDespawn = clone -> {
-            clone.getWorld().spawnParticle(Particle.LARGE_SMOKE, clone.getLocation().add(0, 1.0, 0), 15, 0.3, 0.5, 0.3, 0.05);
-            clone.getWorld().spawnParticle(Particle.SOUL, clone.getLocation().add(0, 1.0, 0), 8, 0.3, 0.5, 0.3, 0.02);
+            clone.getWorld().spawnParticle(Particle.SMOKE, clone.getLocation().add(0, 1.0, 0), 6, 0.25, 0.35, 0.25, 0.02);
+            clone.getWorld().spawnParticle(Particle.SOUL, clone.getLocation().add(0, 1.0, 0), 4, 0.2, 0.3, 0.2, 0.02);
         };
 
         CloneUtil.spawnRealisticClone(plugin, cfg);
@@ -1237,7 +1237,7 @@ public class SinGemAbilityExecutor {
             double maxHp = killer.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue();
             killer.setHealth(maxHp);
             killer.playSound(killer.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.0f);
-            killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killer.getLocation().add(0, 1.5, 0), 30, 0.5, 0.5, 0.5, 0.1);
+            killer.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, killer.getLocation().add(0, 1.2, 0), 14, 0.35, 0.35, 0.35, 0.04);
 
             // Enhance active potions to 3x duration and 2x strength
             for (PotionEffect e : new ArrayList<>(killer.getActivePotionEffects())) {
@@ -1265,8 +1265,8 @@ public class SinGemAbilityExecutor {
                     return;
                 }
 
-                pLoc.getWorld().spawnParticle(Particle.PORTAL, pLoc.clone().add(0, 1.0, 0), 12, 1.5, 0.5, 1.5, 0.02);
-                pLoc.getWorld().spawnParticle(Particle.SOUL, pLoc.clone().add(0, 0.5, 0), 4, 1.2, 0.3, 1.2, 0.01);
+                pLoc.getWorld().spawnParticle(Particle.PORTAL, pLoc.clone().add(0, 1.0, 0), 6, 0.4, 0.3, 0.4, 0.02);
+                pLoc.getWorld().spawnParticle(Particle.SOUL, pLoc.clone().add(0, 0.5, 0), 3, 0.3, 0.2, 0.3, 0.01);
 
                 // Freeze incoming projectiles
                 for (Entity entity : pLoc.getWorld().getNearbyEntities(pLoc, 4.0, 4.0, 4.0)) {
@@ -1368,7 +1368,7 @@ public class SinGemAbilityExecutor {
             if (isFuryActive(player)) {
                 target.setFireTicks(80);
                 addRevengeStack(player);
-                target.getWorld().spawnParticle(Particle.CRIT, target.getLocation().add(0, 1.0, 0), 10, 0.3, 0.3, 0.3, 0.1);
+                target.getWorld().spawnParticle(Particle.CRIT, target.getLocation().add(0, 1.0, 0), 5, 0.2, 0.2, 0.2, 0.02);
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.0f, 1.2f);
             }
         }

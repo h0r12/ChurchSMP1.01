@@ -551,13 +551,13 @@ public class ForsakingRitualManager implements Listener {
         player.getWorld().strikeLightningEffect(pCenter);
         player.getWorld().spawnParticle(Particle.FLASH, pCenter, 1, Color.WHITE);
 
-        Particle.DustOptions sinDust = new Particle.DustOptions(sinColor, 2.0f);
-        Particle.DustOptions accentDust = new Particle.DustOptions(accentColor, 1.6f);
+        Particle.DustOptions sinDust = new Particle.DustOptions(sinColor, 1.4f);
+        Particle.DustOptions accentDust = new Particle.DustOptions(accentColor, 1.2f);
 
         // Directed horizontal shockwave disk along the ground
         Location ground = player.getLocation().add(0, 0.1, 0);
-        for (double r = 1.0; r <= 3.5; r += 0.8) {
-            for (int d = 0; d < 360; d += 20) {
+        for (double r = 1.0; r <= 3.5; r += 1.2) {
+            for (int d = 0; d < 360; d += 30) {
                 double rad = Math.toRadians(d);
                 ground.getWorld().spawnParticle(Particle.DUST,
                         ground.clone().add(Math.cos(rad) * r, 0, Math.sin(rad) * r),
@@ -566,7 +566,7 @@ public class ForsakingRitualManager implements Listener {
         }
 
         // Directed vertical pillar of light shooting straight up into the heavens
-        for (double y = 0; y <= 10.0; y += 0.5) {
+        for (double y = 0; y <= 10.0; y += 0.8) {
             Location pBeam = player.getLocation().add(0, y, 0);
             pBeam.getWorld().spawnParticle(Particle.DUST, pBeam, 1, 0, 0, 0, 0, sinDust);
             if ((int) y % 2 == 0) {

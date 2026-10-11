@@ -81,9 +81,9 @@ public class Judas extends LegendaryWeapon {
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.0f, 1.2f);
 
         // Blood particle burst at launch
-        Particle.DustOptions bloodDust = new Particle.DustOptions(Color.fromRGB(150, 0, 0), 1.6f);
-        player.getWorld().spawnParticle(Particle.DUST, player.getEyeLocation(), 15, 0.3, 0.3, 0.3, 0, bloodDust);
-        player.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, player.getEyeLocation(), 3, 0.2, 0.2, 0.2, 0.05);
+        Particle.DustOptions bloodDust = new Particle.DustOptions(Color.fromRGB(150, 0, 0), 1.3f);
+        player.getWorld().spawnParticle(Particle.DUST, player.getEyeLocation(), 8, 0.25, 0.25, 0.25, 0, bloodDust);
+        player.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, player.getEyeLocation(), 2, 0.15, 0.15, 0.15, 0.02);
 
         // Trail behind the skull
         new BukkitRunnable() {
@@ -93,8 +93,8 @@ public class Judas extends LegendaryWeapon {
                     cancel();
                     return;
                 }
-                skull.getWorld().spawnParticle(Particle.DUST, skull.getLocation(), 4, 0.1, 0.1, 0.1, 0, bloodDust);
-                skull.getWorld().spawnParticle(Particle.SMOKE, skull.getLocation(), 2, 0.05, 0.05, 0.05, 0.01);
+                skull.getWorld().spawnParticle(Particle.DUST, skull.getLocation(), 2, 0.08, 0.08, 0.08, 0, bloodDust);
+                skull.getWorld().spawnParticle(Particle.SMOKE, skull.getLocation(), 1, 0.05, 0.05, 0.05, 0.01);
             }
         }.runTaskTimer(plugin, 1L, 1L);
 
@@ -251,12 +251,12 @@ public class Judas extends LegendaryWeapon {
 
             // Bite fang visual: closing crimson V-shape
             Location targetEye = target.getLocation().add(0, 1.2, 0);
-            Particle.DustOptions biteDust = new Particle.DustOptions(Color.fromRGB(200, 10, 10), 1.6f);
-            for (double d = -0.6; d <= 0.6; d += 0.2) {
-                targetEye.getWorld().spawnParticle(Particle.DUST, targetEye.clone().add(d, Math.abs(d) * 0.8, 0), 2, 0, 0, 0, 0, biteDust);
-                targetEye.getWorld().spawnParticle(Particle.DUST, targetEye.clone().add(d, -Math.abs(d) * 0.8, 0), 2, 0, 0, 0, 0, biteDust);
+            Particle.DustOptions biteDust = new Particle.DustOptions(Color.fromRGB(200, 10, 10), 1.3f);
+            for (double d = -0.6; d <= 0.6; d += 0.3) {
+                targetEye.getWorld().spawnParticle(Particle.DUST, targetEye.clone().add(d, Math.abs(d) * 0.8, 0), 1, 0, 0, 0, 0, biteDust);
+                targetEye.getWorld().spawnParticle(Particle.DUST, targetEye.clone().add(d, -Math.abs(d) * 0.8, 0), 1, 0, 0, 0, 0, biteDust);
             }
-            targetEye.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, targetEye, 6, 0.2, 0.2, 0.2, 0.05);
+            targetEye.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, targetEye, 3, 0.15, 0.15, 0.15, 0.02);
 
             attacker.sendMessage(Component.text("✦ Bite triggered! Target inflicted with Wither, Nausea & Blindness.", NamedTextColor.DARK_RED));
         }
@@ -270,7 +270,7 @@ public class Judas extends LegendaryWeapon {
             attacker.addPotionEffect(new PotionEffect(curse, 80, 0));
             // Dark curse swirl around attacker
             Location aLoc = attacker.getLocation().add(0, 1.0, 0);
-            aLoc.getWorld().spawnParticle(Particle.SOUL, aLoc, 10, 0.3, 0.5, 0.3, 0.03);
+            aLoc.getWorld().spawnParticle(Particle.SOUL, aLoc, 5, 0.25, 0.35, 0.25, 0.02);
             attacker.sendMessage(Component.text("✦ Unfree: You received a gift from Judas...", NamedTextColor.DARK_GRAY));
         }
     }

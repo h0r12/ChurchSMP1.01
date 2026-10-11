@@ -92,10 +92,8 @@ public class CloneUtil {
         List<Entity> list = testClones.remove(player.getUniqueId());
         if (list != null) {
             for (Entity e : list) {
-                if (e != null && e.isValid()) {
-                    e.getWorld().spawnParticle(Particle.POOF, e.getLocation().add(0, 1.0, 0), 10, 0.2, 0.4, 0.2, 0.05);
-                    e.remove();
-                }
+                e.getWorld().spawnParticle(Particle.POOF, e.getLocation().add(0, 1.0, 0), 6, 0.2, 0.3, 0.2, 0.03);
+                e.remove();
             }
         }
     }

@@ -138,8 +138,8 @@ public class VoidBreaker extends LegendaryWeapon {
         player.setVelocity(dash);
 
         player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.0f, 1.6f);
-        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 30, 0.4, 0.4, 0.4, 0.1);
-        player.getWorld().spawnParticle(Particle.LARGE_SMOKE, player.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
+        player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.0, 0), 10, 0.25, 0.35, 0.25, 0.02);
+        player.getWorld().spawnParticle(Particle.SMOKE, player.getLocation().add(0, 0.5, 0), 5, 0.2, 0.25, 0.2, 0.02);
 
         // Re-enable flight after dash so double jump works mid-air
         reEnableFlightDelayed(player);
@@ -390,14 +390,13 @@ public class VoidBreaker extends LegendaryWeapon {
                 // Ground tremors / crack particles beneath target
                 if (ticks <= openDuration) {
                     if (ticks % 10 == 0) {
-                        int crackCount = 3 + (int) (openProgress * 10);
                         world.spawnParticle(Particle.BLOCK, targetLoc.clone().add(0, 0.1, 0),
-                                crackCount, 1.0 + openProgress, 0.1, 1.0 + openProgress, 0.05, Material.GRAVEL.createBlockData());
+                                4, 0.4, 0.05, 0.4, 0.02, Material.GRAVEL.createBlockData());
                     }
                 } else {
                     // Slamming phase: intense ground upheaval
                     world.spawnParticle(Particle.BLOCK, targetLoc.clone().add(0, 0.1, 0),
-                            8, 1.2, 0.1, 1.2, 0.08, Material.OBSIDIAN.createBlockData());
+                            4, 0.35, 0.05, 0.35, 0.03, Material.OBSIDIAN.createBlockData());
                 }
 
                 // Progressive debuffs on target
@@ -489,17 +488,17 @@ public class VoidBreaker extends LegendaryWeapon {
         }.runTaskTimer(plugin, 0L, 3L);
 
         // Block debris
-        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 60, 2.0, 0.5, 2.0, 0.2, Material.GRAVEL.createBlockData());
-        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.5, 0), 40, 1.5, 0.4, 1.5, 0.15, Material.COBBLESTONE.createBlockData());
-        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.3, 0), 25, 1.2, 0.3, 1.2, 0.1, Material.DEEPSLATE.createBlockData());
+        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.4, 0), 12, 0.35, 0.3, 0.35, 0.04, Material.GRAVEL.createBlockData());
+        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.4, 0), 8, 0.3, 0.25, 0.3, 0.03, Material.COBBLESTONE.createBlockData());
+        world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 0.3, 0), 6, 0.25, 0.2, 0.25, 0.02, Material.DEEPSLATE.createBlockData());
 
         // Rising dust columns around impact
         for (int i = 0; i < 6; i++) {
             double angle = (2 * Math.PI / 6) * i;
             Location col = loc.clone().add(Math.cos(angle) * 1.5, 0, Math.sin(angle) * 1.5);
-            for (double y = 0; y < 3.0; y += 0.4) {
+            for (double y = 0; y < 3.0; y += 0.8) {
                 world.spawnParticle(Particle.DUST, col.clone().add(0, y, 0), 1, 0.1, 0, 0.1, 0,
-                        new Particle.DustOptions(org.bukkit.Color.fromRGB(80, 80, 80), 1.5f));
+                        new Particle.DustOptions(org.bukkit.Color.fromRGB(80, 80, 80), 1.2f));
             }
         }
 
@@ -537,7 +536,7 @@ public class VoidBreaker extends LegendaryWeapon {
         plugin.getBossBarManager().showPassiveCooldown(player, this, "Voidfeels", 5);
         player.setVelocity(new Vector(player.getVelocity().getX(), 0.9, player.getVelocity().getZ()));
         player.playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.2f, 1.2f);
-        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 15, 0.3, 0.1, 0.3, 0.05);
+        player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 5, 0.2, 0.1, 0.2, 0.02);
 
         reEnableFlightDelayed(player);
     }
@@ -590,11 +589,11 @@ public class VoidBreaker extends LegendaryWeapon {
         world.spawnParticle(Particle.SONIC_BOOM, detonateLoc.clone().add(0, 0.5, 0), 1);
 
         // === EXPANDING SHOCKWAVE RINGS ===
-        Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(30, 30, 30), 2.2f);
-        Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.8f);
+        Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(30, 30, 30), 1.4f);
+        Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.2f);
 
-        for (double r = 1.0; r <= 4.5; r += 0.8) {
-            for (int d = 0; d < 360; d += 15) {
+        for (double r = 1.0; r <= 4.5; r += 1.2) {
+            for (int d = 0; d < 360; d += 30) {
                 double rad = Math.toRadians(d);
                 Location p = detonateLoc.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
                 world.spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 2.2) ? shockDustLight : shockDustDark);
@@ -602,8 +601,8 @@ public class VoidBreaker extends LegendaryWeapon {
         }
 
         // Block debris
-        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.5, 0), 50, 1.8, 0.5, 1.8, 0.15, Material.GRAVEL.createBlockData());
-        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.5, 0), 30, 1.5, 0.4, 1.5, 0.1, Material.COBBLESTONE.createBlockData());
+        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.4, 0), 12, 0.35, 0.3, 0.35, 0.04, Material.GRAVEL.createBlockData());
+        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.4, 0), 8, 0.3, 0.25, 0.3, 0.03, Material.COBBLESTONE.createBlockData());
 
         // === AOE DAMAGE ===
         double shockwaveDmg = 18.0;
@@ -649,17 +648,18 @@ public class VoidBreaker extends LegendaryWeapon {
 
                 // Visual effects per hit (escalating rings)
                 Location feet = target.getLocation();
-                int particleCount = 8 + (hits * 4);
-                double spread = 0.3 + (hits * 0.12);
+                int particleCount = 3 + hits;
+                double spread = 0.2 + (hits * 0.05);
                 Particle.DustOptions dustColor = new Particle.DustOptions(
-                        org.bukkit.Color.fromRGB(140, 140, 140), 1.0f + (hits * 0.25f));
+                        org.bukkit.Color.fromRGB(140, 140, 140), 1.0f + (hits * 0.12f));
                 feet.getWorld().spawnParticle(Particle.DUST, feet.clone().add(0, 0.1, 0),
                         particleCount, spread, 0.05, spread, 0, dustColor);
                 feet.getWorld().spawnParticle(Particle.BLOCK, feet.clone().add(0, 0.1, 0),
-                        particleCount / 2, spread, 0.1, spread, 0.1, Material.GRAVEL.createBlockData());
+                        particleCount / 2, spread, 0.05, spread, 0.05, Material.GRAVEL.createBlockData());
 
-                for (int i = 0; i < hits * 5; i++) {
-                    double angle = (2 * Math.PI / (hits * 5)) * i;
+                int crumbleRingPoints = 4 + hits * 2;
+                for (int i = 0; i < crumbleRingPoints; i++) {
+                    double angle = (2 * Math.PI / crumbleRingPoints) * i;
                     double rx = Math.cos(angle) * (0.5 + hits * 0.2);
                     double rz = Math.sin(angle) * (0.5 + hits * 0.2);
                     target.getLocation().getWorld().spawnParticle(Particle.DUST,

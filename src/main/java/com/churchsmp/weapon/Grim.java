@@ -287,7 +287,7 @@ public class Grim extends LegendaryWeapon {
 
                                 player.getWorld().playSound(behind, Sound.ENTITY_ENDERMAN_TELEPORT, 1.5f, 0.8f);
                                 target.getWorld().playSound(target.getLocation(), Sound.ENTITY_VEX_HURT, 1.2f, 0.5f);
-                                target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 20, 0.4, 0.5, 0.4, 0.05);
+                                target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 5, 0.2, 0.25, 0.2, 0.02);
 
                                 player.sendMessage(Component.text("✦ Soultaking: Stole 2 hearts and phased behind " + target.getName() + "!", NamedTextColor.DARK_GREEN));
                                 cancel();
@@ -316,8 +316,8 @@ public class Grim extends LegendaryWeapon {
 
         // Dark void particles around hands and feet
         Location pLoc = player.getLocation();
-        pLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, pLoc.clone().add(0, 1.0, 0), 15, 0.4, 0.4, 0.4, 0.05);
-        pLoc.getWorld().spawnParticle(Particle.SOUL, pLoc.clone().add(0, 0.5, 0), 10, 0.3, 0.3, 0.3, 0.02);
+        pLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, pLoc.clone().add(0, 1.0, 0), 5, 0.25, 0.25, 0.25, 0.02);
+        pLoc.getWorld().spawnParticle(Particle.SOUL, pLoc.clone().add(0, 0.5, 0), 4, 0.2, 0.2, 0.2, 0.01);
 
         player.sendMessage(Component.text("✦ HollowedOut armed! Next hit inflicts crippling curse & 40% failure chance.", NamedTextColor.DARK_PURPLE));
         return true;
@@ -341,8 +341,8 @@ public class Grim extends LegendaryWeapon {
                             plugin.getFallenManager().applyFallen(t);
                             t.getWorld().playSound(t.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.4f, 0.6f);
                             t.getWorld().playSound(t.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.2f, 0.8f);
-                            t.getWorld().spawnParticle(Particle.LARGE_SMOKE, t.getLocation().add(0, 1.0, 0), 20, 0.4, 0.5, 0.4, 0.05);
-                            t.getWorld().spawnParticle(Particle.SOUL, t.getLocation().add(0, 1.0, 0), 15, 0.3, 0.4, 0.3, 0.03);
+                            t.getWorld().spawnParticle(Particle.LARGE_SMOKE, t.getLocation().add(0, 1.0, 0), 6, 0.25, 0.25, 0.25, 0.02);
+                            t.getWorld().spawnParticle(Particle.SOUL, t.getLocation().add(0, 1.0, 0), 5, 0.2, 0.2, 0.2, 0.02);
                             count++;
                         }
                     }
@@ -420,14 +420,15 @@ public class Grim extends LegendaryWeapon {
 
     private void spawnGravityVortex(Player player, Location hitLoc) {
         // Snap to ground directly beneath hit location (preserving caves/indoor ceilings)
-        Location spawnLoc = hitLoc.clone();
+        Location groundLoc = hitLoc.clone();
         for (int dy = 0; dy <= 4; dy++) {
-            Location check = spawnLoc.clone().subtract(0, dy, 0);
+            Location check = groundLoc.clone().subtract(0, dy, 0);
             if (check.getBlock().getType().isSolid()) {
-                spawnLoc = check.add(0, 1.0, 0);
+                groundLoc = check.add(0, 1.0, 0);
                 break;
             }
         }
+        final Location spawnLoc = groundLoc;
 
         player.getWorld().playSound(spawnLoc, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.5f, 0.5f);
         player.getWorld().playSound(spawnLoc, Sound.ENTITY_WITHER_AMBIENT, 1.2f, 0.6f);
@@ -437,31 +438,31 @@ public class Grim extends LegendaryWeapon {
         new BukkitRunnable() {
             int ticks = 0;
             final int maxTicks = 80; // 4 seconds duration
-            final Particle.DustOptions blackHoleDust = new Particle.DustOptions(Color.fromRGB(15, 15, 15), 3.5f);
-            final Particle.DustOptions ringDust = new Particle.DustOptions(Color.fromRGB(180, 0, 50), 2.0f);
-            final Particle.DustOptions purpleAura = new Particle.DustOptions(Color.fromRGB(160, 0, 240), 2.0f);
+            final Particle.DustOptions blackHoleDust = new Particle.DustOptions(Color.fromRGB(15, 15, 15), 1.6f);
+            final Particle.DustOptions ringDust = new Particle.DustOptions(Color.fromRGB(180, 0, 50), 1.3f);
+            final Particle.DustOptions purpleAura = new Particle.DustOptions(Color.fromRGB(160, 0, 240), 1.3f);
 
             @Override
             public void run() {
                 ticks += 2;
 
                 // Central Black Hole Orb visual - Swirling Void Core
-                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 35, 0.8, 0.8, 0.8, 0, blackHoleDust);
-                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 15, 0.5, 0.5, 0.5, 0, purpleAura);
-                spawnLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, spawnLoc, 14, 0.6, 0.6, 0.6, 0.02);
-                spawnLoc.getWorld().spawnParticle(Particle.SOUL, spawnLoc, 10, 0.5, 0.5, 0.5, 0.03);
-                spawnLoc.getWorld().spawnParticle(Particle.WITCH, spawnLoc, 6, 0.6, 0.6, 0.6, 0.05);
+                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 6, 0.3, 0.3, 0.3, 0, blackHoleDust);
+                spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc, 3, 0.25, 0.25, 0.25, 0, purpleAura);
+                spawnLoc.getWorld().spawnParticle(Particle.SMOKE, spawnLoc, 2, 0.2, 0.2, 0.2, 0.01);
+                spawnLoc.getWorld().spawnParticle(Particle.SOUL, spawnLoc, 2, 0.2, 0.2, 0.2, 0.02);
+                spawnLoc.getWorld().spawnParticle(Particle.WITCH, spawnLoc, 2, 0.2, 0.2, 0.2, 0.02);
 
                 // 7x7 Ring on the ground (radius 3.5 = diameter 7)
                 double radius = 3.5;
-                for (int d = 0; d < 360; d += 12) {
+                for (int d = 0; d < 360; d += 24) {
                     double rad = Math.toRadians(d + ticks * 2); // Fast rotating ring
                     Location ringPoint = spawnLoc.clone().add(Math.cos(rad) * radius, 0.15, Math.sin(rad) * radius);
                     spawnLoc.getWorld().spawnParticle(Particle.DUST, ringPoint, 1, 0, 0, 0, 0, ringDust);
-                    if (d % 36 == 0) {
-                        Location inner = spawnLoc.clone().add(Math.cos(rad) * (radius * Math.random()), Math.random() * 0.5, Math.sin(rad) * (radius * Math.random()));
+                    if (d % 48 == 0) {
+                        Location inner = spawnLoc.clone().add(Math.cos(rad) * (radius * Math.random()), Math.random() * 0.3, Math.sin(rad) * (radius * Math.random()));
                         spawnLoc.getWorld().spawnParticle(Particle.DUST, inner, 1, 0, 0, 0, 0, blackHoleDust);
-                        spawnLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, inner, 1, 0, 0, 0, 0.02);
+                        spawnLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, inner, 1, 0, 0, 0, 0.01);
                     }
                 }
 
@@ -520,11 +521,11 @@ public class Grim extends LegendaryWeapon {
                     spawnLoc.getWorld().playSound(spawnLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 1.5f);
                     spawnLoc.getWorld().playSound(spawnLoc, Sound.ENTITY_WITHER_SPAWN, 1.1f, 1.8f);
 
-                    Particle.DustOptions magentaDust = new Particle.DustOptions(Color.fromRGB(220, 0, 255), 2.5f);
-                    for (int d = 0; d < 360; d += 15) {
+                    Particle.DustOptions magentaDust = new Particle.DustOptions(Color.fromRGB(220, 0, 255), 1.4f);
+                    for (int d = 0; d < 360; d += 30) {
                         double rad = Math.toRadians(d);
                         spawnLoc.getWorld().spawnParticle(Particle.DUST, spawnLoc.clone().add(Math.cos(rad) * 3.0, 0.3, Math.sin(rad) * 3.0), 1, 0, 0, 0, 0, magentaDust);
-                        spawnLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, spawnLoc.clone().add(Math.cos(rad) * 2.5, 0.3, Math.sin(rad) * 2.5), 1, 0, 0, 0, 0.05);
+                        spawnLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, spawnLoc.clone().add(Math.cos(rad) * 2.5, 0.3, Math.sin(rad) * 2.5), 1, 0, 0, 0, 0.02);
                     }
 
                     // Fire shards at targets or forward
@@ -567,7 +568,7 @@ public class Grim extends LegendaryWeapon {
         Location launchLoc = start.clone();
         launchLoc.getWorld().playSound(launchLoc, Sound.ENTITY_WITHER_SHOOT, 1.4f, 1.8f);
         launchLoc.getWorld().playSound(launchLoc, Sound.ITEM_TRIDENT_THROW, 1.2f, 1.6f);
-        launchLoc.getWorld().spawnParticle(Particle.FLASH, launchLoc, 1, Color.PURPLE);
+        launchLoc.getWorld().spawnParticle(Particle.FLASH, launchLoc, 1);
 
         new BukkitRunnable() {
             Location curr = launchLoc.clone();
@@ -659,17 +660,17 @@ public class Grim extends LegendaryWeapon {
         w.playSound(hitLoc, Sound.ENTITY_WITHER_BREAK_BLOCK, 1.2f, 1.4f);
         w.playSound(hitLoc, Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.2f, 0.7f);
 
-        Particle.DustOptions boomPurple = new Particle.DustOptions(Color.fromRGB(220, 0, 255), 2.5f);
-        Particle.DustOptions boomRed = new Particle.DustOptions(Color.fromRGB(255, 30, 30), 2.0f);
+        Particle.DustOptions boomPurple = new Particle.DustOptions(Color.fromRGB(220, 0, 255), 1.4f);
+        Particle.DustOptions boomRed = new Particle.DustOptions(Color.fromRGB(255, 30, 30), 1.2f);
 
         w.spawnParticle(Particle.FLASH, hitLoc, 1, Color.PURPLE);
         w.spawnParticle(Particle.EXPLOSION, hitLoc, 1);
         w.spawnParticle(Particle.SWEEP_ATTACK, hitLoc, 1);
-        w.spawnParticle(Particle.DUST, hitLoc, 25, 0.4, 0.4, 0.4, 0, boomPurple);
-        w.spawnParticle(Particle.DUST, hitLoc, 20, 0.35, 0.35, 0.35, 0, boomRed);
-        w.spawnParticle(Particle.SOUL, hitLoc, 12, 0.3, 0.4, 0.3, 0.05);
-        w.spawnParticle(Particle.SOUL_FIRE_FLAME, hitLoc, 8, 0.3, 0.3, 0.3, 0.04);
-        w.spawnParticle(Particle.DAMAGE_INDICATOR, hitLoc, 4, 0.2, 0.2, 0.2, 0.05);
+        w.spawnParticle(Particle.DUST, hitLoc, 8, 0.25, 0.25, 0.25, 0, boomPurple);
+        w.spawnParticle(Particle.DUST, hitLoc, 6, 0.2, 0.2, 0.2, 0, boomRed);
+        w.spawnParticle(Particle.SOUL, hitLoc, 4, 0.2, 0.25, 0.2, 0.02);
+        w.spawnParticle(Particle.SOUL_FIRE_FLAME, hitLoc, 3, 0.2, 0.2, 0.2, 0.02);
+        w.spawnParticle(Particle.DAMAGE_INDICATOR, hitLoc, 2, 0.15, 0.15, 0.15, 0.02);
 
         if (target != null && target.isValid()) {
             target.damage(4.0, player); // 2 hearts per shard
@@ -799,23 +800,24 @@ public class Grim extends LegendaryWeapon {
         world.playSound(impact, Sound.BLOCK_HEAVY_CORE_FALL, 1.8f, 0.5f);
 
         final ItemStack chainItem = new ItemStack(Material.CHAIN);
-        final Particle.DustOptions darkDust = new Particle.DustOptions(Color.fromRGB(20, 20, 25), 2.4f);
-        final Particle.DustOptions crimsonDust = new Particle.DustOptions(Color.fromRGB(220, 20, 40), 2.0f);
-        final Particle.DustOptions purpleDust = new Particle.DustOptions(Color.fromRGB(160, 0, 255), 2.0f);
+        final Particle.DustOptions darkDust = new Particle.DustOptions(Color.fromRGB(20, 20, 25), 1.8f);
+        final Particle.DustOptions crimsonDust = new Particle.DustOptions(Color.fromRGB(220, 20, 40), 1.5f);
+        final Particle.DustOptions purpleDust = new Particle.DustOptions(Color.fromRGB(160, 0, 255), 1.5f);
 
         // 1. Blasting Chain Fragments & Shards
-        world.spawnParticle(Particle.ITEM, impact.clone().add(0, 0.5, 0), 60, 1.2, 0.6, 1.2, 0.3, chainItem);
-        world.spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 50, 1.5, 0.5, 1.5, 0.15, Material.OBSIDIAN.createBlockData());
+        world.spawnParticle(Particle.ITEM, impact.clone().add(0, 0.5, 0), 6, 0.25, 0.2, 0.25, 0.05, chainItem);
+        world.spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 5, 0.2, 0.15, 0.2, 0.03, Material.OBSIDIAN.createBlockData());
+        world.spawnParticle(Particle.DUST, impact.clone().add(0, 0.4, 0), 4, 0.2, 0.15, 0.2, 0, darkDust);
         world.spawnParticle(Particle.SONIC_BOOM, impact.clone().add(0, 0.2, 0), 1);
-        world.spawnParticle(Particle.EXPLOSION, impact.clone().add(0, 0.5, 0), 2);
-        world.spawnParticle(Particle.FLASH, impact, 2, Color.PURPLE);
+        world.spawnParticle(Particle.EXPLOSION, impact.clone().add(0, 0.5, 0), 1);
+        world.spawnParticle(Particle.FLASH, impact, 1);
 
         // 2. Rising Chain Spikes around the impact perimeter
-        for (int d = 0; d < 360; d += 45) {
+        for (int d = 0; d < 360; d += 60) {
             double rad = Math.toRadians(d);
             Location spikeBase = impact.clone().add(Math.cos(rad) * 3.2, 0.1, Math.sin(rad) * 3.2);
-            for (double h = 0; h <= 2.8; h += 0.5) {
-                world.spawnParticle(Particle.ITEM, spikeBase.clone().add(0, h, 0), 2, 0.05, 0.05, 0.05, 0.02, chainItem);
+            for (double h = 0; h <= 2.8; h += 0.9) {
+                world.spawnParticle(Particle.ITEM, spikeBase.clone().add(0, h, 0), 1, 0.03, 0.03, 0.03, 0.01, chainItem);
                 world.spawnParticle(Particle.SOUL_FIRE_FLAME, spikeBase.clone().add(0, h, 0), 1, 0.02, 0.02, 0.02, 0.01);
             }
         }
@@ -832,11 +834,11 @@ public class Grim extends LegendaryWeapon {
                     return;
                 }
                 double r = step * 1.5; // Radius 1.5 -> 3.0 -> 4.5 -> 6.0
-                for (int d = 0; d < 360; d += 12) {
+                for (int d = 0; d < 360; d += 24) {
                     double rad = Math.toRadians(d);
                     Location ringP = impact.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
                     world.spawnParticle(Particle.DUST, ringP, 1, 0, 0, 0, 0, (step % 2 == 0) ? crimsonDust : purpleDust);
-                    if (d % 24 == 0) {
+                    if (d % 48 == 0) {
                         world.spawnParticle(Particle.SOUL_FIRE_FLAME, ringP, 1, 0, 0, 0, 0.02);
                         world.spawnParticle(Particle.WITCH, ringP, 1, 0, 0, 0, 0.02);
                     }
@@ -859,8 +861,8 @@ public class Grim extends LegendaryWeapon {
 
             // Visual Chains binding the target
             e.getWorld().playSound(e.getLocation(), Sound.BLOCK_CHAIN_PLACE, 1.4f, 0.8f);
-            for (double h = 0.2; h <= 1.8; h += 0.4) {
-                e.getWorld().spawnParticle(Particle.ITEM, e.getLocation().add(0, h, 0), 3, 0.25, 0.1, 0.25, 0.05, chainItem);
+            for (double h = 0.2; h <= 1.8; h += 0.6) {
+                e.getWorld().spawnParticle(Particle.ITEM, e.getLocation().add(0, h, 0), 1, 0.15, 0.05, 0.15, 0.01, chainItem);
             }
 
             // True Stun for 40 ticks (2 seconds)
@@ -913,8 +915,8 @@ public class Grim extends LegendaryWeapon {
             // Void explosion at target
             Location hitLoc = target.getLocation().add(0, 1.0, 0);
             hitLoc.getWorld().playSound(hitLoc, Sound.ENTITY_WITHER_DEATH, 1.0f, 1.6f);
-            hitLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, hitLoc, 25, 0.5, 0.5, 0.5, 0.08);
-            hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 15, 0.4, 0.4, 0.4, 0.05);
+            hitLoc.getWorld().spawnParticle(Particle.LARGE_SMOKE, hitLoc, 3, 0.2, 0.2, 0.2, 0.01);
+            hitLoc.getWorld().spawnParticle(Particle.SOUL, hitLoc, 3, 0.2, 0.2, 0.2, 0.02);
 
             target.sendMessage(Component.text("⚔ Your actions have a 40% chance to fail for 15s from HollowedOut!", NamedTextColor.DARK_PURPLE));
             attacker.sendMessage(Component.text("✦ HollowedOut curse planted on " + target.getName() + "!", NamedTextColor.DARK_PURPLE));
@@ -971,7 +973,8 @@ public class Grim extends LegendaryWeapon {
 
         // Soul harvesting visual
         Location loc = player.getLocation().add(0, 1.0, 0);
-        loc.getWorld().spawnParticle(Particle.SOUL, loc, 25, 0.6, 0.8, 0.6, 0.05);
+        loc.getWorld().spawnParticle(Particle.SOUL, loc, 4, 0.2, 0.25, 0.2, 0.02);
+        loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 0.6, 0), 0, 0, 1, 0, 0.04);
         player.playSound(player.getLocation(), Sound.ENTITY_VEX_DEATH, 1.2f, 0.6f);
         player.playSound(player.getLocation(), Sound.ENTITY_WITHER_AMBIENT, 1.0f, 1.2f);
         player.sendMessage(Component.text("✦ Reaper harvested soul #" + kills + "! +1 Permanent Max Heart!", NamedTextColor.DARK_RED));

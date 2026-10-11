@@ -72,12 +72,12 @@ public class FallenEffectManager {
                 // Thick orbiting soul sand and dark particles
                 for (int i = 0; i < 3; i++) {
                     double currentAngle = angle + (i * (2 * Math.PI / 3));
-                    double x = Math.cos(currentAngle) * 1.2;
-                    double z = Math.sin(currentAngle) * 1.2;
+                    double x = Math.cos(currentAngle) * 0.9;
+                    double z = Math.sin(currentAngle) * 0.9;
 
-                    loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(x, 0, z), 2, 0.05, 0.05, 0.05, 0.01);
-                    loc.getWorld().spawnParticle(Particle.SQUID_INK, loc.clone().add(x, 0, z), 2, 0.05, 0.05, 0.05, 0.01);
-                    loc.getWorld().spawnParticle(Particle.PORTAL, loc.clone().add(x, 0, z), 3, 0.1, 0.1, 0.1, 0.05);
+                    loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(x, 0, z), 1, 0.03, 0.03, 0.03, 0.0);
+                    loc.getWorld().spawnParticle(Particle.SQUID_INK, loc.clone().add(x, 0, z), 1, 0.03, 0.03, 0.03, 0.0);
+                    loc.getWorld().spawnParticle(Particle.PORTAL, loc.clone().add(x, 0, z), 2, 0.08, 0.08, 0.08, 0.02);
                 }
 
                 ticks -= 2;

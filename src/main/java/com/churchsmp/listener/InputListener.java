@@ -91,7 +91,7 @@ public class InputListener implements Listener {
 
         Block clicked = event.getClickedBlock();
 
-        // If clicking an interactive block (chest, door, etc.), don't intercept!
+        // If clicking an interactive block (chest, door, crop, etc.), don't intercept!
         if (clicked != null) {
             Material type = clicked.getType();
             if (interactiveBlocks.contains(type) ||

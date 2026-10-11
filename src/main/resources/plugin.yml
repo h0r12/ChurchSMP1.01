@@ -9,9 +9,9 @@ softdepend: [ProtocolLib]
 commands:
   church:
     description: ChurchSMP guide, alignment, and information
-    usage: /<command> [guide|info|reroll|ritual]
+    usage: /<command> [guide|info|reroll|ritual|ready]
     permission: churchsmp.use
-    aliases: [csmp]
+    aliases: [csmp, ready]
   ritual:
     description: Preload items into offhand Relic slot for Greed
     usage: /<command>

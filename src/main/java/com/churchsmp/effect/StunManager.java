@@ -80,7 +80,8 @@ public class StunManager implements Listener {
         // Sound and particle indicator
         target.getWorld().playSound(currentLoc, Sound.BLOCK_CHAIN_PLACE, 1.2f, 1.8f);
         target.getWorld().playSound(currentLoc, Sound.BLOCK_ANVIL_LAND, 0.4f, 1.9f);
-        target.getWorld().spawnParticle(Particle.CRIT, currentLoc.clone().add(0, 1.0, 0), 12, 0.3, 0.5, 0.3, 0.05);
+        target.getWorld().spawnParticle(Particle.CRIT, currentLoc.clone().add(0, 1.0, 0), 6, 0.25, 0.3, 0.25, 0.02);
+        target.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, currentLoc.clone().add(0, 2.1, 0), 3, 0.2, 0.05, 0.2, 0.01);
 
         if (target instanceof Player player) {
             String label = (reason != null && !reason.isEmpty()) ? reason : "STUNNED";

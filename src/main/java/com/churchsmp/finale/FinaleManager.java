@@ -154,8 +154,7 @@ public class FinaleManager implements Listener {
             int ticks = 0;
             @Override
             public void run() {
-                if (ticks++ > 1200) cancel(); // runs for 1 minute
-                w.spawnParticle(Particle.PORTAL, cx + 0.5, cy + 1.5, cz + 0.5, 10, 0.5, 0.5, 0.5, 0.1);
+                w.spawnParticle(Particle.PORTAL, cx + 0.5, cy + 1.5, cz + 0.5, 4, 0.3, 0.3, 0.3, 0.03);
             }
         }.runTaskTimer(plugin, 0L, 5L);
     }
@@ -163,49 +162,18 @@ public class FinaleManager implements Listener {
     private Location controlRoomLocation = null;
 
     public void teleportToPhysicalControlRoom(Player player) {
-        if (controlRoomLocation == null) {
+        if (plugin.getNullRoomManager() != null) {
+            plugin.getNullRoomManager().generateOrRefreshControlRoom();
+            controlRoomLocation = plugin.getNullRoomManager().getControlRoomSpawn();
+        } else if (controlRoomLocation == null) {
             World w = Bukkit.getWorlds().get(0);
-            int cx = 10000;
-            int cy = 250;
-            int cz = 10000;
-
-            // Generate 11x7x11 Bedrock Room
-            for (int x = -5; x <= 5; x++) {
-                for (int y = 0; y <= 6; y++) {
-                    for (int z = -5; z <= 5; z++) {
-                        if (y == 0 || y == 6 || x == -5 || x == 5 || z == -5 || z == 5) {
-                            w.getBlockAt(cx + x, cy + y, cz + z).setType(Material.BEDROCK);
-                        } else {
-                            w.getBlockAt(cx + x, cy + y, cz + z).setType(Material.AIR);
-                        }
-                    }
-                }
-            }
-
-            // Decorate inside
-            w.getBlockAt(cx, cy, cz).setType(Material.CRYING_OBSIDIAN); // Center floor
-            w.getBlockAt(cx, cy + 1, cz).setType(Material.LODESTONE); // Visual center
-            w.getBlockAt(cx, cy + 6, cz).setType(Material.GLOWSTONE);
-
-            // Place Buttons on the North Wall (z = -4)
-            placeControlButton(w, cx - 2, cy + 2, cz - 4, "Armor Tier", "Cycles Max Armor");
-            placeControlButton(w, cx - 1, cy + 2, cz - 4, "Potion Cap", "Cycles Max Potion");
-            placeControlButton(w, cx, cy + 2, cz - 4, "Toggle Event", "Start/Stop Events");
-            placeControlButton(w, cx + 1, cy + 2, cz - 4, "Revive All", "Utopia Decree");
-            placeControlButton(w, cx + 2, cy + 2, cz - 4, "Great Reset", "End the World");
-
-            // More Configs on East Wall (x = 4)
-            placeControlButton(w, cx + 4, cy + 2, cz - 2, "Natural Regen", "Toggle On/Off");
-            placeControlButton(w, cx + 4, cy + 2, cz, "Time Lock", "Toggle Night/Day");
-            placeControlButton(w, cx + 4, cy + 2, cz + 2, "Keep Inventory", "Toggle On/Off");
-
-            controlRoomLocation = new Location(w, cx + 0.5, cy + 1, cz + 3.5, 180, 0); // Face North
+            controlRoomLocation = new Location(w, 10000 + 0.5, 250 + 1, 10000 + 3.5, 180, 0);
         }
 
         player.teleport(controlRoomLocation);
         player.setGameMode(GameMode.ADVENTURE);
         player.sendMessage(miniMessage.deserialize("<dark_purple><bold>✦ WELCOME TO THE LIMINAL NULL ✦</bold></dark_purple>"));
-        player.sendMessage(miniMessage.deserialize("<gray>Use the buttons on the walls to rewrite the laws of the universe.</gray>"));
+        player.sendMessage(miniMessage.deserialize("<gray>Use the 3D pedestals, sliders, and Steve console to reshape reality.</gray>"));
         
         if (plugin.getAdvancementManager() != null) {
             plugin.getAdvancementManager().grantAdvancement(player, "liminal_null");
@@ -456,8 +424,8 @@ public class FinaleManager implements Listener {
             }
 
             if (hadGem) {
-                p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 1, 0), 40, 0.5, 0.5, 0.5, new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 1.5f));
-                p.getWorld().spawnParticle(Particle.BLOCK, p.getLocation().add(0, 1, 0), 25, 0.4, 0.4, 0.4, sin.getIconMaterial().createBlockData());
+                p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 1, 0), 12, 0.3, 0.35, 0.3, new Particle.DustOptions(org.bukkit.Color.fromRGB(40, 40, 40), 1.3f));
+                p.getWorld().spawnParticle(Particle.BLOCK, p.getLocation().add(0, 1, 0), 8, 0.25, 0.3, 0.25, sin.getIconMaterial().createBlockData());
                 p.sendMessage(miniMessage.deserialize("<dark_red>⚡ The " + sin.getDisplayName() + " Gem inside your inventory cracked and dissolved into dust!</dark_red>"));
             }
         }
@@ -619,8 +587,7 @@ public class FinaleManager implements Listener {
                         p.showTitle(t);
                         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, 0.5f);
                         p.playSound(p.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.7f, 1.2f);
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 40, 1, false, false));
-                        p.getWorld().spawnParticle(Particle.LARGE_SMOKE, p.getLocation().add(0, 1, 0), 20, 1.0, 1.0, 1.0, 0.1);
+                        p.getWorld().spawnParticle(Particle.SMOKE, p.getLocation().add(0, 1, 0), 8, 0.35, 0.4, 0.35, 0.02);
                     }
                     countdown--;
                 } else {

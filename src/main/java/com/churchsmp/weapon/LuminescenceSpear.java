@@ -346,7 +346,7 @@ public class LuminescenceSpear extends LegendaryWeapon {
                 }
 
                 if (curr.getBlock().getType().isSolid()) {
-                    curr.getWorld().spawnParticle(Particle.DUST, curr, 10, 0.3, 0.3, 0.3, 0, blueDust);
+                    curr.getWorld().spawnParticle(Particle.DUST, curr, 6, 0.2, 0.2, 0.2, 0, blueDust);
                     cancel();
                 }
             }
@@ -369,16 +369,16 @@ public class LuminescenceSpear extends LegendaryWeapon {
         Particle.DustOptions aquaDust = new Particle.DustOptions(Color.fromRGB(0, 220, 255), isMini ? 1.0f : 1.8f);
 
         // Vertical lightning pillar descending from the sky
-        for (double y = 0; y <= height; y += 0.6) {
+        for (double y = 0; y <= height; y += 0.8) {
             Location p = targetLoc.clone().add(0, y, 0);
-            p.getWorld().spawnParticle(Particle.DUST, p, isMini ? 1 : 2, 0.1, 0.05, 0.1, 0, whiteDust);
-            p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, p, isMini ? 1 : 2, 0.1, 0.1, 0.1, 0.02);
+            p.getWorld().spawnParticle(Particle.DUST, p, 1, 0.1, 0.05, 0.1, 0, whiteDust);
+            p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, p, 1, 0.1, 0.1, 0.1, 0.02);
         }
 
         // Single ground impact shockwave & sonic boom
         targetLoc.getWorld().spawnParticle(Particle.SONIC_BOOM, targetLoc, 1, 0, 0, 0, 0);
         double ringRadius = isMini ? 2.5 : 4.5;
-        for (int d = 0; d < 360; d += 20) {
+        for (int d = 0; d < 360; d += 30) {
             double rad = Math.toRadians(d);
             targetLoc.getWorld().spawnParticle(Particle.DUST,
                     targetLoc.clone().add(Math.cos(rad) * ringRadius, 0.1, Math.sin(rad) * ringRadius),
@@ -439,14 +439,14 @@ public class LuminescenceSpear extends LegendaryWeapon {
                     Location loc = victim.getLocation();
                     loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 1.0f);
                     loc.getWorld().playSound(loc, Sound.ITEM_TRIDENT_THUNDER, 1.6f, 1.5f);
-                    loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 1);
+                    loc.getWorld().spawnParticle(Particle.EXPLOSION, loc, 1);
 
-                    for (double y = 0; y <= 6.0; y += 0.5) {
-                        loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, y, 0), 6, 0.3, 0.1, 0.3, 0.05);
+                    for (double y = 0; y <= 6.0; y += 0.8) {
+                        loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(0, y, 0), 2, 0.15, 0.1, 0.15, 0.02);
                     }
-                    for (int d = 0; d < 360; d += 20) {
+                    for (int d = 0; d < 360; d += 30) {
                         double rad = Math.toRadians(d);
-                        loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(Math.cos(rad) * 3.5, 0.2, Math.sin(rad) * 3.5), 2, 0, 0, 0, 0.05);
+                        loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc.clone().add(Math.cos(rad) * 3.5, 0.2, Math.sin(rad) * 3.5), 1, 0, 0, 0, 0.02);
                     }
 
                     // "your slam do twice as much" -> doubled from before (max 12.0)

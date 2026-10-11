@@ -131,8 +131,8 @@ public class ChurchEventManager implements Listener {
             // Crimson ash particles and Speed buff for Evil players
             for (Player p : Bukkit.getOnlinePlayers()) {
                 Location loc = p.getLocation().add(0, 1.0, 0);
-                p.getWorld().spawnParticle(Particle.DUST, loc, 12, 1.5, 1.0, 1.5, 0,
-                        new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.6f));
+                p.getWorld().spawnParticle(Particle.DUST, loc, 6, 0.4, 0.5, 0.4, 0,
+                        new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.3f));
 
                 if (plugin.getAlignmentManager().getAlignmentScore(p) < 0) {
                     // Evil players gain +20% movement speed (Speed I)
@@ -154,10 +154,10 @@ public class ChurchEventManager implements Listener {
                     Location beamLoc = p.getLocation().add(random.nextInt(20) - 10, 0, random.nextInt(20) - 10);
                     Location ground = p.getWorld().getHighestBlockAt(beamLoc).getLocation();
                     // Pillar of holy light
-                    for (double y = 0; y <= 25.0; y += 1.0) {
-                        ground.getWorld().spawnParticle(Particle.DUST, ground.clone().add(0, y, 0), 2, 0.2, 0.1, 0.2, 0,
-                                new Particle.DustOptions(Color.fromRGB(255, 255, 200), 1.5f));
-                        ground.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, ground.clone().add(0, y, 0), 1, 0.1, 0.1, 0.1, 0.02);
+                    for (double y = 0; y <= 25.0; y += 1.5) {
+                        ground.getWorld().spawnParticle(Particle.DUST, ground.clone().add(0, y, 0), 1, 0.15, 0.1, 0.15, 0,
+                                new Particle.DustOptions(Color.fromRGB(255, 255, 200), 1.2f));
+                        ground.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, ground.clone().add(0, y, 0), 1, 0.1, 0.1, 0.1, 0.01);
                     }
                 }
 
@@ -207,9 +207,8 @@ public class ChurchEventManager implements Listener {
         totem.remove();
 
         loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 1.5f, 1.2f);
-        loc.getWorld().playSound(loc, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1.0f);
-        loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc.add(0, 1, 0), 1);
-        loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 50, 0.5, 0.8, 0.5, 0.1);
+        loc.getWorld().spawnParticle(Particle.EXPLOSION, loc.clone().add(0, 1, 0), 1);
+        loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 14, 0.3, 0.4, 0.3, 0.03);
 
         // Drop unholy relic materials (Netherite Scrap & Crying Obsidian)
         loc.getWorld().dropItem(loc, new ItemStack(Material.NETHERITE_SCRAP, 1));

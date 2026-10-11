@@ -224,6 +224,71 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                 plugin.getFinaleManager().startPurge(target, false);
                 sender.sendMessage(Component.text("Initiated ChurchSMP Purge with " + target.getName() + " as the Juggernaut!", NamedTextColor.GOLD));
             }
+            case "start" -> {
+                Player p = (sender instanceof Player player) ? player : null;
+                if (plugin.getStartEventManager() != null) {
+                    plugin.getStartEventManager().startEvent(p);
+                } else {
+                    sender.sendMessage(Component.text("StartEventManager is not available.", NamedTextColor.RED));
+                }
+            }
+            case "null" -> {
+                if (args.length < 2) {
+                    if (sender instanceof Player p) {
+                        plugin.getFinaleManager().toggleLiminalNull(p);
+                    } else {
+                        sender.sendMessage(Component.text("Usage: /churchadmin null <enchant|border|potions|player>", NamedTextColor.RED));
+                    }
+                    return true;
+                }
+                String sub = args[1].toLowerCase(Locale.ROOT);
+                switch (sub) {
+                    case "enchant" -> {
+                        if (sender instanceof Player p) {
+                            plugin.getNullRoomManager().openEnchantmentMenu(p);
+                        } else {
+                            sender.sendMessage(Component.text("Only players can open the Enchantment menu.", NamedTextColor.RED));
+                        }
+                    }
+                    case "border" -> {
+                        if (args.length > 2) {
+                            try {
+                                double size = Double.parseDouble(args[2]);
+                                plugin.getNullRoomManager().setWorldBorderSize(size);
+                                sender.sendMessage(Component.text("World Border adjusted to: " + (int) size + " blocks.", NamedTextColor.GREEN));
+                            } catch (NumberFormatException e) {
+                                sender.sendMessage(Component.text("Invalid border size number: " + args[2], NamedTextColor.RED));
+                            }
+                        } else {
+                            sender.sendMessage(Component.text("Current World Border size: " + (int) plugin.getNullRoomManager().getWorldBorderSize() + " blocks.", NamedTextColor.GOLD));
+                        }
+                    }
+                    case "potions" -> {
+                        if (sender instanceof Player p) {
+                            plugin.getNullRoomManager().openPotionMenu(p);
+                        } else {
+                            sender.sendMessage(Component.text("Only players can open the Potions menu.", NamedTextColor.RED));
+                        }
+                    }
+                    case "player" -> {
+                        if (sender instanceof Player p) {
+                            if (args.length > 2) {
+                                Player target = Bukkit.getPlayer(args[2]);
+                                if (target != null && target.isOnline()) {
+                                    plugin.getNullRoomManager().openPlayerActionMenu(p, target);
+                                } else {
+                                    p.sendMessage(Component.text("Player not found: " + args[2], NamedTextColor.RED));
+                                }
+                            } else {
+                                plugin.getNullRoomManager().openStevePlayerMenu(p);
+                            }
+                        } else {
+                            sender.sendMessage(Component.text("Only players can open the Player menu.", NamedTextColor.RED));
+                        }
+                    }
+                    default -> sender.sendMessage(Component.text("Usage: /churchadmin null <enchant|border|potions|player>", NamedTextColor.RED));
+                }
+            }
             case "reload" -> {
                 plugin.reloadConfig();
                 sender.sendMessage(Component.text("ChurchSMP config reloaded successfully!", NamedTextColor.GREEN));
@@ -237,6 +302,8 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender) {
         net.kyori.adventure.text.minimessage.MiniMessage mm = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage();
         sender.sendMessage(mm.deserialize(com.churchsmp.util.TextUtil.formatCommandHeader("CHURCHADMIN COMMANDS")));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("start") + "</bold></gold> <white>-</white> <gray>Initiates the collective Genesis Start Event & Forsaking Ceremony</gray>"));
+        sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("null") + " <enchant|border|potions|player></bold></gold> <white>-</white> <gray>Controls Liminal Null PvP and Player systems</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("menu") + "</bold></gold> <white>-</white> <gray>Opens the interactive Legendary Weapon menu</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("givecore") + " [player]</bold></gold> <white>-</white> <gray>Gives a Liminal Event Core</gray>"));
         sender.sendMessage(mm.deserialize("  <gold><bold>/churchadmin " + com.churchsmp.util.TextUtil.toSmallCaps("giverelic") + " <player> <type></bold></gold> <white>-</white> <gray>Gives a Liminal Path relic selector (iniquity, impiety, obscura)</gray>"));
@@ -255,9 +322,12 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            return filter(List.of("menu", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "purge", "reload", "help"), args[0]);
+            return filter(List.of("menu", "start", "null", "givecore", "giverelic", "forsake", "event", "giveimpiety", "resetcooldown", "setalignment", "giveweapon", "givegem", "purge", "reload", "help"), args[0]);
         }
         if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("null")) {
+                return filter(List.of("enchant", "border", "potions", "player"), args[1]);
+            }
             if (args[0].equalsIgnoreCase("event")) {
                 return filter(List.of("bloodmoon", "inquisition", "stop"), args[1]);
             }
@@ -272,6 +342,12 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
             return null; // suggest player names
         }
         if (args.length == 3) {
+            if (args[0].equalsIgnoreCase("null") && args[1].equalsIgnoreCase("player")) {
+                return null; // suggest player names
+            }
+            if (args[0].equalsIgnoreCase("null") && args[1].equalsIgnoreCase("border")) {
+                return filter(List.of("500", "1000", "5000", "10000", "15000", "20000", "25000", "30000"), args[2]);
+            }
             if (args[0].equalsIgnoreCase("giverelic")) {
                 return filter(Arrays.stream(com.churchsmp.item.RelicItem.RelicType.values()).map(t -> t.name().toLowerCase(Locale.ROOT)).toList(), args[2]);
             }

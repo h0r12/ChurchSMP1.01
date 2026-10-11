@@ -111,8 +111,8 @@ public class Excalibur extends LegendaryWeapon {
                     center.getWorld().spawnParticle(Particle.DUST, center.clone().add(x, 0, z), 1, 0, 0, 0, 0, goldDust);
                     center.getWorld().spawnParticle(Particle.DUST, center.clone().add(-x, 0.3 * Math.sin(a), -z), 1, 0, 0, 0, 0, whiteDust);
                 }
-                center.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, center.clone().add(0, 0.2, 0), 1, 0.2, 0.2, 0.2, 0.02);
-                center.getWorld().spawnParticle(Particle.END_ROD, center, 2, 0.3, 0.3, 0.3, 0.03);
+                center.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, center.clone().add(0, 0.2, 0), 1, 0.15, 0.15, 0.15, 0.01);
+                center.getWorld().spawnParticle(Particle.END_ROD, center.clone().add(0, 0.3, 0), 0, 0, 1, 0, 0.08);
 
                 ticks += 5;
                 if (ticks >= 200) { // 10 seconds reached
@@ -130,8 +130,8 @@ public class Excalibur extends LegendaryWeapon {
                     Vector right = dir.clone().crossProduct(up).normalize();
                     Vector orthoUp = right.clone().crossProduct(dir).normalize();
 
-                    Particle.DustOptions blastGold = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 2.0f);
-                    Particle.DustOptions blastWhite = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f);
+                    Particle.DustOptions blastGold = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.6f);
+                    Particle.DustOptions blastWhite = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.4f);
 
                     java.util.Set<UUID> damagedEntities = new java.util.HashSet<>();
 
@@ -142,19 +142,23 @@ public class Excalibur extends LegendaryWeapon {
 
                         // Stream 1: Gold spiral
                         Vector off1 = right.clone().multiply(Math.cos(theta) * r).add(orthoUp.clone().multiply(Math.sin(theta) * r));
-                        centerP.getWorld().spawnParticle(Particle.DUST, centerP.clone().add(off1), 3, 0.05, 0.05, 0.05, 0, blastGold);
+                        centerP.getWorld().spawnParticle(Particle.DUST, centerP.clone().add(off1), 1, 0, 0, 0, 0, blastGold);
 
                         // Stream 2: White spiral (offset by 2*PI/3)
                         Vector off2 = right.clone().multiply(Math.cos(theta + 2.094) * r).add(orthoUp.clone().multiply(Math.sin(theta + 2.094) * r));
-                        centerP.getWorld().spawnParticle(Particle.DUST, centerP.clone().add(off2), 2, 0.05, 0.05, 0.05, 0, blastWhite);
-                        centerP.getWorld().spawnParticle(Particle.END_ROD, centerP.clone().add(off2), 1, 0.02, 0.02, 0.02, 0.01);
+                        centerP.getWorld().spawnParticle(Particle.DUST, centerP.clone().add(off2), 1, 0, 0, 0, 0, blastWhite);
+                        if (step % 2 == 0) {
+                            centerP.getWorld().spawnParticle(Particle.END_ROD, centerP.clone().add(off2), 1, 0, 0, 0, 0.005);
+                        }
 
                         // Stream 3: Blue Soul Flame spiral (offset by 4*PI/3)
                         Vector off3 = right.clone().multiply(Math.cos(theta + 4.188) * r).add(orthoUp.clone().multiply(Math.sin(theta + 4.188) * r));
-                        centerP.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, centerP.clone().add(off3), 2, 0.03, 0.03, 0.03, 0.02);
+                        centerP.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, centerP.clone().add(off3), 1, 0, 0, 0, 0.005);
 
                         // Core critical spark
-                        centerP.getWorld().spawnParticle(Particle.CRIT, centerP, 3, 0.15, 0.15, 0.15, 0.05);
+                        if (step % 2 == 1) {
+                            centerP.getWorld().spawnParticle(Particle.CRIT, centerP, 1, 0.1, 0.1, 0.1, 0.02);
+                        }
 
                         for (LivingEntity e : centerP.getWorld().getNearbyLivingEntities(centerP, 2.8)) {
                             if (e.equals(player) || damagedEntities.contains(e.getUniqueId())) continue;
@@ -307,21 +311,21 @@ public class Excalibur extends LegendaryWeapon {
                     altarCenter.getWorld().playSound(altarCenter, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.5f, 1.2f);
 
                     // Totem + holy pillars
-                    altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 180, 3.5, 0.8, 3.5, 0.35);
+                    altarCenter.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, altarCenter, 18, 0.4, 0.4, 0.4, 0.05);
 
                     // Rising holy light pillars (8 blocks)
-                    for (double y = 0; y <= 8.0; y += 0.4) {
-                        altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 3, 0.2, 0.1, 0.2, 0.02);
-                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(0, y, 0), 3, 0.15, 0.15, 0.15, 0, bladeGold);
+                    for (double y = 0; y <= 8.0; y += 0.8) {
+                        altarCenter.getWorld().spawnParticle(Particle.END_ROD, altarCenter.clone().add(0, y, 0), 1, 0.1, 0.1, 0.1, 0.01);
+                        altarCenter.getWorld().spawnParticle(Particle.DUST, altarCenter.clone().add(0, y, 0), 1, 0.1, 0.1, 0.1, 0, bladeGold);
                     }
 
                     // Multi-wave expanding ground shockwave rings
                     for (int wave = 1; wave <= 4; wave++) {
-                        final double waveRadius = wave * 2.5;
+                        final double waveRadius = wave * 2.2;
                         new BukkitRunnable() {
                             @Override
                             public void run() {
-                                for (int d = 0; d < 360; d += 12) {
+                                for (int d = 0; d < 360; d += 24) {
                                     double rad = Math.toRadians(d);
                                     altarCenter.getWorld().spawnParticle(Particle.DUST,
                                             altarCenter.clone().add(Math.cos(rad) * waveRadius, 0.15, Math.sin(rad) * waveRadius),
@@ -359,7 +363,7 @@ public class Excalibur extends LegendaryWeapon {
                 if (ticks > 76) {
                     if (swordDisplay != null && swordDisplay.isValid()) {
                         swordDisplay.getWorld().spawnParticle(Particle.FLASH, swordDisplay.getLocation().add(0, 1.5, 0), 1, Color.WHITE);
-                        swordDisplay.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, swordDisplay.getLocation().add(0, 1.5, 0), 25, 0.5, 0.8, 0.5, 0.15);
+                        swordDisplay.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, swordDisplay.getLocation().add(0, 1.5, 0), 8, 0.3, 0.4, 0.3, 0.04);
                         swordDisplay.getWorld().playSound(swordDisplay.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 1.4f);
                         swordDisplay.remove();
                     }
@@ -382,7 +386,7 @@ public class Excalibur extends LegendaryWeapon {
             case NULLIFIED -> Particle.SMOKE;
         };
         Location hitLoc = target.getLocation().add(0, 1, 0);
-        hitLoc.getWorld().spawnParticle(particle, hitLoc, 20, 0.4, 0.5, 0.4, 0.08);
+        hitLoc.getWorld().spawnParticle(particle, hitLoc, 6, 0.25, 0.3, 0.25, 0.02);
 
         // Alignment aura ring at victim's feet
         Location feet = target.getLocation();
@@ -399,8 +403,8 @@ public class Excalibur extends LegendaryWeapon {
             event.setCancelled(true);
             Location loc = victim.getLocation();
             victim.getWorld().playSound(loc, Sound.ENTITY_BAT_TAKEOFF, 1.2f, 1.2f);
-            victim.getWorld().spawnParticle(Particle.CLOUD, loc, 15, 0.5, 0.2, 0.5, 0.05);
-            victim.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, 0.5, 0), 10, 0.4, 0.3, 0.4, 0.05);
+            victim.getWorld().spawnParticle(Particle.CLOUD, loc, 5, 0.3, 0.15, 0.3, 0.02);
+            victim.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, 0.5, 0), 4, 0.25, 0.2, 0.25, 0.02);
 
             // Wing arc shapes behind player
             Vector dir = loc.getDirection().setY(0).normalize();
