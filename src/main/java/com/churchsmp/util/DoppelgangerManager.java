@@ -224,7 +224,7 @@ public class DoppelgangerManager {
         // Shatter FX
         shatterLoc.getWorld().playSound(shatterLoc, Sound.BLOCK_GLASS_BREAK, 1.5f, 1.2f);
         shatterLoc.getWorld().playSound(shatterLoc, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.2f, 1.2f);
-        shatterLoc.getWorld().spawnParticle(Particle.FLASH, shatterLoc.clone().add(0, 1, 0), 1);
+        shatterLoc.getWorld().spawnParticle(Particle.FLASH, shatterLoc.clone().add(0, 1, 0), 1, Color.WHITE);
         shatterLoc.getWorld().spawnParticle(Particle.DUST, shatterLoc.clone().add(0, 1, 0), 12,
                 0.25, 0.3, 0.25, 0, new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.3f));
         shatterLoc.getWorld().spawnParticle(Particle.SOUL, shatterLoc.clone().add(0, 1.2, 0), 5,

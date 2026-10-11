@@ -568,7 +568,7 @@ public class Grim extends LegendaryWeapon {
         Location launchLoc = start.clone();
         launchLoc.getWorld().playSound(launchLoc, Sound.ENTITY_WITHER_SHOOT, 1.4f, 1.8f);
         launchLoc.getWorld().playSound(launchLoc, Sound.ITEM_TRIDENT_THROW, 1.2f, 1.6f);
-        launchLoc.getWorld().spawnParticle(Particle.FLASH, launchLoc, 1);
+        launchLoc.getWorld().spawnParticle(Particle.FLASH, launchLoc, 1, Color.WHITE);
 
         new BukkitRunnable() {
             Location curr = launchLoc.clone();
@@ -810,7 +810,7 @@ public class Grim extends LegendaryWeapon {
         world.spawnParticle(Particle.DUST, impact.clone().add(0, 0.4, 0), 4, 0.2, 0.15, 0.2, 0, darkDust);
         world.spawnParticle(Particle.SONIC_BOOM, impact.clone().add(0, 0.2, 0), 1);
         world.spawnParticle(Particle.EXPLOSION, impact.clone().add(0, 0.5, 0), 1);
-        world.spawnParticle(Particle.FLASH, impact, 1);
+        world.spawnParticle(Particle.FLASH, impact, 1, Color.WHITE);
 
         // 2. Rising Chain Spikes around the impact perimeter
         for (int d = 0; d < 360; d += 60) {

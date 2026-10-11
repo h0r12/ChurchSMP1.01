@@ -125,38 +125,31 @@ public class AdvancementManager {
 
     private void createAdvancement(File folder, String name, String icon, String title, String description, String frame, String parent, boolean showToast, boolean announce) {
         File file = new File(folder, name + ".json");
-        if (file.exists()) return;
 
-        String parentStr = parent != null ? "\"parent\": \"" + parent + "\"," : "";
-        String background = parent == null ? "\"background\": \"minecraft:textures/gui/advancements/backgrounds/end.png\"," : "";
-
-        String json = """
-                {
-                  %s
-                  "display": {
-                    "icon": { "id": "%s" },
-                    "title": "%s",
-                    "description": "%s",
-                    "frame": "%s",
-                    "show_toast": %b,
-                    "announce_to_chat": %b,
-                    "hidden": false,
-                    %s
-                  },
-                  "criteria": {
-                    "impossible": {
-                      "trigger": "minecraft:impossible"
-                    }
-                  }
-                }
-                """.formatted(parentStr, icon, title, description, frame, showToast, announce, background);
-        
-        // Remove trailing comma from display block if background is empty
-        if (background.isEmpty()) {
-            json = json.replace("\"hidden\": false,\n                    \n                  }", "\"hidden\": false\n                  }");
+        StringBuilder json = new StringBuilder("{\n");
+        if (parent != null) {
+            json.append("  \"parent\": \"").append(parent).append("\",\n");
         }
+        json.append("  \"display\": {\n");
+        json.append("    \"icon\": { \"id\": \"").append(icon).append("\" },\n");
+        json.append("    \"title\": \"").append(title.replace("\"", "\\\"")).append("\",\n");
+        json.append("    \"description\": \"").append(description.replace("\"", "\\\"")).append("\",\n");
+        json.append("    \"frame\": \"").append(frame).append("\",\n");
+        json.append("    \"show_toast\": ").append(showToast).append(",\n");
+        json.append("    \"announce_to_chat\": ").append(announce).append(",\n");
+        if (parent == null) {
+            json.append("    \"background\": \"minecraft:textures/gui/advancements/backgrounds/end.png\",\n");
+        }
+        json.append("    \"hidden\": false\n");
+        json.append("  },\n");
+        json.append("  \"criteria\": {\n");
+        json.append("    \"impossible\": {\n");
+        json.append("      \"trigger\": \"minecraft:impossible\"\n");
+        json.append("    }\n");
+        json.append("  }\n");
+        json.append("}\n");
 
-        writeJson(file, json);
+        writeJson(file, json.toString());
     }
 
     private void writeJson(File file, String content) {

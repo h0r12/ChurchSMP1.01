@@ -270,7 +270,7 @@ public class VoidBreaker extends LegendaryWeapon {
                         world.playSound(targetLoc, Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.4f, 1.3f);
                         world.playSound(targetLoc, Sound.BLOCK_HEAVY_CORE_BREAK, 1.6f, 0.6f);
                         world.spawnParticle(Particle.SONIC_BOOM, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
-                        world.spawnParticle(Particle.FLASH, targetLoc.clone().add(0, startHeight + 0.5, 0), 1);
+                        world.spawnParticle(Particle.FLASH, targetLoc.clone().add(0, startHeight + 0.5, 0), 1, Color.WHITE);
                     }
                 } else {
                     // === PHASE 2: RAPID SLAM DOWN (Plunges the instant opening completes) ===
@@ -356,7 +356,7 @@ public class VoidBreaker extends LegendaryWeapon {
                     // Flange tip particle (bottom striking spikes)
                     double tipR = 0.35 + openProgress * 0.7;
                     Location tipLoc = maceHead.clone().add(cosA * tipR, -0.35, sinA * tipR);
-                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, tipLoc, 1, 0, 0, 0, 0, 0.01);
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, tipLoc, 1, 0, 0, 0, 0.01);
                 }
 
                 // === GROUND PRESSURE & IMPENDING DOOM EFFECTS ===
@@ -609,12 +609,17 @@ public class VoidBreaker extends LegendaryWeapon {
         for (LivingEntity e : world.getNearbyLivingEntities(detonateLoc, 4.5)) {
             if (e.equals(player)) continue;
             e.damage(shockwaveDmg, player);
-            Vector kb = e.getLocation().toVector().subtract(detonateLoc.toVector()).normalize().multiply(1.1).setY(0.5);
+            Vector diff = e.getLocation().toVector().subtract(detonateLoc.toVector());
+            Vector kb = (diff.lengthSquared() > 0.0001) ? diff.normalize().multiply(1.1).setY(0.5) : new Vector(0, 0.5, 0);
             e.setVelocity(kb);
         }
 
         // === BOOST PLAYER UPWARD for mace slam follow-up ===
-        player.setVelocity(player.getVelocity().add(new Vector(0, 1.8, 0)));
+        Vector pVel = player.getVelocity();
+        if (!Double.isFinite(pVel.getX()) || !Double.isFinite(pVel.getY()) || !Double.isFinite(pVel.getZ())) {
+            pVel = new Vector(0, 0, 0);
+        }
+        player.setVelocity(pVel.add(new Vector(0, 1.8, 0)));
         player.playSound(player.getLocation(), Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.5f, 0.8f);
         reEnableFlightDelayed(player);
 

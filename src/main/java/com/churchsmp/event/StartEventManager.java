@@ -378,7 +378,7 @@ public class StartEventManager implements Listener {
         World world = center.getWorld();
 
         // 1. Blinding Flash of Light
-        world.spawnParticle(Particle.FLASH, center, 6, 0.5, 0.5, 0.5, 0);
+        world.spawnParticle(Particle.FLASH, center, 6, 0.5, 0.5, 0.5, 0, Color.WHITE);
         world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 1);
         world.spawnParticle(Particle.SONIC_BOOM, center, 1);
         world.playSound(center, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 0.8f);
