@@ -199,47 +199,75 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Renders a massive dual-ring rotating sacred geometry magic circle on the sanctuary ground.
-     * Inner ring rotates counter-clockwise with 8 runic nodes;
-     * Outer ring rotates clockwise with star rays and 4 cardinal starlight pillars.
+     * Renders a colossal rotating Tri-Ring Gyro-Glyph Matrix on the sanctuary ground:
+     * 1. Core Reactor Ring (r=2.6) spinning clockwise with 4 energy nodes.
+     * 2. Middle Rune Gear (r=6.0) spinning counter-clockwise with 6 runic nodes & rotating star chords.
+     * 3. Outer Accelerator Ring (r=11.2) spinning clockwise with 8 perimeter nodes.
+     * 4. 4 Sweeping Cardinal Pylons scanning the sanctuary with vertical starlight.
+     * 5. 4 Rotating Radial Energy Spokes linking the concentric rings into a holographic matrix.
      */
     private void renderSanctuaryMagicCircle(Location center, int ticks) {
         World world = center.getWorld();
         if (world == null) return;
 
-        double innerRadius = 4.2;
-        double outerRadius = 10.8;
-        double innerAngleOffset = -ticks * 0.04;
-        double outerAngleOffset = ticks * 0.03;
+        double coreRadius = 2.6;
+        double midRadius = 6.0;
+        double outerRadius = 11.2;
 
-        Color innerColor = Color.fromRGB(200, 230, 255);
-        Color outerColor = Color.fromRGB(245, 215, 255);
-        Particle.DustOptions innerDust = new Particle.DustOptions(innerColor, 1.3f);
-        Particle.DustOptions outerDust = new Particle.DustOptions(outerColor, 1.4f);
+        double coreAngleOffset = ticks * 0.08;
+        double midAngleOffset = -ticks * 0.04;
+        double outerAngleOffset = ticks * 0.025;
 
-        // Inner Circle (counter-clockwise)
-        int innerPoints = 28;
-        for (int i = 0; i < innerPoints; i++) {
-            double angle = (2 * Math.PI * i) / innerPoints + innerAngleOffset;
-            double px = center.getX() + Math.cos(angle) * innerRadius;
-            double pz = center.getZ() + Math.sin(angle) * innerRadius;
+        Particle.DustOptions coreDust = new Particle.DustOptions(Color.fromRGB(220, 245, 255), 1.4f);
+        Particle.DustOptions midDust = new Particle.DustOptions(Color.fromRGB(160, 190, 255), 1.3f);
+        Particle.DustOptions outerDust = new Particle.DustOptions(Color.fromRGB(240, 210, 255), 1.5f);
+        Particle.DustOptions spokeDust = new Particle.DustOptions(Color.fromRGB(180, 220, 255), 1.0f);
+
+        // 1. Core Reactor Ring (Fast Clockwise)
+        int corePoints = 20;
+        for (int i = 0; i < corePoints; i++) {
+            double angle = (2 * Math.PI * i) / corePoints + coreAngleOffset;
+            double px = center.getX() + Math.cos(angle) * coreRadius;
+            double pz = center.getZ() + Math.sin(angle) * coreRadius;
             int gy = world.getHighestBlockYAt((int) px, (int) pz);
-            world.spawnParticle(Particle.DUST, px, gy + 0.12, pz, 1, 0, 0, 0, 0, innerDust);
+            world.spawnParticle(Particle.DUST, px, gy + 0.12, pz, 1, 0, 0, 0, 0, coreDust);
         }
-
-        // 8 Sacred Inner Nodes
-        for (int n = 0; n < 8; n++) {
-            double nodeAngle = (2 * Math.PI * n) / 8 + innerAngleOffset;
-            double nx = center.getX() + Math.cos(nodeAngle) * innerRadius;
-            double nz = center.getZ() + Math.sin(nodeAngle) * innerRadius;
+        for (int n = 0; n < 4; n++) {
+            double nAngle = (Math.PI / 2 * n) + coreAngleOffset;
+            double nx = center.getX() + Math.cos(nAngle) * coreRadius;
+            double nz = center.getZ() + Math.sin(nAngle) * coreRadius;
             int gy = world.getHighestBlockYAt((int) nx, (int) nz);
             world.spawnParticle(Particle.END_ROD, nx, gy + 0.2, nz, 1, 0, 0.01, 0, 0.01);
-            if (ticks % 6 == 0) {
-                world.spawnParticle(Particle.SOUL_FIRE_FLAME, nx, gy + 0.15, nz, 1, 0, 0.02, 0, 0.005);
+        }
+
+        // 2. Middle Rune Gear (Counter-Clockwise) with 6 Nodes & Rotating Hexagram Star
+        int midPoints = 32;
+        for (int i = 0; i < midPoints; i++) {
+            double angle = (2 * Math.PI * i) / midPoints + midAngleOffset;
+            double px = center.getX() + Math.cos(angle) * midRadius;
+            double pz = center.getZ() + Math.sin(angle) * midRadius;
+            int gy = world.getHighestBlockYAt((int) px, (int) pz);
+            world.spawnParticle(Particle.DUST, px, gy + 0.12, pz, 1, 0, 0, 0, 0, midDust);
+        }
+        Location[] hexNodes = new Location[6];
+        for (int n = 0; n < 6; n++) {
+            double nAngle = (Math.PI / 3 * n) + midAngleOffset;
+            double nx = center.getX() + Math.cos(nAngle) * midRadius;
+            double nz = center.getZ() + Math.sin(nAngle) * midRadius;
+            int gy = world.getHighestBlockYAt((int) nx, (int) nz);
+            hexNodes[n] = new Location(world, nx, gy + 0.12, nz);
+            world.spawnParticle(Particle.SOUL_FIRE_FLAME, nx, gy + 0.15, nz, 1, 0, 0.02, 0, 0.005);
+            world.spawnParticle(Particle.END_ROD, nx, gy + 0.25, nz, 1, 0, 0.01, 0, 0.01);
+        }
+        // Rotating Hexagram star chords connecting nodes (0-2-4 and 1-3-5)
+        if (ticks % 4 == 0) {
+            for (int t = 0; t < 3; t++) {
+                renderGroundChord(world, hexNodes[t * 2], hexNodes[(t * 2 + 2) % 6], spokeDust);
+                renderGroundChord(world, hexNodes[t * 2 + 1], hexNodes[(t * 2 + 3) % 6], spokeDust);
             }
         }
 
-        // Outer Circle (clockwise)
+        // 3. Outer Accelerator Ring (Clockwise) with 8 Perimeter Energy Nodes
         int outerPoints = 44;
         for (int i = 0; i < outerPoints; i++) {
             double angle = (2 * Math.PI * i) / outerPoints + outerAngleOffset;
@@ -248,8 +276,17 @@ public class StartEventManager implements Listener {
             int gy = world.getHighestBlockYAt((int) px, (int) pz);
             world.spawnParticle(Particle.DUST, px, gy + 0.12, pz, 1, 0, 0, 0, 0, outerDust);
         }
+        for (int n = 0; n < 8; n++) {
+            double nAngle = (Math.PI / 4 * n) + outerAngleOffset;
+            double nx = center.getX() + Math.cos(nAngle) * outerRadius;
+            double nz = center.getZ() + Math.sin(nAngle) * outerRadius;
+            int gy = world.getHighestBlockYAt((int) nx, (int) nz);
+            if (ticks % 4 == 0) {
+                world.spawnParticle(Particle.END_ROD, nx, gy + 0.25, nz, 1, 0, 0.01, 0, 0.01);
+            }
+        }
 
-        // 4 Cardinal Starlight Beams (North, South, East, West on outer circle)
+        // 4. 4 Sweeping Cardinal Pylons (scanning the perimeter like radar containment)
         for (int c = 0; c < 4; c++) {
             double cAngle = (Math.PI / 2 * c) + outerAngleOffset;
             double cx = center.getX() + Math.cos(cAngle) * outerRadius;
@@ -258,6 +295,34 @@ public class StartEventManager implements Listener {
             for (double by = 0; by <= 4.0; by += 1.0) {
                 world.spawnParticle(Particle.END_ROD, cx, gy + by, cz, 1, 0, 0, 0, 0.005);
             }
+        }
+
+        // 5. 4 Rotating Radial Energy Spokes linking Core to Outer Ring
+        double spokeAngleOffset = ticks * 0.035;
+        for (int s = 0; s < 4; s++) {
+            double sa = (Math.PI / 2 * s) + spokeAngleOffset;
+            for (double r = coreRadius + 0.5; r < outerRadius - 0.5; r += 1.5) {
+                double sx = center.getX() + Math.cos(sa) * r;
+                double sz = center.getZ() + Math.sin(sa) * r;
+                int gy = world.getHighestBlockYAt((int) sx, (int) sz);
+                world.spawnParticle(Particle.DUST, sx, gy + 0.12, sz, 1, 0, 0, 0, 0, spokeDust);
+            }
+        }
+    }
+
+    /**
+     * Helper to render a dust chord between two ground locations.
+     */
+    private void renderGroundChord(World world, Location p1, Location p2, Particle.DustOptions dust) {
+        if (p1 == null || p2 == null) return;
+        Vector v = p2.toVector().subtract(p1.toVector());
+        double len = v.length();
+        v.normalize();
+        for (double d = 0.8; d < len; d += 1.2) {
+            double cx = p1.getX() + v.getX() * d;
+            double cz = p1.getZ() + v.getZ() * d;
+            int gy = world.getHighestBlockYAt((int) cx, (int) cz);
+            world.spawnParticle(Particle.DUST, cx, gy + 0.12, cz, 1, 0, 0, 0, 0, dust);
         }
     }
 
@@ -622,11 +687,17 @@ public class StartEventManager implements Listener {
                     Location soulPt = new Location(world, lx + sx, ly + arcY, lz + sz);
                     Location twinPt = new Location(world, lx - sx * 0.7, ly + arcY, lz - sz * 0.7);
 
-                    // Move physical Soul Core entity
+                    // Move and axially spin physical Soul Core entity
                     if (coreIdx < extractedSoulCores.size()) {
                         ItemDisplay core = extractedSoulCores.get(coreIdx);
                         if (core != null && core.isValid()) {
                             core.teleport(soulPt);
+                            core.setTransformation(new Transformation(
+                                    new Vector3f(0, 0, 0),
+                                    new AxisAngle4f((float) (currentDrift * 0.15 + coreIdx), 0, 1, 0),
+                                    new Vector3f(1.1f, 1.1f, 1.1f),
+                                    new AxisAngle4f(0, 0, 1, 0)
+                            ));
                         }
                     }
                     coreIdx++;
@@ -638,19 +709,37 @@ public class StartEventManager implements Listener {
                     world.spawnParticle(Particle.DUST, twinPt, 2, 0.05, 0.05, 0.05, 0,
                             new Particle.DustOptions(Color.fromRGB(180, 220, 255), 1.4f));
 
-                    // Zero-G Spherical Rune Shield orbiting player
+                    // Sci-Fi Zero-G Spherical Tri-Gyro Shield orbiting player
                     if (p.isOnline()) {
                         Location pLoc = p.getLocation().add(0, 1.0, 0);
-                        double shieldRot = ticks * 0.08;
-                        for (int deg = 0; deg < 360; deg += 60) {
-                            double sRad = Math.toRadians(deg + shieldRot * 50);
-                            Location ring1 = pLoc.clone().add(Math.cos(sRad) * 1.5, Math.sin(sRad) * 0.3, Math.sin(sRad) * 1.5);
-                            Location ring2 = pLoc.clone().add(Math.cos(sRad) * 1.5, Math.cos(sRad) * 1.5, Math.sin(sRad) * 0.3);
+                        double r1 = Math.toRadians(ticks * 8);
+                        double r2 = Math.toRadians(-ticks * 6);
+                        double r3 = Math.toRadians(ticks * 5);
+                        double sRad = 1.55;
+
+                        for (int deg = 0; deg < 360; deg += 45) {
+                            double a = Math.toRadians(deg);
+                            // Equatorial Gyro Ring (XZ)
+                            Location ring1 = pLoc.clone().add(Math.cos(a + r1) * sRad, 0, Math.sin(a + r1) * sRad);
                             world.spawnParticle(Particle.DUST, ring1, 1, 0, 0, 0, 0,
-                                    new Particle.DustOptions(Color.fromRGB(210, 235, 255), 1.2f));
+                                    new Particle.DustOptions(Color.fromRGB(200, 240, 255), 1.3f));
+
+                            // Vertical Pitch Gyro Ring (XY tilted)
+                            Location ring2 = pLoc.clone().add(Math.cos(a + r2) * sRad, Math.sin(a + r2) * sRad, 0);
                             world.spawnParticle(Particle.DUST, ring2, 1, 0, 0, 0, 0,
-                                    new Particle.DustOptions(Color.fromRGB(190, 210, 255), 1.0f));
+                                    new Particle.DustOptions(Color.fromRGB(255, 230, 255), 1.1f));
+
+                            // Tilted Roll Gyro Ring (YZ tilted)
+                            Location ring3 = pLoc.clone().add(0, Math.cos(a + r3) * sRad, Math.sin(a + r3) * sRad);
+                            world.spawnParticle(Particle.DUST, ring3, 1, 0, 0, 0, 0,
+                                    new Particle.DustOptions(Color.fromRGB(180, 210, 255), 1.1f));
                         }
+
+                        // Orbiting kinetic shield nodes
+                        Location node1 = pLoc.clone().add(Math.cos(r1) * sRad, Math.sin(r1) * 0.4, Math.sin(r1) * sRad);
+                        Location node2 = pLoc.clone().add(-Math.cos(r1) * sRad, -Math.sin(r1) * 0.4, -Math.sin(r1) * sRad);
+                        world.spawnParticle(Particle.END_ROD, node1, 1, 0, 0, 0, 0.01);
+                        world.spawnParticle(Particle.END_ROD, node2, 1, 0, 0, 0, 0.01);
                     }
                 }
 
@@ -765,13 +854,14 @@ public class StartEventManager implements Listener {
                     triggerSinColorWave(center, currentSin);
                 }
 
-                // In the 9-block ring, faint colored souls begin to slowly appear
+                // In the 9-block ring, faint colored souls begin to slowly revolve in orbit
+                double soulOrbit = rot * 0.4;
                 for (int i = 0; i <= sinIdx; i++) {
                     SinGemType sin = sins[i];
-                    double angle = i * angleStep;
+                    double angle = (i * angleStep) + soulOrbit;
                     double sx = center.getX() + Math.cos(angle) * ringRadius;
                     double sz = center.getZ() + Math.sin(angle) * ringRadius;
-                    double sy = Math.max(world.getHighestBlockYAt((int) sx, (int) sz) + 1.2, center.getY());
+                    double sy = Math.max(world.getHighestBlockYAt((int) sx, (int) sz) + 1.2, center.getY()) + Math.sin((ticks * 0.1) + i) * 0.2;
 
                     Color sc = Color.fromRGB(
                             (sin.getColor().value() >> 16) & 0xFF,
@@ -780,6 +870,9 @@ public class StartEventManager implements Listener {
                     );
                     Location soulLoc = new Location(world, sx, sy, sz);
                     world.spawnParticle(Particle.DUST, soulLoc, 2, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(sc, 1.4f));
+                    if (ticks % 3 == 0) {
+                        world.spawnParticle(Particle.END_ROD, soulLoc, 1, 0, 0, 0, 0.005);
+                    }
                 }
 
                 if (ticks >= starDuration) {
@@ -791,35 +884,38 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Renders a colossal 3D Gyroscopic Hyper-Star Anomaly with 3 orthogonal planetary rings,
-     * a blazing radiant core, and 3D sacred star chords.
+     * Renders a colossal 3D Gyroscopic Hyper-Star Anomaly with 4 multi-axis precessing gimbal rings,
+     * a blazing spinning quantum vortex core, 4 high-speed orbiting electron satellites, and 3D star chords.
      */
     private void render3DGyroscopicHyperStar(Location center, double rot, double radius, Particle.DustOptions dust, Color c) {
         World world = center.getWorld();
         if (world == null) return;
 
-        // 1. Radiant Singularity Core
+        // 1. Quantum Singularity Core (Spinning Micro-Vortex at 3.5x speed)
+        double coreRot = rot * 3.5;
+        for (int i = 0; i < 4; i++) {
+            double ca = coreRot + (Math.PI / 2 * i);
+            Location cPt = center.clone().add(Math.cos(ca) * 0.5, Math.sin(ca * 2) * 0.25, Math.sin(ca) * 0.5);
+            world.spawnParticle(Particle.SOUL_FIRE_FLAME, cPt, 1, 0, 0.01, 0, 0.005);
+        }
         world.spawnParticle(Particle.DUST, center, 4, 0.25, 0.25, 0.25, 0, new Particle.DustOptions(Color.WHITE, 1.8f));
         world.spawnParticle(Particle.END_ROD, center, 2, 0.1, 0.1, 0.1, 0.02);
-        if (Math.random() < 0.3) {
-            world.spawnParticle(Particle.FIREWORK, center, 1, 0.05, 0.05, 0.05, 0.02);
-        }
 
-        // 2. Ring 1 (Horizontal Equatorial Ring - XZ Plane)
         int ringPoints = 32;
+
+        // 2. Ring 1 (Horizontal Equatorial Ring - XZ Plane, Clockwise rot)
         for (int i = 0; i < ringPoints; i++) {
             double angle = (2 * Math.PI * i) / ringPoints + rot;
             Location pt = center.clone().add(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
             world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, dust);
         }
 
-        // 3. Ring 2 (Vertical Meridian Ring tilted 45 degrees)
-        double rot2 = -rot * 1.3;
+        // 3. Ring 2 (Precessing Pitch Gimbal Ring, Tilted 45 deg, Counter-rot)
+        double rot2 = -rot * 1.35;
         for (int i = 0; i < ringPoints; i++) {
             double angle = (2 * Math.PI * i) / ringPoints + rot2;
             double cos = Math.cos(angle) * radius;
             double sin = Math.sin(angle) * radius;
-            // Tilt around Z by 45 deg
             double tx = cos * 0.7071;
             double ty = sin;
             double tz = cos * 0.7071;
@@ -827,8 +923,8 @@ public class StartEventManager implements Listener {
             world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, dust);
         }
 
-        // 4. Ring 3 (Orthogonal Meridian Ring tilted -45 degrees)
-        double rot3 = rot * 0.85;
+        // 4. Ring 3 (Precessing Roll Gimbal Ring, Tilted -45 deg, Counter-rot)
+        double rot3 = rot * 1.15;
         for (int i = 0; i < ringPoints; i++) {
             double angle = (2 * Math.PI * i) / ringPoints + rot3;
             double cos = Math.cos(angle) * radius;
@@ -840,7 +936,29 @@ public class StartEventManager implements Listener {
             world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, dust);
         }
 
-        // 5. 3D Sacred Star Chords connecting the gyroscopic vertices
+        // 5. Ring 4 (Vertical Polar Meridian Ring - YZ Plane, Fast rot)
+        double rot4 = rot * 1.6;
+        for (int i = 0; i < ringPoints; i++) {
+            double angle = (2 * Math.PI * i) / ringPoints + rot4;
+            Location pt = center.clone().add(0, Math.sin(angle) * radius, Math.cos(angle) * radius);
+            world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, dust);
+        }
+
+        // 6. 4 High-Speed Orbiting Electron Satellites (looping through gimbal rings at 2.5x speed)
+        double satRot = rot * 2.5;
+        for (int s = 0; s < 4; s++) {
+            double sa = satRot + (Math.PI / 2 * s);
+            double sx = Math.cos(sa) * (radius * 1.05);
+            double sy = Math.sin(sa * 2) * (radius * 0.6);
+            double sz = Math.sin(sa) * (radius * 1.05);
+            Location satLoc = center.clone().add(sx, sy, sz);
+            world.spawnParticle(Particle.END_ROD, satLoc, 1, 0, 0, 0, 0.005);
+            if (s % 2 == 0) {
+                world.spawnParticle(Particle.FIREWORK, satLoc, 1, 0.02, 0.02, 0.02, 0.01);
+            }
+        }
+
+        // 7. 3D Sacred Star Chords connecting the gyroscopic vertices
         int starPoints = 8;
         double step = (2 * Math.PI) / starPoints;
         for (int i = 0; i < starPoints; i++) {
@@ -970,7 +1088,7 @@ public class StartEventManager implements Listener {
             p.playSound(p.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.4f, 1.0f);
         }
 
-        // Active animation & proximity prompt task
+        // Active planetary orbital animation & proximity prompt task
         this.mainLoopTask = new BukkitRunnable() {
             int ticks = 0;
 
@@ -982,6 +1100,52 @@ public class StartEventManager implements Listener {
                 }
                 ticks++;
 
+                // 1. Planetary Orbital Revolution: Revolve all 7 Sin Souls around (0, 0)
+                double orbitAngle = ticks * 0.02; // Smooth continuous orbital revolution
+                for (int i = 0; i < sins.length; i++) {
+                    SinGemType sin = sins[i];
+                    double angle = (i * angleStep) + orbitAngle;
+                    double x = center.getX() + Math.cos(angle) * ringRadius;
+                    double z = center.getZ() + Math.sin(angle) * ringRadius;
+                    double groundY = world.getHighestBlockYAt((int) x, (int) z);
+                    double baseY = Math.max(groundY + 1.2, center.getY());
+                    // Sci-fi antigravity levitation hover bobbing
+                    double hoverY = baseY + Math.sin((ticks * 0.12) + (i * 0.9)) * 0.28;
+                    Location newSoulLoc = new Location(world, x, hoverY, z);
+                    sinSoulLocations.put(sin, newSoulLoc);
+
+                    // Move and axially spin ItemDisplay in 3D
+                    if (i < activeSoulDisplays.size()) {
+                        ItemDisplay id = activeSoulDisplays.get(i);
+                        if (id != null && id.isValid()) {
+                            id.teleport(newSoulLoc);
+                            id.setTransformation(new Transformation(
+                                    new Vector3f(0, 0, 0),
+                                    new AxisAngle4f((float) (ticks * 0.1 + i), 0, 1, 0),
+                                    new Vector3f(1.5f, 1.5f, 1.5f),
+                                    new AxisAngle4f(0, 0, 1, 0)
+                            ));
+                        }
+                    }
+
+                    // Move TextDisplay holographic title
+                    if (i < activeTextDisplays.size()) {
+                        TextDisplay td = activeTextDisplays.get(i);
+                        if (td != null && td.isValid()) {
+                            td.teleport(newSoulLoc.clone().add(0, 1.4, 0));
+                        }
+                    }
+
+                    // Move Interaction hitbox
+                    if (i < activeInteractions.size()) {
+                        Interaction it = activeInteractions.get(i);
+                        if (it != null && it.isValid()) {
+                            it.teleport(newSoulLoc.clone().subtract(0, 0.4, 0));
+                        }
+                    }
+                }
+
+                // 2. Render revolving Elemental Vortex Pillars & Sweeping Sacred Light Beams
                 for (Map.Entry<SinGemType, Location> entry : sinSoulLocations.entrySet()) {
                     SinGemType sin = entry.getKey();
                     Location loc = entry.getValue();
@@ -992,16 +1156,16 @@ public class StartEventManager implements Listener {
                             sin.getColor().value() & 0xFF
                     );
 
-                    // 1. Towering Elemental Vortex Pillar (rising from ground to Y+5.5)
+                    // Towering Counter-Rotating Double-Helix Elemental Pillar
                     renderSinElementalPillar(world, loc, sin, ticks, c);
 
-                    // 2. Radiant Sacred Light Beam linking this Sin Soul to the Central 3D Star
+                    // Sweeping Sacred Light Beam linking rotating Sin Soul to central 3D Star
                     if (ticks % 2 == 0) {
                         renderLightBeam(world, loc, center, c);
                     }
                 }
 
-                // Proximity check for action bar inspection HUD
+                // 3. Proximity check for action bar inspection HUD
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (attunedPlayers.contains(p.getUniqueId())) continue;
 
@@ -1030,7 +1194,7 @@ public class StartEventManager implements Listener {
                     }
                 }
 
-                // Keep central 3D Gyroscopic Star spinning
+                // 4. Keep central 3D Gyroscopic Hyper-Star precessing
                 render3DGyroscopicHyperStar(center, ticks * 0.08, 4.8, new Particle.DustOptions(Color.fromRGB(240, 240, 255), 1.3f), Color.WHITE);
             }
         }.runTaskTimer(plugin, 0L, 2L);
@@ -1063,51 +1227,73 @@ public class StartEventManager implements Listener {
     private void renderSinElementalPillar(World world, Location loc, SinGemType sin, int ticks, Color c) {
         Location base = loc.clone().subtract(0, 0.8, 0);
 
-        // Ground runic seal
-        for (int d = 0; d < 360; d += 45) {
-            double angle = Math.toRadians(d + ticks * 4);
-            Location rPt = base.clone().add(Math.cos(angle) * 1.4, 0.05, Math.sin(angle) * 1.4);
-            world.spawnParticle(Particle.DUST, rPt, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.4f));
+        // 1. Dual Counter-Rotating Ground Base Gears
+        for (int d = 0; d < 360; d += 60) {
+            // Inner gear (Clockwise)
+            double a1 = Math.toRadians(d + ticks * 6);
+            Location g1 = base.clone().add(Math.cos(a1) * 1.0, 0.05, Math.sin(a1) * 1.0);
+            world.spawnParticle(Particle.DUST, g1, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.2f));
+
+            // Outer gear (Counter-Clockwise)
+            double a2 = Math.toRadians(d - ticks * 4);
+            Location g2 = base.clone().add(Math.cos(a2) * 1.6, 0.05, Math.sin(a2) * 1.6);
+            world.spawnParticle(Particle.DUST, g2, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.WHITE, 1.0f));
         }
 
-        // Elemental ascending vortex
-        for (double y = 0; y <= 5.5; y += 0.8) {
+        // 2. Counter-Rotating Double-Helix Energy Conduit
+        for (double y = 0; y <= 5.5; y += 0.6) {
             double vRad = 0.6 + (y * 0.12);
-            double vAngle = Math.toRadians((ticks * 8) + (y * 45));
-            Location vPt = base.clone().add(Math.cos(vAngle) * vRad, y, Math.sin(vAngle) * vRad);
 
-            // Themed elemental particle signature
+            // Strand A: Clockwise ascending elemental flow
+            double angleA = Math.toRadians((ticks * 8) + (y * 48));
+            Location ptA = base.clone().add(Math.cos(angleA) * vRad, y, Math.sin(angleA) * vRad);
+
+            // Themed elemental particle signature on Strand A
             switch (sin) {
                 case WRATH -> {
-                    world.spawnParticle(Particle.FLAME, vPt, 1, 0.02, 0.05, 0.02, 0.01);
-                    if (Math.random() < 0.25) world.spawnParticle(Particle.LAVA, vPt, 1, 0, 0, 0, 0);
+                    world.spawnParticle(Particle.FLAME, ptA, 1, 0.02, 0.05, 0.02, 0.01);
+                    if (Math.random() < 0.25) world.spawnParticle(Particle.LAVA, ptA, 1, 0, 0, 0, 0);
                 }
                 case PRIDE -> {
-                    world.spawnParticle(Particle.FIREWORK, vPt, 1, 0.02, 0.04, 0.02, 0.02);
-                    if (Math.random() < 0.3) world.spawnParticle(Particle.END_ROD, vPt, 1, 0, 0, 0, 0.01);
+                    world.spawnParticle(Particle.FIREWORK, ptA, 1, 0.02, 0.04, 0.02, 0.02);
+                    if (Math.random() < 0.3) world.spawnParticle(Particle.END_ROD, ptA, 1, 0, 0, 0, 0.01);
                 }
                 case LUST -> {
-                    world.spawnParticle(Particle.CHERRY_LEAVES, vPt, 1, 0.05, 0.05, 0.05, 0.01);
-                    if (Math.random() < 0.3) world.spawnParticle(Particle.PORTAL, vPt, 1, 0, 0, 0, 0.5);
+                    world.spawnParticle(Particle.CHERRY_LEAVES, ptA, 1, 0.05, 0.05, 0.05, 0.01);
+                    if (Math.random() < 0.3) world.spawnParticle(Particle.PORTAL, ptA, 1, 0, 0, 0, 0.5);
                 }
                 case ENVY -> {
-                    world.spawnParticle(Particle.TOTEM_OF_UNDYING, vPt, 1, 0.03, 0.05, 0.03, 0.02);
-                    if (Math.random() < 0.25) world.spawnParticle(Particle.HAPPY_VILLAGER, vPt, 1, 0.05, 0.05, 0.05, 0.01);
+                    world.spawnParticle(Particle.TOTEM_OF_UNDYING, ptA, 1, 0.03, 0.05, 0.03, 0.02);
+                    if (Math.random() < 0.25) world.spawnParticle(Particle.HAPPY_VILLAGER, ptA, 1, 0.05, 0.05, 0.05, 0.01);
                 }
                 case GLUTTONY -> {
-                    world.spawnParticle(Particle.SCULK_SOUL, vPt, 1, 0.03, 0.05, 0.03, 0.01);
-                    if (Math.random() < 0.25) world.spawnParticle(Particle.SQUID_INK, vPt, 1, 0, 0.02, 0, 0.01);
+                    world.spawnParticle(Particle.SCULK_SOUL, ptA, 1, 0.03, 0.05, 0.03, 0.01);
+                    if (Math.random() < 0.25) world.spawnParticle(Particle.SQUID_INK, ptA, 1, 0, 0.02, 0, 0.01);
                 }
                 case GREED -> {
-                    world.spawnParticle(Particle.ELECTRIC_SPARK, vPt, 1, 0.04, 0.04, 0.04, 0.02);
-                    if (Math.random() < 0.3) world.spawnParticle(Particle.DUST, vPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.5f));
+                    world.spawnParticle(Particle.ELECTRIC_SPARK, ptA, 1, 0.04, 0.04, 0.04, 0.02);
+                    if (Math.random() < 0.3) world.spawnParticle(Particle.DUST, ptA, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.5f));
                 }
                 case SLOTH -> {
-                    world.spawnParticle(Particle.SNOWFLAKE, vPt, 1, 0.03, 0.04, 0.03, 0.01);
-                    if (Math.random() < 0.25) world.spawnParticle(Particle.CLOUD, vPt, 1, 0.02, 0.02, 0.02, 0.01);
+                    world.spawnParticle(Particle.SNOWFLAKE, ptA, 1, 0.03, 0.04, 0.03, 0.01);
+                    if (Math.random() < 0.25) world.spawnParticle(Particle.CLOUD, ptA, 1, 0.02, 0.02, 0.02, 0.01);
                 }
             }
-            world.spawnParticle(Particle.DUST, vPt, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.2f));
+            world.spawnParticle(Particle.DUST, ptA, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.3f));
+
+            // Strand B: Counter-Clockwise containment field
+            double angleB = Math.toRadians((-ticks * 8) - (y * 48) + 180);
+            Location ptB = base.clone().add(Math.cos(angleB) * vRad, y, Math.sin(angleB) * vRad);
+            world.spawnParticle(Particle.DUST, ptB, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.WHITE, 1.0f));
+            if (Math.random() < 0.3) {
+                world.spawnParticle(Particle.END_ROD, ptB, 1, 0, 0, 0, 0.005);
+            }
+
+            // Transverse energy spark connecting strands
+            if (Math.random() < 0.18) {
+                Location mid = ptA.clone().add(ptB).multiply(0.5);
+                world.spawnParticle(Particle.ELECTRIC_SPARK, mid, 1, 0.02, 0.02, 0.02, 0.01);
+            }
         }
     }
 
@@ -1442,14 +1628,25 @@ public class StartEventManager implements Listener {
                         new Particle.DustOptions(Color.fromRGB(60, 45, 80), 1.6f));
                 world.spawnParticle(Particle.SMOKE, center, 4, 0.25, 0.25, 0.25, 0.03);
 
-                // Accretion disk matter vortex (spinning plasma ring)
+                // Inner accretion disk matter vortex (spinning plasma ring - Clockwise)
                 for (int a = 0; a < 360; a += 30) {
-                    double diskRad = 1.6 + (a % 4) * 1.2;
+                    double diskRad = 1.6 + (a % 4) * 0.8;
                     double diskAngle = Math.toRadians(a + ticks * 14);
                     Location diskPt = center.clone().add(Math.cos(diskAngle) * diskRad, (Math.sin(ticks * 0.25 + a) * 0.25), Math.sin(diskAngle) * diskRad);
                     world.spawnParticle(Particle.DUST, diskPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(35, 25, 55), 1.6f));
                     if (a % 60 == 0) {
                         world.spawnParticle(Particle.DRAGON_BREATH, diskPt, 1, 0, 0, 0, 0.01, 0.5f);
+                    }
+                }
+
+                // Outer plasma accretion corona (Counter-Clockwise)
+                for (int a = 0; a < 360; a += 40) {
+                    double outRad = 3.2 + (a % 3) * 0.9;
+                    double outAngle = Math.toRadians(a - ticks * 10);
+                    Location outPt = center.clone().add(Math.cos(outAngle) * outRad, (Math.cos(ticks * 0.2 + a) * 0.2), Math.sin(outAngle) * outRad);
+                    world.spawnParticle(Particle.DUST, outPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(90, 30, 120), 1.4f));
+                    if (a % 80 == 0) {
+                        world.spawnParticle(Particle.PORTAL, outPt, 1, 0, 0, 0, 0.2);
                     }
                 }
 
@@ -1466,16 +1663,28 @@ public class StartEventManager implements Listener {
                 double maxHeight = Math.min(320.0, world.getMaxHeight());
                 for (double y = 0; y <= maxHeight; y += 3.5) {
                     for (int d = 0; d < 360; d += 90) {
-                        double rad = Math.toRadians(d + (ticks * 10));
+                        double rad = Math.toRadians(d + (ticks * 12));
                         Location bPt = center.clone().add(Math.cos(rad) * beamRadius, y, Math.sin(rad) * beamRadius);
                         world.spawnParticle(Particle.END_ROD, bPt, 1, 0, 0, 0, 0.01);
                     }
                 }
 
-                double spiralY = (ticks * 2.5) % maxHeight;
-                double spiralAngle = ticks * 0.35;
-                Location spiralPt = center.clone().add(Math.cos(spiralAngle) * (beamRadius + 0.3), spiralY, Math.sin(spiralAngle) * (beamRadius + 0.3));
-                world.spawnParticle(Particle.DUST, spiralPt, 2, 0.1, 0.1, 0.1, 0, new Particle.DustOptions(Color.fromRGB(200, 230, 255), 1.8f));
+                // Counter-Rotating Double-Helix Spiral Braids ascending the orbital beam
+                for (double y = 0; y <= Math.min(100.0, maxHeight); y += 2.5) {
+                    // Braid 1 (Clockwise Ascending)
+                    double ang1 = Math.toRadians((ticks * 16) + (y * 22));
+                    Location b1 = center.clone().add(Math.cos(ang1) * (beamRadius + 0.45), y, Math.sin(ang1) * (beamRadius + 0.45));
+                    world.spawnParticle(Particle.DUST, b1, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(160, 220, 255), 1.6f));
+
+                    // Braid 2 (Counter-Clockwise Ascending)
+                    double ang2 = Math.toRadians((-ticks * 16) - (y * 22) + 180);
+                    Location b2 = center.clone().add(Math.cos(ang2) * (beamRadius + 0.45), y, Math.sin(ang2) * (beamRadius + 0.45));
+                    world.spawnParticle(Particle.DUST, b2, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(240, 200, 255), 1.6f));
+
+                    if (y % 10 == 0) {
+                        world.spawnParticle(Particle.END_ROD, b1, 1, 0, 0, 0, 0.005);
+                    }
+                }
 
                 if (ticks % 8 == 0) {
                     world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.5f, 0.5f + (ticks * 0.01f));
@@ -1572,12 +1781,16 @@ public class StartEventManager implements Listener {
         if (glideTrailTask != null) glideTrailTask.cancel();
 
         this.glideTrailTask = new BukkitRunnable() {
+            int trailTicks = 0;
+
             @Override
             public void run() {
                 if (glidingPlayers.isEmpty()) {
                     cancel();
                     return;
                 }
+                trailTicks++;
+
                 for (UUID uuid : new ArrayList<>(glidingPlayers)) {
                     Player p = Bukkit.getPlayer(uuid);
                     if (p == null || !p.isOnline() || !p.isGliding()) continue;
@@ -1589,9 +1802,33 @@ public class StartEventManager implements Listener {
                             sin.getColor().value() & 0xFF
                     ) : Color.WHITE;
 
-                    Location trailLoc = p.getLocation().subtract(p.getLocation().getDirection().multiply(0.7)).add(0, 0.2, 0);
-                    p.getWorld().spawnParticle(Particle.DUST, trailLoc, 3, 0.08, 0.08, 0.08, 0, new Particle.DustOptions(c, 1.8f));
-                    p.getWorld().spawnParticle(Particle.END_ROD, trailLoc, 1, 0.01, 0.01, 0.01, 0.01);
+                    Vector dir = p.getLocation().getDirection().normalize();
+                    Vector right = dir.clone().crossProduct(new Vector(0, 1, 0)).normalize();
+                    if (right.lengthSquared() < 0.01) {
+                        right = new Vector(1, 0, 0);
+                    }
+                    Vector up = right.clone().crossProduct(dir).normalize();
+
+                    Location centerTrail = p.getLocation().subtract(dir.clone().multiply(0.8)).add(0, 0.3, 0);
+
+                    // Left Wingtip Corkscrew Vortex (Clockwise)
+                    Location leftWing = centerTrail.clone().subtract(right.clone().multiply(0.85));
+                    double leftAngle = Math.toRadians((trailTicks * 28) % 360);
+                    Location leftSpiral = leftWing.clone().add(
+                            right.clone().multiply(Math.cos(leftAngle) * 0.25).add(up.clone().multiply(Math.sin(leftAngle) * 0.25))
+                    );
+                    p.getWorld().spawnParticle(Particle.DUST, leftSpiral, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.6f));
+
+                    // Right Wingtip Corkscrew Vortex (Counter-Clockwise)
+                    Location rightWing = centerTrail.clone().add(right.clone().multiply(0.85));
+                    double rightAngle = Math.toRadians((-trailTicks * 28) % 360);
+                    Location rightSpiral = rightWing.clone().add(
+                            right.clone().multiply(Math.cos(rightAngle) * 0.25).add(up.clone().multiply(Math.sin(rightAngle) * 0.25))
+                    );
+                    p.getWorld().spawnParticle(Particle.DUST, rightSpiral, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.6f));
+
+                    // Center Supersonic Ionization Trail
+                    p.getWorld().spawnParticle(Particle.END_ROD, centerTrail, 1, 0.01, 0.01, 0.01, 0.01);
                 }
             }
         }.runTaskTimer(plugin, 0L, 2L);
