@@ -80,8 +80,12 @@ public class StartEventManager implements Listener {
 
     private double originalBorderSize = 10000;
     private Location originalBorderCenter = null;
+    private final Map<UUID, SinGemType> playerChosenSins = new ConcurrentHashMap<>();
     private BukkitTask mainLoopTask = null;
     private BukkitTask autoTimeoutTask = null;
+    private BukkitTask readyAmbientTask = null;
+    private BukkitTask glideTrailTask = null;
+    private BukkitTask continuousSoundscapeTask = null;
 
     public StartEventManager(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -93,6 +97,75 @@ public class StartEventManager implements Listener {
 
     public boolean isEventActive() {
         return state != EventState.IDLE;
+    }
+
+    /**
+     * Signature retro-fantasy crystal sound designer:
+     * High-pitched crystal rings layered with cascading experience orb chimes,
+     * note-block chime synth tones, and a drawn-out sustained bell resonance with clean long decay.
+     */
+    public void playRetroCrystalChime(Location loc, float basePitch, float volume) {
+        World world = loc.getWorld();
+        if (world == null) return;
+
+        // 1. Instant transient strike: Experience orb chime + Note block chime + Amethyst ring
+        world.playSound(loc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, volume, Math.min(2.0f, basePitch * 1.0f));
+        world.playSound(loc, Sound.BLOCK_NOTE_BLOCK_CHIME, volume * 0.9f, Math.min(2.0f, basePitch * 1.0f));
+        world.playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, volume, Math.min(2.0f, basePitch * 1.25f));
+
+        // 2. Lingering crystal body with drawn-out sustain and clean long decay
+        world.playSound(loc, Sound.BLOCK_BELL_RESONATE, volume * 0.85f, Math.min(2.0f, basePitch * 0.95f));
+        world.playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, volume * 0.7f, Math.min(2.0f, basePitch * 0.85f));
+
+        // 3. Cascading retro micro-delays (2 ticks and 4 ticks) for classic arcade/JRPG sparkling arpeggios
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (isEventActive() && loc.getWorld() != null) {
+                loc.getWorld().playSound(loc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, volume * 0.9f, Math.min(2.0f, basePitch * 1.33f));
+                loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, volume * 0.8f, Math.min(2.0f, basePitch * 1.2f));
+            }
+        }, 2L);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (isEventActive() && loc.getWorld() != null) {
+                loc.getWorld().playSound(loc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, volume * 0.8f, Math.min(2.0f, basePitch * 1.66f));
+                loc.getWorld().playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, volume * 0.85f, Math.min(2.0f, basePitch * 1.5f));
+            }
+        }, 4L);
+    }
+
+    /**
+     * Continuous background soundscape engine providing drawn-out sustain,
+     * slow tempo crystal pulses, and gentle retro synth ambiance throughout the entire event.
+     */
+    private void startContinuousSoundscapeTask(World world, Location center) {
+        if (continuousSoundscapeTask != null) continuousSoundscapeTask.cancel();
+
+        this.continuousSoundscapeTask = new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (!isEventActive()) {
+                    cancel();
+                    return;
+                }
+                ticks++;
+
+                // 1. Slow-tempo deep cosmic hum with drawn-out sustain (every 40 ticks = 2.0s)
+                if (ticks % 40 == 0) {
+                    world.playSound(center, Sound.BLOCK_BEACON_AMBIENT, 0.8f, 0.75f);
+                    world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.65f, 0.85f);
+                }
+
+                // 2. Slow-tempo, high-pitched crystal ring and exp-orb chime ringing into silence (every 30 ticks = 1.5s)
+                if (ticks % 30 == 0) {
+                    world.playSound(center, Sound.BLOCK_BELL_RESONATE, 0.55f, 1.35f);
+                    world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.65f, 1.75f);
+                    world.playSound(center, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.4f);
+                    world.playSound(center, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.45f, 1.25f);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     /**
@@ -140,8 +213,14 @@ public class StartEventManager implements Listener {
         border.setCenter(0.5, 0.5);
         border.setSize(25.0);
 
+        // Shift sky to midnight twilight and tempest
+        world.setTime(18000);
+        world.setStorm(true);
+        world.setThundering(true);
+
         readyPlayers.clear();
         attunedPlayers.clear();
+        playerChosenSins.clear();
         cachedChestplates.clear();
         glidingPlayers.clear();
         sinSoulLocations.clear();
@@ -157,11 +236,14 @@ public class StartEventManager implements Listener {
         );
 
         Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
+        startContinuousSoundscapeTask(world, spawnLoc);
+
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.teleport(spawnLoc);
             p.showTitle(title);
-            p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 1.4f, 1.0f);
-            p.playSound(p.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 0.8f);
+            playRetroCrystalChime(p.getLocation(), 1.0f, 1.4f);
+            p.playSound(p.getLocation(), Sound.EVENT_RAID_HORN, 1.0f, 1.0f);
+            p.playSound(p.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 0.9f);
         }
 
         Bukkit.broadcast(miniMessage.deserialize("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"));
@@ -189,8 +271,16 @@ public class StartEventManager implements Listener {
         }
 
         readyPlayers.add(player.getUniqueId());
-        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.5f);
-        player.sendMessage(miniMessage.deserialize("<green>✦ Soul Aligned! You are marked as READY. ✦</green>"));
+        playRetroCrystalChime(player.getLocation(), 1.3f, 1.4f);
+        player.playSound(player.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 1.1f, 1.4f);
+        player.sendMessage(miniMessage.deserialize("<green>✦ Soul Aligned! Ethereal energy gathers beneath you. ✦</green>"));
+
+        for (Player other : Bukkit.getOnlinePlayers()) {
+            if (!other.equals(player)) {
+                other.playSound(other.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.5f);
+                other.playSound(other.getLocation(), Sound.BLOCK_BELL_RESONATE, 0.6f, 1.6f);
+            }
+        }
 
         updateReadyActionBar();
 
@@ -204,36 +294,75 @@ public class StartEventManager implements Listener {
     }
 
     private void startReadyCheckActionBarTask() {
-        new BukkitRunnable() {
+        if (readyAmbientTask != null) readyAmbientTask.cancel();
+
+        readyAmbientTask = new BukkitRunnable() {
+            int ticks = 0;
+
             @Override
             public void run() {
                 if (state != EventState.READY_CHECK) {
                     cancel();
                     return;
                 }
-                updateReadyActionBar();
+                ticks++;
+
+                World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
+
+                // 1. Ethereal Sanctuary Boundary ring (radius 12.5 blocks)
+                if (ticks % 3 == 0) {
+                    double bRadius = 12.5;
+                    for (int d = 0; d < 360; d += 20) {
+                        double rad = Math.toRadians(d + (ticks * 2));
+                        double bx = 0.5 + Math.cos(rad) * bRadius;
+                        double bz = 0.5 + Math.sin(rad) * bRadius;
+                        double by = world.getHighestBlockYAt((int) bx, (int) bz) + 0.1;
+                        Location bLoc = new Location(world, bx, by, bz);
+                        world.spawnParticle(Particle.DUST, bLoc, 1, 0, 0, 0, 0,
+                                new Particle.DustOptions(Color.fromRGB(120, 190, 255), 1.1f));
+                    }
+                }
+
+                // 2. Ready Trance spiritual aura for aligned players
+                for (UUID uuid : readyPlayers) {
+                    Player rp = Bukkit.getPlayer(uuid);
+                    if (rp != null && rp.isOnline()) {
+                        double a = Math.toRadians((ticks * 8) % 360);
+                        Location pAura = rp.getLocation().add(Math.cos(a) * 0.75, 0.1, Math.sin(a) * 0.75);
+                        world.spawnParticle(Particle.SOUL_FIRE_FLAME, pAura, 1, 0, 0, 0, 0.005);
+                        if (ticks % 4 == 0) {
+                            world.spawnParticle(Particle.END_ROD, rp.getLocation().add(0, 1.0, 0), 1, 0.2, 0.4, 0.2, 0.01);
+                        }
+                    }
+                }
+
+                // 3. Suspense Heartbeat sound every 30 ticks (1.5 seconds)
+                if (ticks % 30 == 0) {
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        p.playSound(p.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.8f, 0.7f);
+                    }
+                }
+
+                // 4. Update action bar every second (20 ticks)
+                if (ticks % 20 == 0) {
+                    updateReadyActionBar();
+                }
             }
-        }.runTaskTimer(plugin, 0L, 20L);
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     private void updateReadyActionBar() {
         int readyCount = readyPlayers.size();
         int total = Bukkit.getOnlinePlayers().size();
 
-        StringBuilder names = new StringBuilder();
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            boolean r = readyPlayers.contains(p.getUniqueId());
-            if (names.length() > 0) names.append(", ");
-            if (r) {
-                names.append("<green>").append(p.getName()).append("</green>");
-            } else {
-                names.append("<red>").append(p.getName()).append("</red>");
-            }
-        }
+        int filled = (total > 0) ? Math.min(10, (readyCount * 10 / total)) : 0;
+        int empty = 10 - filled;
+        String bar = "█".repeat(filled) + "░".repeat(empty);
 
         Component ab = miniMessage.deserialize(
-                "<gold>✦ Ready: </gold><yellow><bold>" + readyCount + "/" + total + "</bold></yellow> " +
-                "<dark_gray>[</dark_gray>" + names + "<dark_gray>]</dark_gray> <gray>• Type /church ready</gray>"
+                "<gold>✦ [</gold><green>" + bar.substring(0, filled) + "</green><dark_gray>" + bar.substring(filled) + "</dark_gray><gold>] </gold>" +
+                "<yellow><bold>" + readyCount + "/" + total + " Souls Aligned</bold></yellow> " +
+                "<gray>• Type <click:run_command:'/church ready'><yellow><bold>/church ready</bold></yellow></click></gray>"
         );
 
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -246,11 +375,17 @@ public class StartEventManager implements Listener {
      */
     private void triggerSoulExtraction() {
         this.state = EventState.SOUL_EXTRACTION;
+        if (readyAmbientTask != null) {
+            readyAmbientTask.cancel();
+            readyAmbientTask = null;
+        }
 
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.8f);
+            p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 75, 0, false, false, false));
+            playRetroCrystalChime(p.getLocation(), 0.9f, 1.3f);
+            p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.9f, 0.7f);
             p.playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 0.5f);
-            p.sendActionBar(miniMessage.deserialize("<gradient:#FFFFFF:#ADD8E6><bold>✦ SOULS CONVERGING TO CENTER (0, 0)... ✦</bold></gradient>"));
+            p.sendActionBar(miniMessage.deserialize("<gradient:#FFFFFF:#ADD8E6><bold>✦ THE HEAVENS FRACTURE • SOULS CONVERGING TO (0, 0)... ✦</bold></gradient>"));
         }
 
         World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
@@ -276,22 +411,34 @@ public class StartEventManager implements Listener {
                         if (!p.isOnline()) continue;
                         Location head = p.getLocation().add(0, 1.8, 0);
 
-                        for (double y = 0; y <= 12; y += 0.5) {
-                            double swayX = Math.sin((ticks * 0.4) + y) * 0.28 + (Math.random() - 0.5) * 0.12;
-                            double swayZ = Math.cos((ticks * 0.3) + y) * 0.28 + (Math.random() - 0.5) * 0.12;
+                        for (double y = 0; y <= 16; y += 0.5) {
+                            double swayX = Math.sin((ticks * 0.4) + y) * 0.32 + (Math.random() - 0.5) * 0.15;
+                            double swayZ = Math.cos((ticks * 0.3) + y) * 0.32 + (Math.random() - 0.5) * 0.15;
                             Location veinPt = head.clone().add(swayX, y, swayZ);
 
                             world.spawnParticle(Particle.DUST, veinPt, 1, 0.04, 0.04, 0.04, 0,
-                                    new Particle.DustOptions(Color.fromRGB(245, 248, 255), 1.2f));
+                                    new Particle.DustOptions(Color.fromRGB(245, 248, 255), 1.25f));
+
+                            // Branching fractal tendrils at higher elevation
+                            if (y > 6 && Math.random() < 0.35) {
+                                double branchX = swayX + Math.sin(y * 1.5) * 0.5;
+                                double branchZ = swayZ + Math.cos(y * 1.5) * 0.5;
+                                world.spawnParticle(Particle.DUST, head.clone().add(branchX, y, branchZ), 1, 0, 0, 0, 0,
+                                        new Particle.DustOptions(Color.fromRGB(200, 230, 255), 1.0f));
+                            }
+
                             if (y > 4 && Math.random() < 0.25) {
                                 world.spawnParticle(Particle.END_ROD, veinPt.clone().add((Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4), 1, 0, 0, 0, 0.01);
                             }
                         }
                     }
 
-                    if (ticks % 10 == 0) {
+                    if (ticks % 14 == 0) {
                         for (Player p : participants) {
-                            p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 1.0f + (ticks * 0.015f));
+                            p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.85f, 1.5f + (ticks * 0.008f));
+                            p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.3f + (ticks * 0.008f));
+                            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.2f);
+                            p.playSound(p.getLocation(), Sound.BLOCK_SCULK_SHRIEKER_SHRIEK, 0.3f, 1.8f);
                         }
                     }
                     return;
@@ -307,8 +454,8 @@ public class StartEventManager implements Listener {
                                 startSoulLocs.put(p.getUniqueId(), p.getLocation().add(0, 2.0, 0));
                                 double baseAngle = idx * (2 * Math.PI / Math.max(1, participants.size()));
                                 soulAngles.put(p.getUniqueId(), baseAngle);
-                                p.playSound(p.getLocation(), Sound.ENTITY_VEX_AMBIENT, 1.2f, 0.7f);
-                                p.playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.0f, 1.2f);
+                                playRetroCrystalChime(p.getLocation(), 1.25f, 1.3f);
+                                p.playSound(p.getLocation(), Sound.ENTITY_VEX_AMBIENT, 1.0f, 0.7f);
                             }
                             idx++;
                         }
@@ -349,16 +496,25 @@ public class StartEventManager implements Listener {
                     double sz = Math.sin(swirlAngle) * spiralRadius;
 
                     Location soulPt = new Location(world, lx + sx, ly + arcY, lz + sz);
+                    // Counter-rotating twin stardust stream for double-helix DNA effect
+                    Location twinPt = new Location(world, lx - sx * 0.7, ly + arcY, lz - sz * 0.7);
 
-                    // Bliss SMP style particle visuals: clean, ethereal trails
-                    world.spawnParticle(Particle.DUST, soulPt, 2, 0.06, 0.06, 0.06, 0,
+                    world.spawnParticle(Particle.DUST, soulPt, 2, 0.05, 0.05, 0.05, 0,
                             new Particle.DustOptions(Color.fromRGB(235, 245, 255), 1.5f));
                     world.spawnParticle(Particle.END_ROD, soulPt, 1, 0.01, 0.01, 0.01, 0.005);
+                    world.spawnParticle(Particle.DUST, twinPt, 1, 0.04, 0.04, 0.04, 0,
+                            new Particle.DustOptions(Color.fromRGB(180, 215, 255), 1.1f));
                 }
 
-                if (currentDrift % 15 == 0) {
-                    world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 0.6f + (float) (t * 0.8));
-                    world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 0.8f + (float) (t * 0.6));
+                // Center nexus ground hums and crackles as souls draw close
+                if (t > 0.3) {
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, center.clone().add((Math.random() - 0.5) * 1.5, -1.8, (Math.random() - 0.5) * 1.5), 1, 0, 0.02, 0, 0.01);
+                }
+
+                if (currentDrift % 16 == 0) {
+                    float pitch = 0.8f + (float) (t * 0.85);
+                    playRetroCrystalChime(center, pitch, 1.25f);
+                    world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.1f, pitch * 0.85f);
                 }
 
                 // Completed 8-second slow travel -> Singularity triggers blinding flash!
@@ -377,10 +533,14 @@ public class StartEventManager implements Listener {
         this.state = EventState.STAR_CYCLE;
         World world = center.getWorld();
 
-        // 1. Blinding Flash of Light
-        world.spawnParticle(Particle.FLASH, center, 6, 0.5, 0.5, 0.5, 0, Color.WHITE);
+        // 1. Blinding Flash of Light & Detonation with clean long decay
+        world.spawnParticle(Particle.FLASH, center, 8, 0.5, 0.5, 0.5, 0, Color.WHITE);
         world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 1);
         world.spawnParticle(Particle.SONIC_BOOM, center, 1);
+        playRetroCrystalChime(center, 1.5f, 2.0f);
+        world.playSound(center, Sound.BLOCK_BELL_RESONATE, 2.0f, 0.65f);
+        world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 2.0f, 2.0f);
+        world.playSound(center, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 2.0f, 2.0f);
         world.playSound(center, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 0.8f);
         world.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 2.0f, 1.0f);
 
@@ -426,10 +586,19 @@ public class StartEventManager implements Listener {
                             Title.Times.times(Duration.ofMillis(100), Duration.ofMillis(750), Duration.ofMillis(150))
                     );
 
+                    float sinPitch = switch (currentSin) {
+                        case WRATH -> 0.85f;
+                        case GREED -> 1.35f;
+                        case GLUTTONY -> 1.05f;
+                        case LUST -> 1.75f;
+                        case ENVY -> 1.20f;
+                        case PRIDE -> 1.95f;
+                        case SLOTH -> 0.70f;
+                    };
+
                     for (Player p : Bukkit.getOnlinePlayers()) {
                         p.showTitle(sinTitle);
-                        p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 1.0f, 1.0f + (sinIdx * 0.1f));
-                        p.playSound(p.getLocation(), Sound.BLOCK_BELL_USE, 0.8f, 1.2f);
+                        playRetroCrystalChime(p.getLocation(), sinPitch, 1.25f);
                     }
                 }
 
@@ -549,6 +718,7 @@ public class StartEventManager implements Listener {
         Bukkit.broadcast(miniMessage.deserialize("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gold>"));
 
         for (Player p : Bukkit.getOnlinePlayers()) {
+            playRetroCrystalChime(p.getLocation(), 1.5f, 1.3f);
             p.playSound(p.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.4f, 1.0f);
         }
 
@@ -574,24 +744,46 @@ public class StartEventManager implements Listener {
                             sin.getColor().value() & 0xFF
                     );
 
-                    // Gentle floating bob + orbiting particle aura
+                    // 1. Rotating ritual ground rune beneath each soul
+                    for (int deg = 0; deg < 360; deg += 60) {
+                        double rAngle = Math.toRadians(deg + (ticks * 4));
+                        Location ringPt = loc.clone().add(Math.cos(rAngle) * 1.1, -0.9, Math.sin(rAngle) * 1.1);
+                        world.spawnParticle(Particle.DUST, ringPt, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.2f));
+                    }
+
+                    // 2. Gentle floating bob + orbiting particle aura
                     double rad = Math.toRadians((ticks * 5) % 360);
                     Location pLoc = loc.clone().add(Math.cos(rad) * 0.7, 0.4 + Math.sin(ticks * 0.12) * 0.15, Math.sin(rad) * 0.7);
                     world.spawnParticle(Particle.DUST, pLoc, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.4f));
                     world.spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 0.3, 0), 1, 0.04, 0.04, 0.04, 0.01);
                 }
 
-                // Proximity check for action bar prompt
+                // Proximity check for action bar inspection HUD
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (attunedPlayers.contains(p.getUniqueId())) continue;
 
+                    SinGemType nearestSin = null;
+                    double nearestDistSq = Double.MAX_VALUE;
+
                     for (Map.Entry<SinGemType, Location> entry : sinSoulLocations.entrySet()) {
-                        if (p.getLocation().distanceSquared(entry.getValue()) <= 8.0) { // Within ~2.8 blocks
-                            SinGemType sin = entry.getKey();
-                            p.sendActionBar(miniMessage.deserialize(
-                                    "<gold>✦ <bold>" + sin.getDisplayName() + "</bold> ✦ Type or Click: <yellow><click:run_command:'/church confirm " + sin.name() + "'><bold>[CONFIRM ATTUNEMENT]</bold></click></yellow>"
-                            ));
-                            break;
+                        double distSq = p.getLocation().distanceSquared(entry.getValue());
+                        if (distSq <= 12.25 && distSq < nearestDistSq) { // Within 3.5 blocks
+                            nearestDistSq = distSq;
+                            nearestSin = entry.getKey();
+                        }
+                    }
+
+                    if (nearestSin != null) {
+                        p.sendActionBar(miniMessage.deserialize(
+                                "<bold><color:" + nearestSin.getColor().asHexString() + ">✦ " + nearestSin.getDisplayName().toUpperCase() + " ✦</color></bold> " +
+                                "<gray>" + nearestSin.getDescription() + " • Skills: </gray><yellow>" + nearestSin.getPrimaryAbilityName() + " & " + nearestSin.getSecondaryAbilityName() + "</yellow> " +
+                                "<white><bold>[RIGHT-CLICK TO EMBRACE]</bold></white>"
+                        ));
+                        if (ticks % 20 == 0) {
+                            p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.75f, 1.8f);
+                            p.playSound(p.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.85f, 2.0f);
+                            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 0.65f, 1.5f);
+                            p.playSound(p.getLocation(), Sound.BLOCK_BELL_RESONATE, 0.5f, 1.6f);
                         }
                     }
                 }
@@ -688,6 +880,7 @@ public class StartEventManager implements Listener {
         }
 
         attunedPlayers.add(player.getUniqueId());
+        playerChosenSins.put(player.getUniqueId(), sin);
 
         // Attune via SinGemManager
         plugin.getSinGemManager().forceAttune(player, sin);
@@ -697,15 +890,17 @@ public class StartEventManager implements Listener {
         player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 1200, 0, false, false, true));
 
         // Audio & Visual pulse
-        player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.0f, 1.2f);
+        player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.2f, 1.1f);
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+        player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 1.0f, 1.4f);
 
         Color c = Color.fromRGB(
                 (sin.getColor().value() >> 16) & 0xFF,
                 (sin.getColor().value() >> 8) & 0xFF,
                 sin.getColor().value() & 0xFF
         );
-        player.getWorld().spawnParticle(Particle.DUST, player.getLocation().add(0, 1.0, 0), 12, 0.3, 0.4, 0.3, 0, new Particle.DustOptions(c, 1.6f));
+        player.getWorld().spawnParticle(Particle.DUST, player.getLocation().add(0, 1.0, 0), 25, 0.4, 0.5, 0.4, 0, new Particle.DustOptions(c, 1.8f));
+        player.getWorld().spawnParticle(Particle.FIREWORK, player.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.02);
 
         Bukkit.broadcast(miniMessage.deserialize("<light_purple>✦ <bold>" + player.getName() + "</bold> has embraced the Sin of " + sin.getDisplayName() + "! (" + attunedPlayers.size() + "/" + Bukkit.getOnlinePlayers().size() + ")</light_purple>"));
 
@@ -796,7 +991,16 @@ public class StartEventManager implements Listener {
                         new Particle.DustOptions(Color.fromRGB(80, 80, 85), 1.4f));
                 world.spawnParticle(Particle.SMOKE, center, 3, 0.2, 0.2, 0.2, 0.02);
 
-                // 2. Widening Beacon Beam shooting upwards
+                // Gravitational suction particles (matter pulled into singularity)
+                for (int i = 0; i < 3; i++) {
+                    double pullAngle = Math.random() * 2 * Math.PI;
+                    double pullDist = 2.5 + Math.random() * 4.5;
+                    Location pullStart = center.clone().add(Math.cos(pullAngle) * pullDist, (Math.random() - 0.5) * 2.5, Math.sin(pullAngle) * pullDist);
+                    Vector pullVec = center.toVector().subtract(pullStart.toVector()).normalize().multiply(0.35);
+                    world.spawnParticle(Particle.PORTAL, pullStart, 0, pullVec.getX(), pullVec.getY(), pullVec.getZ(), 0.6);
+                }
+
+                // 2. Widening Beacon Beam shooting upwards with ascending spiral rings
                 for (double y = 0; y <= 35; y += 1.2) {
                     for (int d = 0; d < 360; d += 90) {
                         double rad = Math.toRadians(d + (ticks * 8));
@@ -804,6 +1008,11 @@ public class StartEventManager implements Listener {
                         world.spawnParticle(Particle.END_ROD, bPt, 1, 0, 0, 0, 0.01);
                     }
                 }
+
+                double spiralY = (ticks * 1.2) % 35;
+                double spiralAngle = ticks * 0.25;
+                Location spiralPt = center.clone().add(Math.cos(spiralAngle) * (beamRadius + 0.2), spiralY, Math.sin(spiralAngle) * (beamRadius + 0.2));
+                world.spawnParticle(Particle.DUST, spiralPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(180, 220, 255), 1.5f));
 
                 if (ticks % 10 == 0) {
                     world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.4f, 0.5f + (ticks * 0.01f));
@@ -828,6 +1037,11 @@ public class StartEventManager implements Listener {
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.6f);
         world.playSound(center, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 0.8f);
 
+        // Reset sky to dawn of the new realm
+        world.setTime(0);
+        world.setStorm(false);
+        world.setThundering(false);
+
         // 2. Restore World Border
         WorldBorder border = world.getWorldBorder();
         if (originalBorderCenter != null) {
@@ -836,9 +1050,9 @@ public class StartEventManager implements Listener {
         border.setSize(originalBorderSize > 25 ? originalBorderSize : 10000);
 
         Title launchTitle = Title.title(
-                miniMessage.deserialize("<gradient:#FFD700:#FFA500><bold>✦ DESCEND UPON THE REALM ✦</bold></gradient>"),
-                miniMessage.deserialize("<yellow>Glide to your starting sanctuary!</yellow>"),
-                Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))
+                miniMessage.deserialize("<gradient:#FFD700:#FF4500><bold>✦ THE NEW ERA DAWNS ✦</bold></gradient>"),
+                miniMessage.deserialize("<yellow>Glide to your starting sanctuary • The realm is born!</yellow>"),
+                Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(600))
         );
 
         // 3. Launch everyone into air to Y:200 with temporary Elytra
@@ -867,7 +1081,37 @@ public class StartEventManager implements Listener {
             p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.4f, 1.0f);
         }
 
+        startGlideTrailTask();
         Bukkit.broadcast(miniMessage.deserialize("<gold>✦ The Genesis Ceremony has concluded! Realm borders expanded to " + (int) border.getSize() + " blocks! ✦</gold>"));
+    }
+
+    private void startGlideTrailTask() {
+        if (glideTrailTask != null) glideTrailTask.cancel();
+
+        this.glideTrailTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (glidingPlayers.isEmpty()) {
+                    cancel();
+                    return;
+                }
+                for (UUID uuid : new ArrayList<>(glidingPlayers)) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p == null || !p.isOnline() || !p.isGliding()) continue;
+
+                    SinGemType sin = playerChosenSins.get(uuid);
+                    Color c = (sin != null) ? Color.fromRGB(
+                            (sin.getColor().value() >> 16) & 0xFF,
+                            (sin.getColor().value() >> 8) & 0xFF,
+                            sin.getColor().value() & 0xFF
+                    ) : Color.WHITE;
+
+                    Location trailLoc = p.getLocation().subtract(p.getLocation().getDirection().multiply(0.7)).add(0, 0.2, 0);
+                    p.getWorld().spawnParticle(Particle.DUST, trailLoc, 3, 0.08, 0.08, 0.08, 0, new Particle.DustOptions(c, 1.8f));
+                    p.getWorld().spawnParticle(Particle.END_ROD, trailLoc, 1, 0.01, 0.01, 0.01, 0.01);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
     }
 
     /**
@@ -878,7 +1122,7 @@ public class StartEventManager implements Listener {
         if (!glidingPlayers.contains(event.getPlayer().getUniqueId())) return;
         Player player = event.getPlayer();
 
-        if (player.isOnGround()) {
+        if (player.isOnGround() || player.isInWater() || player.getLocation().getBlock().isLiquid()) {
             glidingPlayers.remove(player.getUniqueId());
 
             // Restore chestplate
@@ -890,10 +1134,16 @@ public class StartEventManager implements Listener {
             }
 
             player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_NETHERITE, 1.2f, 1.0f);
-            player.sendMessage(miniMessage.deserialize("<green>✦ Safely landed! Your gear has been restored. ✦</green>"));
+            player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_STEP, 1.4f, 1.2f);
+            player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation().add(0, 0.2, 0), 10, 0.3, 0.1, 0.3, 0.02);
+            player.sendMessage(miniMessage.deserialize("<green><bold>✦ Safely landed! Your gear has been restored. ✦</bold></green>"));
 
             if (glidingPlayers.isEmpty()) {
                 // All players have safely landed
+                if (glideTrailTask != null) {
+                    glideTrailTask.cancel();
+                    glideTrailTask = null;
+                }
                 this.state = EventState.IDLE;
             }
         }
@@ -921,6 +1171,10 @@ public class StartEventManager implements Listener {
             } else {
                 p.getInventory().setChestplate(null);
             }
+            if (glidingPlayers.isEmpty() && glideTrailTask != null) {
+                glideTrailTask.cancel();
+                glideTrailTask = null;
+            }
         }
     }
 
@@ -936,6 +1190,26 @@ public class StartEventManager implements Listener {
     }
 
     public void cleanupDisplays() {
+        if (continuousSoundscapeTask != null) {
+            continuousSoundscapeTask.cancel();
+            continuousSoundscapeTask = null;
+        }
+        if (glideTrailTask != null) {
+            glideTrailTask.cancel();
+            glideTrailTask = null;
+        }
+        if (readyAmbientTask != null) {
+            readyAmbientTask.cancel();
+            readyAmbientTask = null;
+        }
+        if (mainLoopTask != null) {
+            mainLoopTask.cancel();
+            mainLoopTask = null;
+        }
+        if (autoTimeoutTask != null) {
+            autoTimeoutTask.cancel();
+            autoTimeoutTask = null;
+        }
         for (ItemDisplay id : activeSoulDisplays) {
             if (id != null && id.isValid()) id.remove();
         }
