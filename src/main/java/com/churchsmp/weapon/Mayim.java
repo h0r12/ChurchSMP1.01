@@ -2,6 +2,7 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -250,6 +251,11 @@ public class Mayim extends LegendaryWeapon {
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
+        // Directional frost crescent blade arc
+        Vector swingDir = attacker.getEyeLocation().getDirection().normalize();
+        VFXUtil.drawSlashArc(attacker.getEyeLocation().add(swingDir.clone().multiply(0.5)), swingDir, 2.0, 115, 20,
+                Color.fromRGB(135, 206, 250), Color.fromRGB(240, 248, 255), 10.0f);
+
         // Finfuel: strength updates
         if (attacker.isInWater()) {
             attacker.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 60, 2, false, false)); // Strength III in water

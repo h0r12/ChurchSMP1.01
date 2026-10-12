@@ -2,6 +2,7 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -859,11 +860,9 @@ public class Grim extends LegendaryWeapon {
             Vector kb = e.getLocation().toVector().subtract(impact.toVector()).normalize().multiply(1.3).setY(0.45);
             e.setVelocity(kb);
 
-            // Visual Chains binding the target
+            // Visual Chains binding the target to impact crater
             e.getWorld().playSound(e.getLocation(), Sound.BLOCK_CHAIN_PLACE, 1.4f, 0.8f);
-            for (double h = 0.2; h <= 1.8; h += 0.6) {
-                e.getWorld().spawnParticle(Particle.ITEM, e.getLocation().add(0, h, 0), 1, 0.15, 0.05, 0.15, 0.01, chainItem);
-            }
+            VFXUtil.drawTetherChain(impact, e.getLocation().add(0, 1.0, 0), 12, Color.fromRGB(45, 45, 45), true, 0);
 
             // True Stun for 40 ticks (2 seconds)
             plugin.getStunManager().applyTrueStun(e, 40, "Dark Particle Air Slam");
@@ -906,6 +905,11 @@ public class Grim extends LegendaryWeapon {
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
+        // Directional grim crescent slash arc (dark emerald / deep wither purple)
+        Vector swingDir = attacker.getEyeLocation().getDirection().normalize();
+        VFXUtil.drawSlashArc(attacker.getEyeLocation().add(swingDir.clone().multiply(0.5)), swingDir, 2.2, 125, 24,
+                Color.fromRGB(0, 100, 0), Color.fromRGB(75, 0, 130), -20.0f);
+
         // HollowedOut execution
         if (Boolean.TRUE.equals(hollowedOutArmed.remove(attacker.getUniqueId()))) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 300, 0)); // 15s

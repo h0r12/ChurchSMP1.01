@@ -2,6 +2,7 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -96,21 +97,11 @@ public class Excalibur extends LegendaryWeapon {
                     return;
                 }
 
-                // Charging particles: rotating aura rings around waist & body (matching design)
-                Location center = player.getLocation().add(0, 0.9, 0);
-                double baseAngle = (ticks * 0.25);
-                double radius = 0.9 + (ticks / 200.0) * 0.5; // Expands slightly as power builds
-
-                Particle.DustOptions goldDust = new Particle.DustOptions(Color.fromRGB(255, 215, 0), 1.4f);
-                Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.2f);
-
-                for (int i = 0; i < 4; i++) {
-                    double a = baseAngle + (i * Math.PI / 2.0);
-                    double x = Math.cos(a) * radius;
-                    double z = Math.sin(a) * radius;
-                    center.getWorld().spawnParticle(Particle.DUST, center.clone().add(x, 0, z), 1, 0, 0, 0, 0, goldDust);
-                    center.getWorld().spawnParticle(Particle.DUST, center.clone().add(-x, 0.3 * Math.sin(a), -z), 1, 0, 0, 0, 0, whiteDust);
-                }
+                // Charging particles: rotating 3D gimbal gyroscope rings around body
+                Location center = player.getLocation().add(0, 1.0, 0);
+                double radius = 1.0 + (ticks / 200.0) * 0.4;
+                VFXUtil.drawGimbalRing(center, radius, 24, ticks * 0.08, Math.PI / 6.0, ticks * 0.04, Color.fromRGB(255, 215, 0), 1.4f);
+                VFXUtil.drawGimbalRing(center, radius + 0.2, 24, -ticks * 0.08, -Math.PI / 6.0, -ticks * 0.04, Color.fromRGB(255, 255, 255), 1.2f);
                 center.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, center.clone().add(0, 0.2, 0), 1, 0.15, 0.15, 0.15, 0.01);
                 center.getWorld().spawnParticle(Particle.END_ROD, center.clone().add(0, 0.3, 0), 0, 0, 1, 0, 0.08);
 
@@ -377,6 +368,11 @@ public class Excalibur extends LegendaryWeapon {
 
     @Override
     public void onHit(Player attacker, LivingEntity target, double damage) {
+        // Directional razor-sharp holy crescent slash arc
+        Vector swingDir = attacker.getEyeLocation().getDirection().normalize();
+        VFXUtil.drawSlashArc(attacker.getEyeLocation().add(swingDir.clone().multiply(0.5)), swingDir, 2.0, 110, 22,
+                Color.fromRGB(255, 215, 0), Color.fromRGB(255, 255, 255), 15.0f);
+
         // Hopeful: Every attack gives entity glowing; color based on alignment
         target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 100, 0, false, false));
         Alignment al = plugin.getAlignmentManager().getAlignment(attacker);

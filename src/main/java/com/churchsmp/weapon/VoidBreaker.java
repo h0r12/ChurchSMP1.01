@@ -2,6 +2,7 @@ package com.churchsmp.weapon;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.alignment.Alignment;
+import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -465,10 +466,7 @@ public class VoidBreaker extends LegendaryWeapon {
         world.playSound(loc, Sound.BLOCK_HEAVY_CORE_FALL, 2.0f, 0.5f);
         world.spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.0, 0), 1);
 
-        // Animated expanding shockwave rings
-        Particle.DustOptions crushDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(30, 30, 30), 3.0f);
-        Particle.DustOptions crushPurple = new Particle.DustOptions(org.bukkit.Color.fromRGB(75, 0, 130), 2.2f);
-
+        // Animated expanding shockwave crater
         new BukkitRunnable() {
             int frame = 0;
 
@@ -478,12 +476,8 @@ public class VoidBreaker extends LegendaryWeapon {
                     cancel();
                     return;
                 }
-                double radius = 2.0 + frame * 2.5;
-                for (int d = 0; d < 360; d += 10) {
-                    double rad = Math.toRadians(d);
-                    Location p = loc.clone().add(Math.cos(rad) * radius, 0.15, Math.sin(rad) * radius);
-                    world.spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, frame < 2 ? crushDark : crushPurple);
-                }
+                double radius = 2.0 + frame * 2.2;
+                VFXUtil.drawExpandingCraterShockwave(loc, radius, Color.fromRGB(30, 30, 30), Color.fromRGB(75, 0, 130), true);
                 frame++;
             }
         }.runTaskTimer(plugin, 0L, 3L);
@@ -589,21 +583,21 @@ public class VoidBreaker extends LegendaryWeapon {
         world.playSound(detonateLoc, Sound.BLOCK_ANVIL_LAND, 1.6f, 0.6f);
         world.spawnParticle(Particle.SONIC_BOOM, detonateLoc.clone().add(0, 0.5, 0), 1);
 
-        // === EXPANDING SHOCKWAVE RINGS ===
-        Particle.DustOptions shockDustDark = new Particle.DustOptions(org.bukkit.Color.fromRGB(30, 30, 30), 1.4f);
-        Particle.DustOptions shockDustLight = new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 1.2f);
+        // === EXPANDING CRATER SHOCKWAVE ===
+        new BukkitRunnable() {
+            int frame = 1;
 
-        for (double r = 1.0; r <= 4.5; r += 1.2) {
-            for (int d = 0; d < 360; d += 30) {
-                double rad = Math.toRadians(d);
-                Location p = detonateLoc.clone().add(Math.cos(rad) * r, 0.15, Math.sin(rad) * r);
-                world.spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, (r > 2.2) ? shockDustLight : shockDustDark);
+            @Override
+            public void run() {
+                if (frame > 4) {
+                    cancel();
+                    return;
+                }
+                double radius = frame * 1.25;
+                VFXUtil.drawExpandingCraterShockwave(detonateLoc, radius, Color.fromRGB(30, 30, 30), Color.fromRGB(200, 200, 200), true);
+                frame++;
             }
-        }
-
-        // Block debris
-        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.4, 0), 12, 0.35, 0.3, 0.35, 0.04, Material.GRAVEL.createBlockData());
-        world.spawnParticle(Particle.BLOCK, detonateLoc.clone().add(0, 0.4, 0), 8, 0.3, 0.25, 0.3, 0.03, Material.COBBLESTONE.createBlockData());
+        }.runTaskTimer(plugin, 0L, 2L);
 
         // === AOE DAMAGE ===
         double shockwaveDmg = 18.0;

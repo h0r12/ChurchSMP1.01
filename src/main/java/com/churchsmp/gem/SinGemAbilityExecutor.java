@@ -3,6 +3,7 @@ package com.churchsmp.gem;
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.util.CloneUtil;
 import com.churchsmp.util.TextUtil;
+import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -63,6 +64,7 @@ public class SinGemAbilityExecutor {
     private final Map<UUID, Double> delayedStasisAccumulated = new ConcurrentHashMap<>();
     private final Map<UUID, Long> delayedStasisEndTimes = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastSneakLMBTimes = new ConcurrentHashMap<>();
+    private final Set<UUID> floatingSlothTargets = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public SinGemAbilityExecutor(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -211,6 +213,15 @@ public class SinGemAbilityExecutor {
 
         switch (gem) {
             case WRATH -> {
+                // Kinetic Trigger: Sprint Attack -> Blood Rush
+                if (player.isSprinting()) {
+                    String key = "gem_wrath_rush";
+                    if (!plugin.getCooldownManager().isOnCooldown(player, key)) {
+                        plugin.getCooldownManager().setCooldown(player, key, 8);
+                        executeWrathBloodRush(player, target, event);
+                        return true;
+                    }
+                }
                 // Ability 2: Overdrive (LMB Attack | 60s CD) - Requires >= 2 Revenge Stacks
                 UUID uuid = player.getUniqueId();
                 int rev = revengeStacks.getOrDefault(uuid, 0);
@@ -221,6 +232,22 @@ public class SinGemAbilityExecutor {
                         revengeStacks.put(uuid, rev - 2);
                         activateOverdrive(player, target);
                         grantBloodlust(player);
+                        return true;
+                    }
+                }
+            }
+            case SLOTH -> {
+                UUID targetId = target.getUniqueId();
+                // Air hit on floating target -> Meteor Spike
+                if (floatingSlothTargets.contains(targetId) && (!player.isOnGround() || player.getFallDistance() > 0.05f)) {
+                    executeSlothMeteorSpike(player, target, event);
+                    return true;
+                } else if (!floatingSlothTargets.contains(targetId)) {
+                    // Ground hit -> Zero-G Float Suspension
+                    String key = "gem_sloth_float";
+                    if (!plugin.getCooldownManager().isOnCooldown(player, key)) {
+                        plugin.getCooldownManager().setCooldown(player, key, 10);
+                        executeSlothZeroGFloat(player, target);
                         return true;
                     }
                 }
@@ -495,6 +522,43 @@ public class SinGemAbilityExecutor {
         }
     }
 
+    private void executeWrathBloodRush(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
+        Vector dir = player.getEyeLocation().getDirection().normalize();
+        player.setVelocity(dir.clone().multiply(1.5).setY(0.12));
+
+        // Razor-sharp crescent blade arc in crimson and lava tones
+        VFXUtil.drawSlashArc(player.getEyeLocation().add(dir.clone().multiply(0.4)), dir, 2.2, 120, 24,
+                Color.fromRGB(180, 0, 0), Color.fromRGB(255, 69, 0), 20.0f);
+
+        // Ground scorch trail with lingering embers
+        Location from = player.getLocation();
+        Location to = target.getLocation();
+        VFXUtil.drawLine(from, to, Particle.FLAME, 0.4, null);
+        VFXUtil.drawLine(from.clone().add(0, 0.05, 0), to.clone().add(0, 0.05, 0), Particle.DUST, 0.4,
+                new Particle.DustOptions(Color.fromRGB(150, 0, 0), 1.4f));
+
+        // Bonus piercing impact and ignite
+        event.setDamage(event.getDamage() + 4.5);
+        target.setFireTicks(60);
+
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.2f, 0.8f);
+        player.playSound(player.getLocation(), Sound.ITEM_FIRECHARGE_USE, 1.0f, 1.2f);
+        player.sendMessage(miniMessage.deserialize("<red>✦ [BLOOD RUSH] <white>" + TextUtil.toSmallCaps("Piercing dash through " + target.getName() + "!") + " ✦</white></red>"));
+    }
+
+    public void executeWrathRetributionSpikes(Player victim, LivingEntity damager, double damage) {
+        double reflect = damage * 0.35;
+        damager.damage(reflect, victim);
+
+        // Dual vector spikes from victim to damager
+        Particle.DustOptions spikeDust = new Particle.DustOptions(Color.fromRGB(220, 20, 60), 1.6f);
+        VFXUtil.drawLine(victim.getEyeLocation(), damager.getEyeLocation(), Particle.DUST, 0.35, spikeDust);
+
+        damager.getWorld().playSound(damager.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1.0f, 1.6f);
+        damager.getWorld().playSound(damager.getLocation(), Sound.ENTITY_PLAYER_HURT, 0.8f, 0.8f);
+        victim.sendMessage(miniMessage.deserialize("<red>✦ [RETRIBUTION] <white>" + TextUtil.toSmallCaps("Reflected " + String.format(Locale.US, "%.1f", reflect) + " damage!") + " ✦</white></red>"));
+    }
+
     // -------------------------------------------------------------------------
     // 2. GREED IMPLEMENTATION & RITUAL INVENTORY
     // -------------------------------------------------------------------------
@@ -749,12 +813,7 @@ public class SinGemAbilityExecutor {
                         }
                         Location pLoc = player.getLocation().add(0, 1.2, 0);
                         Location tLoc = tetherTarget.getLocation().add(0, 1.2, 0);
-                        Vector line = tLoc.toVector().subtract(pLoc.toVector());
-                        int pts = 6;
-                        for (int i = 0; i <= pts; i++) {
-                            Location pt = pLoc.clone().add(line.clone().multiply((double) i / pts));
-                            pt.getWorld().spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(128, 0, 128), 1.0f));
-                        }
+                        VFXUtil.drawTetherChain(pLoc, tLoc, 16, Color.fromRGB(255, 215, 0), true, ticks / 10);
                         ticks -= 10;
                     }
                 }.runTaskTimer(plugin, 0L, 10L);
@@ -817,6 +876,9 @@ public class SinGemAbilityExecutor {
     }
 
     private void activateDevourBuff(Player player, LivingEntity target) {
+        Location mawLoc = (target != null) ? target.getLocation() : player.getLocation();
+        VFXUtil.drawExponentialTornado(mawLoc, 2.2, 3.0, 12, 10.0, true, Color.fromRGB(34, 139, 34), Color.fromRGB(0, 100, 0));
+
         if (target == null) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 200, 1, false, false));
             player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 200, 1, false, false));
@@ -864,9 +926,12 @@ public class SinGemAbilityExecutor {
                     return;
                 }
 
-                // Green acid puddle particles
+                // Green acid puddle particles with undulating sine wave shockwave
                 origin.getWorld().spawnParticle(Particle.DUST, origin, 5, 0.6, 0.05, 0.6, 0, new Particle.DustOptions(Color.fromRGB(50, 205, 50), 1.2f));
                 origin.getWorld().spawnParticle(Particle.ITEM_SLIME, origin, 2, 0.5, 0.05, 0.5, 0.01);
+                if (ticks % 8 == 0) {
+                    VFXUtil.drawUndulatingSineRing(origin, 2.2, 28, 4, 0.12, ticks * 0.2, Color.fromRGB(50, 205, 50), 1.3f);
+                }
 
                 if (ticks % 10 == 0) {
                     for (LivingEntity e : origin.getWorld().getNearbyLivingEntities(origin, 2.5)) {
@@ -1346,6 +1411,77 @@ public class SinGemAbilityExecutor {
         delayedStasisAccumulated.put(uuid, current + dmg);
     }
 
+    private void executeSlothZeroGFloat(Player player, LivingEntity target) {
+        floatingSlothTargets.add(target.getUniqueId());
+        target.setVelocity(new Vector(0, 0.48, 0));
+
+        player.playSound(target.getLocation(), Sound.BLOCK_BEACON_AMBIENT, 1.2f, 1.6f);
+        player.playSound(target.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.8f);
+        player.sendMessage(miniMessage.deserialize("<blue>✦ [ZERO-G SUSPENSION] <white>" + TextUtil.toSmallCaps("Floated " + target.getName() + "! Strike from the air to Meteor Spike!") + " ✦</white></blue>"));
+        if (target instanceof Player tp) {
+            tp.sendMessage(miniMessage.deserialize("<blue>✦ [ZERO-G] <white>" + TextUtil.toSmallCaps("Suspended in zero gravity!") + " ✦</white></blue>"));
+        }
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            @Override
+            public void run() {
+                ticks += 2;
+                if (ticks >= 50 || !target.isValid() || target.isDead() || !floatingSlothTargets.contains(target.getUniqueId())) {
+                    floatingSlothTargets.remove(target.getUniqueId());
+                    cancel();
+                    return;
+                }
+                // Hovering sway in air
+                target.setVelocity(new Vector(0, Math.sin(ticks * 0.25) * 0.04, 0));
+
+                // Undulating sine ring on the floor beneath target (Big Papi formula)
+                Location ground = target.getLocation().clone();
+                ground.setY(target.getWorld().getHighestBlockYAt(ground) + 0.08);
+                VFXUtil.drawUndulatingSineRing(ground, 1.8, 32, 4, 0.18, ticks * 0.15, Color.fromRGB(65, 105, 225), 1.5f);
+            }
+        }.runTaskTimer(plugin, 5L, 2L);
+    }
+
+    private void executeSlothMeteorSpike(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
+        floatingSlothTargets.remove(target.getUniqueId());
+
+        // Spike target downward violently
+        target.setVelocity(new Vector(0, -2.5, 0));
+
+        // Attacker bounce recoil
+        Vector pVel = player.getVelocity();
+        player.setVelocity(new Vector(pVel.getX(), 0.5, pVel.getZ()));
+
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.5f, 0.6f);
+        player.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.8f);
+        player.sendMessage(miniMessage.deserialize("<dark_blue>✦ [METEOR SPIKE] <aqua>" + TextUtil.toSmallCaps("Slammed " + target.getName() + " into the floor!") + " ✦</aqua></dark_blue>"));
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            @Override
+            public void run() {
+                ticks++;
+                if (ticks > 25 || !target.isValid() || target.isDead()) {
+                    cancel();
+                    return;
+                }
+                if (target.isOnGround() || ticks > 10) {
+                    Location impact = target.getLocation();
+                    impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 0.7f);
+                    impact.getWorld().playSound(impact, Sound.BLOCK_ANVIL_LAND, 1.8f, 0.5f);
+                    impact.getWorld().playSound(impact, Sound.BLOCK_HEAVY_CORE_FALL, 2.0f, 0.5f);
+
+                    // Expanding crater shockwave with stone debris chunks
+                    VFXUtil.drawExpandingCraterShockwave(impact, 2.8, Color.fromRGB(65, 105, 225), Color.fromRGB(25, 25, 112), true);
+                    target.damage(10.0, player);
+                    plugin.getStunManager().applyTrueStun(target, 30, "METEOR SPIKE");
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
     // -------------------------------------------------------------------------
     // COMBAT HOOKS & PASSIVE RESOLUTION
     // -------------------------------------------------------------------------
@@ -1406,11 +1542,14 @@ public class SinGemAbilityExecutor {
 
         if (gem == null) return;
 
-        // Wrath BloodPrice True Damage penalty
+        // Wrath BloodPrice True Damage penalty and Retribution Spikes
         if (gem == SinGemType.WRATH) {
             int align = plugin.getAlignmentManager().getAlignmentScore(player);
             if (align <= -50) {
                 event.setDamage(event.getDamage() * 1.10);
+            }
+            if (event instanceof EntityDamageByEntityEvent edbe && edbe.getDamager() instanceof LivingEntity damager && !damager.equals(player)) {
+                executeWrathRetributionSpikes(player, damager, event.getDamage());
             }
         }
 
