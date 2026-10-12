@@ -168,9 +168,9 @@ public class DoppelgangerManager {
 
         Doppelganger dg = new Doppelganger(fakeId, fakeUuid, fakeProfile, loc, angle, dist, owner.getUniqueId());
 
-        // Visible puppet ArmorStand with owner's exact player skin head, gear, and weapon
+        // Hitbox entity: Invisible ArmorStand (receives attacks, has NO equipment when ProtocolLib is active)
         ArmorStand as = owner.getWorld().spawn(loc, ArmorStand.class, a -> {
-            a.setVisible(false); // Frame hidden, equipped items & head are 100% visible!
+            a.setVisible(false);
             a.setArms(true);
             a.setBasePlate(false);
             a.setGravity(false);
@@ -185,8 +185,10 @@ public class DoppelgangerManager {
             var attr = a.getAttribute(Attribute.GENERIC_MAX_HEALTH);
             if (attr != null) attr.setBaseValue(1.0);
 
-            // Equips player's skin head, armor, and weapon
-            equipCloneStand(a, owner);
+            // Only equip items on the stand if ProtocolLib is NOT available (fallback puppet)
+            if (protocolManager == null) {
+                equipFallbackStand(a, owner);
+            }
         });
         dg.hitbox = as;
         hitboxMap.put(as.getEntityId(), dg);
@@ -375,8 +377,8 @@ public class DoppelgangerManager {
 
     // ─────────────────────────────── equipment helper ────────────────────────
 
-    private void equipCloneStand(ArmorStand stand, Player owner) {
-        // 1. Head / Helmet
+    private void equipFallbackStand(ArmorStand stand, Player owner) {
+        // 1. Head / Helmet: Player's actual helmet, or skin head if no helmet
         ItemStack helm = owner.getInventory().getHelmet();
         if (helm != null && helm.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.HEAD, helm.clone());
@@ -384,53 +386,45 @@ public class DoppelgangerManager {
             stand.setItem(EquipmentSlot.HEAD, createPlayerSkinHead(owner));
         }
 
-        // 2. Chestplate
+        // 2. Chestplate: Player's actual armor only (NO fake leather clothes)
         ItemStack cp = owner.getInventory().getChestplate();
         if (cp != null && cp.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.CHEST, cp.clone());
         } else {
-            ItemStack tunic = new ItemStack(Material.LEATHER_CHESTPLATE);
-            if (tunic.getItemMeta() instanceof LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(45, 52, 71));
-                tunic.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.CHEST, tunic);
+            stand.setItem(EquipmentSlot.CHEST, null);
         }
 
-        // 3. Leggings
+        // 3. Leggings: Player's actual armor only (NO fake leather clothes)
         ItemStack leg = owner.getInventory().getLeggings();
         if (leg != null && leg.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.LEGS, leg.clone());
         } else {
-            ItemStack pants = new ItemStack(Material.LEATHER_LEGGINGS);
-            if (pants.getItemMeta() instanceof LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(30, 35, 48));
-                pants.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.LEGS, pants);
+            stand.setItem(EquipmentSlot.LEGS, null);
         }
 
-        // 4. Boots
+        // 4. Boots: Player's actual armor only (NO fake leather clothes)
         ItemStack boots = owner.getInventory().getBoots();
         if (boots != null && boots.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.FEET, boots.clone());
         } else {
-            ItemStack bootItem = new ItemStack(Material.LEATHER_BOOTS);
-            if (bootItem.getItemMeta() instanceof LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(20, 24, 33));
-                bootItem.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.FEET, bootItem);
+            stand.setItem(EquipmentSlot.FEET, null);
         }
 
-        // 5. Main Hand & Off Hand
-        ItemStack mainHand = owner.getInventory().getItemInMainHand();
-        if (mainHand != null && mainHand.getType() != Material.AIR) {
-            stand.setItem(EquipmentSlot.HAND, mainHand.clone());
+        // 5. Main Hand: Sorrowess Trident!
+        ItemStack trident = null;
+        if (plugin.getWeaponManager() != null) {
+            var sorrowess = plugin.getWeaponManager().getWeapon("sorrowess");
+            if (sorrowess != null) trident = sorrowess.createItem();
         }
+        if (trident == null) trident = new ItemStack(Material.TRIDENT);
+        stand.setItem(EquipmentSlot.HAND, trident);
+
+        // 6. Off Hand: Same offhand item as owner!
         ItemStack offHand = owner.getInventory().getItemInOffHand();
         if (offHand != null && offHand.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.OFF_HAND, offHand.clone());
+        } else {
+            stand.setItem(EquipmentSlot.OFF_HAND, null);
         }
 
         // Natural posture
@@ -470,9 +464,13 @@ public class DoppelgangerManager {
 
             if (infoType != null) {
                 PacketContainer info = protocolManager.createPacket(infoType);
-                info.getPlayerInfoActions().write(0,
-                        EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER,
-                                   EnumWrappers.PlayerInfoAction.UPDATE_LISTED));
+                info.getPlayerInfoActions().write(0, EnumSet.of(
+                        EnumWrappers.PlayerInfoAction.ADD_PLAYER,
+                        EnumWrappers.PlayerInfoAction.UPDATE_GAME_MODE,
+                        EnumWrappers.PlayerInfoAction.UPDATE_LISTED,
+                        EnumWrappers.PlayerInfoAction.UPDATE_LATENCY,
+                        EnumWrappers.PlayerInfoAction.UPDATE_DISPLAY_NAME
+                ));
                 PlayerInfoData pid = new PlayerInfoData(
                         dg.fakeUUID, 0, false,
                         EnumWrappers.NativeGameMode.SURVIVAL,
@@ -496,19 +494,59 @@ public class DoppelgangerManager {
                     .write(1, angleByte(dg.currentLocation.getYaw()));
             protocolManager.sendServerPacket(viewer, spawn);
 
-            // ENTITY_EQUIPMENT — mirror owner's gear
+            // ENTITY_METADATA — Enable all skin layers (cape, jacket, left sleeve, right sleeve, left pants, right pants, hat)
+            try {
+                PacketContainer meta = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
+                meta.getIntegers().write(0, dg.fakeEntityId);
+                WrappedDataWatcher watcher = new WrappedDataWatcher();
+                WrappedDataWatcher.Serializer byteSerializer = WrappedDataWatcher.Registry.get(Byte.class);
+                // Index 17 is skin model parts in Minecraft 1.17 - 1.21 (0x7F = 127 enables ALL outer skin layers)
+                watcher.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSerializer), (byte) 0x7F);
+                if (meta.getDataValueCollectionModifier().size() > 0) {
+                    meta.getDataValueCollectionModifier().write(0, watcher.toDataValueList());
+                } else if (meta.getWatchableCollectionModifier().size() > 0) {
+                    meta.getWatchableCollectionModifier().write(0, watcher.getWatchableObjects());
+                }
+                protocolManager.sendServerPacket(viewer, meta);
+            } catch (Throwable t) {
+                plugin.getLogger().warning("[Doppelganger] Metadata packet notice: " + t.getMessage());
+            }
+
+            // ENTITY_EQUIPMENT — Sorrowess trident in mainhand, owner's offhand, owner's actual armor
             try {
                 PacketContainer equip = protocolManager.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
                 equip.getIntegers().write(0, dg.fakeEntityId);
+
+                ItemStack trident = null;
+                if (plugin.getWeaponManager() != null) {
+                    var sorrowess = plugin.getWeaponManager().getWeapon("sorrowess");
+                    if (sorrowess != null) trident = sorrowess.createItem();
+                }
+                if (trident == null) trident = new ItemStack(Material.TRIDENT);
+
+                ItemStack offHand = owner.getInventory().getItemInOffHand();
+                if (offHand == null) offHand = new ItemStack(Material.AIR);
+                ItemStack helm = owner.getInventory().getHelmet();
+                if (helm == null) helm = new ItemStack(Material.AIR);
+                ItemStack chest = owner.getInventory().getChestplate();
+                if (chest == null) chest = new ItemStack(Material.AIR);
+                ItemStack legs = owner.getInventory().getLeggings();
+                if (legs == null) legs = new ItemStack(Material.AIR);
+                ItemStack boots = owner.getInventory().getBoots();
+                if (boots == null) boots = new ItemStack(Material.AIR);
+
                 List<com.comphenix.protocol.wrappers.Pair<EnumWrappers.ItemSlot, org.bukkit.inventory.ItemStack>> gear = new ArrayList<>();
-                gear.add(pair(EnumWrappers.ItemSlot.MAINHAND, owner.getInventory().getItemInMainHand()));
-                gear.add(pair(EnumWrappers.ItemSlot.HEAD,     owner.getInventory().getHelmet()));
-                gear.add(pair(EnumWrappers.ItemSlot.CHEST,    owner.getInventory().getChestplate()));
-                gear.add(pair(EnumWrappers.ItemSlot.LEGS,     owner.getInventory().getLeggings()));
-                gear.add(pair(EnumWrappers.ItemSlot.FEET,     owner.getInventory().getBoots()));
+                gear.add(pair(EnumWrappers.ItemSlot.MAINHAND, trident));
+                gear.add(pair(EnumWrappers.ItemSlot.OFFHAND,  offHand));
+                gear.add(pair(EnumWrappers.ItemSlot.HEAD,     helm));
+                gear.add(pair(EnumWrappers.ItemSlot.CHEST,    chest));
+                gear.add(pair(EnumWrappers.ItemSlot.LEGS,     legs));
+                gear.add(pair(EnumWrappers.ItemSlot.FEET,     boots));
                 equip.getSlotStackPairLists().write(0, gear);
                 protocolManager.sendServerPacket(viewer, equip);
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                plugin.getLogger().warning("[Doppelganger] Equipment packet notice: " + t.getMessage());
+            }
 
             // Head rotation
             try {
@@ -517,8 +555,8 @@ public class DoppelgangerManager {
                 head.getBytes().write(0, angleByte(dg.currentLocation.getYaw()));
                 protocolManager.sendServerPacket(viewer, head);
             } catch (Throwable ignored) {}
-        } catch (Throwable ignored) {
-            // Physical puppet is already active and visible to all
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[Doppelganger] Failed to sendSpawn packet: " + t.getMessage());
         }
     }
 

@@ -496,44 +496,28 @@ public class CloneUtil {
             stand.setItem(EquipmentSlot.HEAD, createPlayerSkinHead(config.owner));
         }
 
-        // 2. Chestplate / Body
+        // 2. Chestplate: Player's actual armor only (NO fake leather clothes)
         ItemStack cp = (config.chestplateOverride != null) ? config.chestplateOverride : config.owner.getInventory().getChestplate();
         if (cp != null && cp.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.CHEST, cp.clone());
         } else {
-            // Visible clothing tunic fallback so body is not invisible empty air
-            ItemStack tunic = new ItemStack(Material.LEATHER_CHESTPLATE);
-            if (tunic.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(45, 52, 71));
-                tunic.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.CHEST, tunic);
+            stand.setItem(EquipmentSlot.CHEST, null);
         }
 
-        // 3. Leggings
+        // 3. Leggings: Player's actual armor only (NO fake leather clothes)
         ItemStack leg = (config.leggingsOverride != null) ? config.leggingsOverride : config.owner.getInventory().getLeggings();
         if (leg != null && leg.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.LEGS, leg.clone());
         } else {
-            ItemStack pants = new ItemStack(Material.LEATHER_LEGGINGS);
-            if (pants.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(30, 35, 45));
-                pants.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.LEGS, pants);
+            stand.setItem(EquipmentSlot.LEGS, null);
         }
 
-        // 4. Boots
+        // 4. Boots: Player's actual armor only (NO fake leather clothes)
         ItemStack boot = (config.bootsOverride != null) ? config.bootsOverride : config.owner.getInventory().getBoots();
         if (boot != null && boot.getType() != Material.AIR) {
             stand.setItem(EquipmentSlot.FEET, boot.clone());
         } else {
-            ItemStack leatherBoots = new ItemStack(Material.LEATHER_BOOTS);
-            if (leatherBoots.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(20, 20, 25));
-                leatherBoots.setItemMeta(lam);
-            }
-            stand.setItem(EquipmentSlot.FEET, leatherBoots);
+            stand.setItem(EquipmentSlot.FEET, null);
         }
 
         // 5. Main Hand & Off Hand
@@ -560,36 +544,21 @@ public class CloneUtil {
         if (cp != null && cp.getType() != Material.AIR) {
             entity.getEquipment().setChestplate(cp.clone());
         } else {
-            ItemStack tunic = new ItemStack(Material.LEATHER_CHESTPLATE);
-            if (tunic.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(45, 52, 71));
-                tunic.setItemMeta(lam);
-            }
-            entity.getEquipment().setChestplate(tunic);
+            entity.getEquipment().setChestplate(null);
         }
 
         ItemStack leg = (config.leggingsOverride != null) ? config.leggingsOverride : config.owner.getInventory().getLeggings();
         if (leg != null && leg.getType() != Material.AIR) {
             entity.getEquipment().setLeggings(leg.clone());
         } else {
-            ItemStack pants = new ItemStack(Material.LEATHER_LEGGINGS);
-            if (pants.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(30, 35, 45));
-                pants.setItemMeta(lam);
-            }
-            entity.getEquipment().setLeggings(pants);
+            entity.getEquipment().setLeggings(null);
         }
 
         ItemStack boot = (config.bootsOverride != null) ? config.bootsOverride : config.owner.getInventory().getBoots();
         if (boot != null && boot.getType() != Material.AIR) {
             entity.getEquipment().setBoots(boot.clone());
         } else {
-            ItemStack leatherBoots = new ItemStack(Material.LEATHER_BOOTS);
-            if (leatherBoots.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
-                lam.setColor(Color.fromRGB(20, 20, 25));
-                leatherBoots.setItemMeta(lam);
-            }
-            entity.getEquipment().setBoots(leatherBoots);
+            entity.getEquipment().setBoots(null);
         }
 
         ItemStack mh = (config.mainHandOverride != null) ? config.mainHandOverride : config.owner.getInventory().getItemInMainHand();

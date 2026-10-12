@@ -447,7 +447,7 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.displayName = null;
         cfg.showNameTag = false;
         cfg.hasArms = true;
-        cfg.forceSkinHead = true;
+        cfg.forceSkinHead = false;
         cfg.modelType = CloneUtil.CloneModelType.KINETIC;
         cfg.tagKey = cloneKey;
         cfg.tagValue = owner.getUniqueId().toString();
@@ -459,8 +459,8 @@ public class Sorrowess extends LegendaryWeapon {
         cfg.attackRange = 0; // NO ATTACKING
         cfg.attackDamage = 0;
         cfg.jumpCrit = false;
-        cfg.mainHandOverride = owner.getInventory().getItemInMainHand();
-        cfg.offHandOverride = null;
+        cfg.mainHandOverride = createItem(); // Sorrowess Trident in mainhand!
+        cfg.offHandOverride = owner.getInventory().getItemInOffHand(); // Same offhand item as owner!
         cfg.onTick = z -> {
             Location cLoc = z.getLocation();
             // Ghostly red particle trail at feet

@@ -207,6 +207,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         cfg.displayName = name;
         cfg.showNameTag = true;
         cfg.forceSkinHead = forceSkin;
+        cfg.offHandOverride = player.getInventory().getItemInOffHand();
         cfg.durationTicks = 12000; // 10 minutes test lifespan
         cfg.followOwner = false; // Stand still for easy inspection
         cfg.attackDamage = 0.0; // Don't hurt the player during inspection
