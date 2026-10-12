@@ -7,8 +7,10 @@ import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.PlayerInfoData;
+import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.comphenix.protocol.wrappers.WrappedGameProfile;
+import com.comphenix.protocol.wrappers.WrappedSignedProperty;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -162,7 +164,18 @@ public class DoppelgangerManager {
             if (protocolManager != null) {
                 WrappedGameProfile ownerProfile = WrappedGameProfile.fromPlayer(owner);
                 fakeProfile = new WrappedGameProfile(fakeUuid, owner.getName());
-                fakeProfile.getProperties().putAll(ownerProfile.getProperties());
+                if (ownerProfile != null && !ownerProfile.getProperties().isEmpty()) {
+                    fakeProfile.getProperties().putAll(ownerProfile.getProperties());
+                }
+                if (fakeProfile.getProperties().isEmpty()) {
+                    try {
+                        com.destroystokyo.paper.profile.PlayerProfile paperProf = owner.getPlayerProfile();
+                        for (com.destroystokyo.paper.profile.ProfileProperty prop : paperProf.getProperties()) {
+                            fakeProfile.getProperties().put(prop.getName(),
+                                    new WrappedSignedProperty(prop.getName(), prop.getValue(), prop.getSignature()));
+                        }
+                    } catch (Throwable ignoredPaper) {}
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -454,16 +467,9 @@ public class DoppelgangerManager {
     private void sendSpawn(Player viewer, Doppelganger dg, Player owner) {
         if (protocolManager == null) return;
         try {
-            // Modern ProtocolLib 5.3+ packet support (fail-safe)
-            PacketType infoType = null;
+            // Modern ProtocolLib 5.3+ PLAYER_INFO_UPDATE packet
             try {
-                infoType = PacketType.Play.Server.getInstance().values().stream()
-                        .filter(pt -> pt.name().equals("PLAYER_INFO_UPDATE"))
-                        .findFirst().orElse(null);
-            } catch (Throwable ignored) {}
-
-            if (infoType != null) {
-                PacketContainer info = protocolManager.createPacket(infoType);
+                PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO_UPDATE);
                 info.getPlayerInfoActions().write(0, EnumSet.of(
                         EnumWrappers.PlayerInfoAction.ADD_PLAYER,
                         EnumWrappers.PlayerInfoAction.UPDATE_GAME_MODE,
@@ -476,8 +482,12 @@ public class DoppelgangerManager {
                         EnumWrappers.NativeGameMode.SURVIVAL,
                         dg.profile, null
                 );
-                info.getPlayerInfoDataLists().write(0, List.of(pid));
+                if (info.getPlayerInfoDataLists().size() > 0) {
+                    info.getPlayerInfoDataLists().write(0, List.of(pid));
+                }
                 protocolManager.sendServerPacket(viewer, info);
+            } catch (Throwable t) {
+                plugin.getLogger().warning("[Doppelganger] PlayerInfoUpdate packet notice: " + t.getMessage());
             }
 
             // SPAWN_ENTITY (player type)
@@ -498,13 +508,14 @@ public class DoppelgangerManager {
             try {
                 PacketContainer meta = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
                 meta.getIntegers().write(0, dg.fakeEntityId);
-                WrappedDataWatcher watcher = new WrappedDataWatcher();
                 WrappedDataWatcher.Serializer byteSerializer = WrappedDataWatcher.Registry.get(Byte.class);
-                // Index 17 is skin model parts in Minecraft 1.17 - 1.21 (0x7F = 127 enables ALL outer skin layers)
-                watcher.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSerializer), (byte) 0x7F);
                 if (meta.getDataValueCollectionModifier().size() > 0) {
-                    meta.getDataValueCollectionModifier().write(0, watcher.toDataValueList());
+                    List<WrappedDataValue> dataValues = new ArrayList<>();
+                    dataValues.add(new WrappedDataValue(17, byteSerializer, (byte) 0x7F));
+                    meta.getDataValueCollectionModifier().write(0, dataValues);
                 } else if (meta.getWatchableCollectionModifier().size() > 0) {
+                    WrappedDataWatcher watcher = new WrappedDataWatcher();
+                    watcher.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(17, byteSerializer), (byte) 0x7F);
                     meta.getWatchableCollectionModifier().write(0, watcher.getWatchableObjects());
                 }
                 protocolManager.sendServerPacket(viewer, meta);
