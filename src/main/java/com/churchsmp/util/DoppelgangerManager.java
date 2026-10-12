@@ -467,9 +467,9 @@ public class DoppelgangerManager {
     private void sendSpawn(Player viewer, Doppelganger dg, Player owner) {
         if (protocolManager == null) return;
         try {
-            // Modern ProtocolLib 5.3+ PLAYER_INFO_UPDATE packet
+            // Modern ProtocolLib 5.3+ PLAYER_INFO packet (ClientboundPlayerInfoUpdatePacket)
             try {
-                PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO_UPDATE);
+                PacketContainer info = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO);
                 info.getPlayerInfoActions().write(0, EnumSet.of(
                         EnumWrappers.PlayerInfoAction.ADD_PLAYER,
                         EnumWrappers.PlayerInfoAction.UPDATE_GAME_MODE,
