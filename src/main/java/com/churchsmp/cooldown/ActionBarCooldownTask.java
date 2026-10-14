@@ -83,7 +83,8 @@ public class ActionBarCooldownTask extends BukkitRunnable {
 
                 // Skill 1 Status
                 String s1Key = gem.getPrimaryCooldownKey();
-                String s1Name = grad + "<bold>" + TextUtil.toSmallCaps(gem.getPrimaryAbilityName()) + "</bold></gradient>";
+                String s1Tag = (gem == SinGemType.SIN) ? "[Click] " : "";
+                String s1Name = grad + "<bold>" + s1Tag + TextUtil.toSmallCaps(gem.getPrimaryAbilityName()) + "</bold></gradient>";
                 String s1Status;
                 String customS1 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, false);
                 if (customS1 != null) {
@@ -100,7 +101,8 @@ public class ActionBarCooldownTask extends BukkitRunnable {
 
                 // Skill 2 Status
                 String s2Key = gem.getSecondaryCooldownKey();
-                String s2Name = grad + "<bold>" + TextUtil.toSmallCaps(gem.getSecondaryAbilityName()) + "</bold></gradient>";
+                String s2Tag = (gem == SinGemType.SIN) ? "[RMB] " : "";
+                String s2Name = grad + "<bold>" + s2Tag + TextUtil.toSmallCaps(gem.getSecondaryAbilityName()) + "</bold></gradient>";
                 String s2Status;
                 String customS2 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, true);
                 if (customS2 != null) {

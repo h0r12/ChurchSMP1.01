@@ -295,6 +295,9 @@ public class SinGemAbilityExecutor {
                     return true;
                 }
             }
+            case SIN -> {
+                return handleRustyBloodClick(player);
+            }
             default -> {}
         }
         return false;
@@ -363,8 +366,10 @@ public class SinGemAbilityExecutor {
                 return true;
             }
             case SIN -> {
-                // Skill 1: Rusty Blood (RMB | 35s CD)
-                handleRustyBloodClick(player);
+                // Skill 2: Veins of Flagitious (Right Click | 50s CD)
+                String key = "gem_sin_flagitious";
+                if (checkCooldown(player, key, 50)) return true;
+                activateVeinsOfFlagitious(player);
                 return true;
             }
             default -> { return false; }
@@ -652,7 +657,7 @@ public class SinGemAbilityExecutor {
                 case ENVY -> "gem_envy_mirror";
                 case PRIDE -> "gem_pride_charge";
                 case SLOTH -> "gem_sloth_echo";
-                case SIN -> "gem_sin_rusty_blood";
+                case SIN -> "gem_sin_flagitious";
             };
         } else {
             return switch (gem) {
@@ -671,9 +676,6 @@ public class SinGemAbilityExecutor {
     public boolean isGemAbilityOnCooldown(Player player, boolean sneak) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
-        if (!sneak && gem == SinGemType.SIN && hasRustyBloodRecast(player)) {
-            return false;
-        }
         String key = getGemAbilityCooldownKey(gem, sneak);
         return key != null && plugin.getCooldownManager().isOnCooldown(player, key);
     }
@@ -681,9 +683,6 @@ public class SinGemAbilityExecutor {
     public double getGemAbilityRemainingCooldown(Player player, boolean sneak) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return 0.0;
-        if (!sneak && gem == SinGemType.SIN && hasRustyBloodRecast(player)) {
-            return 0.0;
-        }
         String key = getGemAbilityCooldownKey(gem, sneak);
         if (key == null) return 0.0;
         return plugin.getCooldownManager().getRemainingCooldownSeconds(player, key);
@@ -1732,7 +1731,7 @@ public class SinGemAbilityExecutor {
         return null;
     }
 
-    private void handleRustyBloodClick(Player player) {
+    public boolean handleRustyBloodClick(Player player) {
         if (hasRustyBloodRecast(player)) {
             // Recast: Slam if target is above player / airborne; Drill Cyclone if grounded
             UUID victimId = sinRustyBloodTethers.get(player.getUniqueId());
@@ -1740,20 +1739,22 @@ public class SinGemAbilityExecutor {
             if (!(ent instanceof LivingEntity victim) || !victim.isValid() || victim.isDead()) {
                 clearRustyBloodTether(player);
                 player.sendMessage(miniMessage.deserialize("<red>✦ Tethered victim was lost or slain! ✦</red>"));
-                return;
+                return true;
             }
 
-            boolean isAirborne = (victim.getLocation().getY() - player.getLocation().getY() >= 2.5) || isFlagitiousAirborne(victimId);
+            boolean isAirborne = (victim.getLocation().getY() - player.getLocation().getY() >= 2.0) || isFlagitiousAirborne(victimId);
             if (isAirborne) {
                 executeRustyBloodAerialSlam(player, victim);
             } else {
                 executeRustyBloodDrillCyclone(player, victim);
             }
+            return true;
         } else {
             // Initial throw: 35s CD
             String key = "gem_sin_rusty_blood";
-            if (checkCooldown(player, key, 35)) return;
+            if (checkCooldown(player, key, 35)) return true;
             executeRustyBloodThrow(player);
+            return true;
         }
     }
 
@@ -1764,12 +1765,12 @@ public class SinGemAbilityExecutor {
         // Check if there is an airborne combo victim for 100% lock-on hit
         LivingEntity comboTarget = findAirborneComboTarget(player, 35.0);
         if (comboTarget != null) {
-            // 100% Lock-on guaranteed hit!
+            // 100% Lock-on guaranteed hit! Condition met -> INSTANT Aerial Slam (no double press)!
             player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1.4f, 1.8f);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.2f, 0.6f);
-            player.sendMessage(miniMessage.deserialize("<gold><bold>✦ [100% COMBO LOCK-ON]</bold></gold> <yellow>Chains locked onto airborne victim! Press RMB again to slam!</yellow>"));
+            player.sendMessage(miniMessage.deserialize("<gold><bold>✦ [100% COMBO LOCK-ON]</bold></gold> <yellow>Chains locked onto airborne victim! Instantly executing Aerial Crater Slam!</yellow>"));
             VFXUtil.drawRedBlockChain(eye, comboTarget.getLocation().add(0, 1.0, 0), 16, true, 0);
-            startRustyBloodSiphon(player, comboTarget);
+            executeRustyBloodAerialSlam(player, comboTarget);
             return;
         }
 
@@ -1835,9 +1836,19 @@ public class SinGemAbilityExecutor {
                     target.getWorld().playSound(target.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.0f, 1.4f);
                     target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 25, 0.3, 0.3, 0.3, Material.REDSTONE_BLOCK.createBlockData());
                     target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.RED_CONCRETE.createBlockData());
-                    player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [RUSTY BLOOD]</bold></dark_red> <red>Chain latched! Siphoning health (6s). Press RMB again to Drill or Slam!</red>"));
 
-                    startRustyBloodSiphon(player, target);
+                    // Check if slam condition is met: target above player or marked/airborne -> Instant Slam!
+                    boolean isSlam = (target.getLocation().getY() - player.getLocation().getY() >= 2.0)
+                            || isFlagitiousAirborne(target.getUniqueId())
+                            || isFlagitiousMarked(target.getUniqueId());
+
+                    if (isSlam) {
+                        player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [RUSTY BLOOD SLAM]</bold></dark_red> <red>Airborne condition met! Instantly executing Aerial Crater Slam!</red>"));
+                        executeRustyBloodAerialSlam(player, target);
+                    } else {
+                        player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [RUSTY BLOOD]</bold></dark_red> <red>Chain latched! Siphoning health (6s). Click again to Drill!</red>"));
+                        startRustyBloodSiphon(player, target);
+                    }
                     return;
                 }
 
@@ -2192,7 +2203,7 @@ public class SinGemAbilityExecutor {
                     // Flash and thunder sound ascending with the bolt
                     if (boltTick % 3 == 0) {
                         Location soundPt = groundLoc.clone().add(0, currY, 0);
-                        soundPt.getWorld().spawnParticle(Particle.FLASH, soundPt, 1);
+                        soundPt.getWorld().spawnParticle(Particle.FLASH, soundPt, 1, Color.RED);
                         soundPt.getWorld().playSound(soundPt, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 1.2f + (boltTick * 0.05f));
                         soundPt.getWorld().playSound(soundPt, Sound.ITEM_TRIDENT_THUNDER, 1.6f, 0.9f + (boltTick * 0.06f));
                     }

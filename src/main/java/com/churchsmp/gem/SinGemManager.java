@@ -64,22 +64,22 @@ public class SinGemManager {
                         .deserialize("<gray>• At < 4 HP (2 hearts): Instant CD reset & 2x clocking rate.</gray>"));
                 lore.add(Component.empty());
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gold><bold>✦ Skill 1 [RMB]:</bold></gold> <yellow><bold>Rusty Blood</bold></yellow> <gray>(35s CD)</gray>"));
+                        .deserialize("<gold><bold>✦ Skill 1 [Click / LMB]:</bold></gold> <yellow><bold>Rusty Blood</bold></yellow> <gray>(35s CD)</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Throws rotating redstone block with physical link chain.</gray>"));
+                        .deserialize("<gray>• Throws rotating redstone block with physical red block chain.</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Siphons life; recast to drill through shields (3 true hearts).</gray>"));
+                        .deserialize("<gray>• Airborne/Combo targets: Instantly trigger Aerial Slam (no double press)!</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Airborne targets: Aerial grapple slam into crater shockwave (6 true hearts)!</gray>"));
+                        .deserialize("<gray>• Ground targets: Siphons life; click again to drill through shields (3 true hearts).</gray>"));
                 lore.add(Component.empty());
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gold><bold>✦ Skill 2 [Shift + RMB]:</bold></gold> <yellow><bold>Veins of Flagitious</bold></yellow> <gray>(50s CD)</gray>"));
+                        .deserialize("<gold><bold>✦ Skill 2 [Right Click / RMB]:</bold></gold> <yellow><bold>Veins of Flagitious</bold></yellow> <gray>(50s CD)</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
                         .deserialize("<gray>• Dissolve into void. Steer a heavy crimson core with cursor (8m/s).</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
                         .deserialize("<gray>• Marked victims are struck by reverse red lightning (40m fling)!</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Sets up 100% lock-on Aerial Slam combo!</gray>"));
+                        .deserialize("<gray>• Sets up 100% lock-on instant 6 true hearts Aerial Slam!</gray>"));
             } else {
                 lore.add(Component.text("Sin Relic: ", NamedTextColor.GRAY)
                         .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));

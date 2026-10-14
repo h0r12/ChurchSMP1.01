@@ -248,6 +248,15 @@ public class InputListener implements Listener {
         if (player.isSneaking()) {
             if (plugin.getGemAbilityExecutor().handleSneakLMB(player)) {
                 event.setCancelled(true);
+                return;
+            }
+        }
+
+        // SIN Gem: Click (Left Click) to throw / recast Rusty Blood
+        com.churchsmp.gem.SinGemType gem = plugin.getGemAbilityExecutor().getEffectiveGem(player);
+        if (gem == com.churchsmp.gem.SinGemType.SIN) {
+            if (plugin.getGemAbilityExecutor().handleRustyBloodClick(player)) {
+                event.setCancelled(true);
             }
         }
     }
