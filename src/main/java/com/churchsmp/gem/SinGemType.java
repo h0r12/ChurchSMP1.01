@@ -58,10 +58,72 @@ public enum SinGemType {
         return description;
     }
 
+    // Palette for SIN: Black -> Charcoal -> Dark Slate -> Silver -> Dark Slate -> Charcoal -> Black
+    private static final int[][] SIN_PALETTE = {
+            { 10, 10, 10 },    // #0A0A0A
+            { 45, 45, 45 },    // #2D2D2D
+            { 80, 80, 80 },    // #505050
+            { 130, 130, 130 }, // #828282
+            { 190, 190, 190 }, // #BEBEBE
+            { 130, 130, 130 }, // #828282
+            { 80, 80, 80 },    // #505050
+            { 45, 45, 45 }     // #2D2D2D
+    };
+
+    // Palette for Gem: Pure White -> Ivory -> Pale Gold -> Brilliant Gold -> Deep Amber -> Brilliant Gold -> Pale Gold -> Ivory
+    private static final int[][] GEM_PALETTE = {
+            { 255, 255, 255 }, // #FFFFFF
+            { 255, 248, 225 }, // #FFF8E1
+            { 255, 235, 128 }, // #FFE480
+            { 255, 215, 0 },   // #FFD700
+            { 255, 179, 0 },   // #FFB300
+            { 255, 215, 0 },   // #FFD700
+            { 255, 235, 128 }, // #FFE480
+            { 255, 248, 225 }  // #FFF8E1
+    };
+
+    public static String getSinColorHex(double phase) {
+        return interpolatePalette(SIN_PALETTE, phase);
+    }
+
+    public static String getGemColorHex(double phase) {
+        return interpolatePalette(GEM_PALETTE, phase);
+    }
+
+    private static String interpolatePalette(int[][] palette, double phase) {
+        int n = palette.length;
+        double p = (phase % n + n) % n;
+        int idx = (int) p;
+        int next = (idx + 1) % n;
+        double frac = p - idx;
+
+        int r = (int) Math.round(palette[idx][0] + (palette[next][0] - palette[idx][0]) * frac);
+        int g = (int) Math.round(palette[idx][1] + (palette[next][1] - palette[idx][1]) * frac);
+        int b = (int) Math.round(palette[idx][2] + (palette[next][2] - palette[idx][2]) * frac);
+
+        return String.format("#%02X%02X%02X", r, g, b);
+    }
+
+    public static String getAnimatedSinGemMiniMessage(long tick) {
+        double t = tick * 0.15;
+        String s1 = getSinColorHex(t);
+        String s2 = getSinColorHex(t + 1.2);
+        String s3 = getSinColorHex(t + 2.4);
+
+        String g1 = getGemColorHex(t);
+        String g2 = getGemColorHex(t + 1.2);
+        String g3 = getGemColorHex(t + 2.4);
+
+        return "<bold><gradient:" + s1 + ":" + s2 + ":" + s3 + ">SIN</gradient></bold> <gradient:" + g1 + ":" + g2 + ":" + g3 + ">Gem</gradient>";
+    }
+
+    public static Component getAnimatedSinGemName(long tick) {
+        return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(getAnimatedSinGemMiniMessage(tick));
+    }
+
     public Component getFormattedName() {
         if (this == SIN) {
-            return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                    .deserialize("<bold><gradient:#000000:#434343:#888888>SIN</gradient></bold> <gradient:#FFFFFF:#FFF8DC:#FFD700>Gem</gradient>");
+            return getAnimatedSinGemName(System.currentTimeMillis() / 100);
         }
         return Component.text("Relic Gem of " + displayName, color).decorate(TextDecoration.BOLD);
     }
@@ -129,5 +191,16 @@ public enum SinGemType {
             case SLOTH -> "<gradient:#4169E1:#4682B4>";
             case SIN -> "<gradient:#000000:#DC2626:#FFD700>";
         };
+    }
+
+    public String getDynamicThemeGradientTag(long tick) {
+        if (this == SIN) {
+            double t = tick * 0.15;
+            String c1 = getSinColorHex(t);
+            String c2 = "#DC2626";
+            String c3 = getGemColorHex(t + 1.5);
+            return "<gradient:" + c1 + ":" + c2 + ":" + c3 + ">";
+        }
+        return getThemeGradientTag();
     }
 }

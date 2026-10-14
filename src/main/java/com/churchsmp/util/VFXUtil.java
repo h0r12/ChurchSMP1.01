@@ -60,6 +60,34 @@ public final class VFXUtil {
     }
 
     /**
+     * Physical red block chain made of redstone block & red concrete particles.
+     * Renders parabolic catenary sag with 3D block texture crumbs and electrical sparks.
+     */
+    public static void drawRedBlockChain(Location from, Location to, int links, boolean sparkPulse, int sparkIndex) {
+        if (from == null || to == null || from.getWorld() == null || links <= 1) return;
+        World world = from.getWorld();
+        Vector diff = to.toVector().subtract(from.toVector());
+        BlockData redstone = Material.REDSTONE_BLOCK.createBlockData();
+        BlockData concrete = Material.RED_CONCRETE.createBlockData();
+        Particle.DustOptions glowDust = new Particle.DustOptions(Color.fromRGB(240, 20, 20), 1.2f);
+
+        for (int i = 0; i <= links; i++) {
+            double frac = (double) i / links;
+            double sag = -Math.sin(frac * Math.PI) * 0.40;
+            Location pt = from.clone().add(diff.clone().multiply(frac)).add(0, sag, 0);
+
+            BlockData linkData = (i % 2 == 0) ? redstone : concrete;
+            world.spawnParticle(Particle.BLOCK, pt, 4, 0.05, 0.05, 0.05, 0.0, linkData);
+            world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, glowDust);
+
+            if (sparkPulse && (i == sparkIndex % (links + 1))) {
+                world.spawnParticle(Particle.ELECTRIC_SPARK, pt, 2, 0.05, 0.05, 0.05, 0.02);
+                world.spawnParticle(Particle.CRIMSON_SPORE, pt, 2, 0.05, 0.05, 0.05, 0.02);
+            }
+        }
+    }
+
+    /**
      * Directional razor-sharp crescent slash arc matching player swing view angle.
      * Generates a 120° dual-tone particle curve projected in front of the caster.
      */

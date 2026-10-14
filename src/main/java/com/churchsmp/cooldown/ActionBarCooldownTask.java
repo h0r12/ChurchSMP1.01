@@ -9,6 +9,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Locale;
@@ -17,6 +18,7 @@ public class ActionBarCooldownTask extends BukkitRunnable {
 
     private final ChurchSMP plugin;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
+    private long tick = 0;
 
     public ActionBarCooldownTask(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -24,6 +26,7 @@ public class ActionBarCooldownTask extends BukkitRunnable {
 
     @Override
     public void run() {
+        tick++;
         // "action bar cooldown to weapons theme color with READY! to white with small caps"
         final String readyStr = "<white><bold>ʀᴇᴀᴅʏ!</bold></white>";
 
@@ -76,7 +79,7 @@ public class ActionBarCooldownTask extends BukkitRunnable {
             // Gem Action Bar Cooldown when holding an attuned / effective gem in hand
             SinGemType gem = plugin.getGemAbilityExecutor().getEffectiveGem(player);
             if (gem != null) {
-                String grad = gem.getThemeGradientTag();
+                String grad = (gem == SinGemType.SIN) ? gem.getDynamicThemeGradientTag(tick) : gem.getThemeGradientTag();
 
                 // Skill 1 Status
                 String s1Key = gem.getPrimaryCooldownKey();
@@ -112,8 +115,21 @@ public class ActionBarCooldownTask extends BukkitRunnable {
                     s2Status = readyStr;
                 }
 
-                String formatted = "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
+                String prefix = (gem == SinGemType.SIN) ? (SinGemType.getAnimatedSinGemMiniMessage(tick) + " <dark_gray>| ") : "";
+                String formatted = prefix + "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
                 player.sendActionBar(miniMessage.deserialize(formatted));
+
+                // Periodically update the held SIN gem's display name to cycle smoothly in hand/inventory
+                if (gem == SinGemType.SIN && tick % 15 == 0) {
+                    ItemStack held = player.getInventory().getItemInMainHand();
+                    if (plugin.getSinGemManager().getGemType(held) == SinGemType.SIN) {
+                        ItemMeta meta = held.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(SinGemType.getAnimatedSinGemName(tick));
+                            held.setItemMeta(meta);
+                        }
+                    }
+                }
             }
         }
     }

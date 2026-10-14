@@ -2,6 +2,7 @@ package com.churchsmp.gem;
 
 import com.churchsmp.ChurchSMP;
 import com.churchsmp.util.CloneUtil;
+import com.churchsmp.util.RedChain;
 import com.churchsmp.util.TextUtil;
 import com.churchsmp.util.VFXUtil;
 import net.kyori.adventure.text.Component;
@@ -76,6 +77,7 @@ public class SinGemAbilityExecutor {
     private final Map<UUID, UUID> sinRustyBloodTethers = new ConcurrentHashMap<>(); // Caster UUID -> Victim UUID
     private final Map<UUID, Long> sinRustyBloodTetherExpires = new ConcurrentHashMap<>(); // Caster UUID -> Expire Timestamp
     private final Map<UUID, BukkitRunnable> sinRustyBloodSiphonTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, RedChain> sinRustyBloodDisplayChains = new ConcurrentHashMap<>();
     private final Map<UUID, Long> flagitiousMarkedEntities = new ConcurrentHashMap<>(); // Victim UUID -> Mark Expire Timestamp
     private final Map<UUID, Long> flagitiousAirborneComboTargets = new ConcurrentHashMap<>(); // Victim UUID -> Airborne Combo Expire Timestamp
     private final Set<UUID> flagitiousCasters = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -1687,6 +1689,10 @@ public class SinGemAbilityExecutor {
         if (task != null) {
             try { task.cancel(); } catch (Throwable ignored) {}
         }
+        RedChain chain = sinRustyBloodDisplayChains.remove(uuid);
+        if (chain != null) {
+            chain.remove();
+        }
     }
 
     public boolean isFlagitiousMarked(UUID victimId) {
@@ -1762,7 +1768,7 @@ public class SinGemAbilityExecutor {
             player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1.4f, 1.8f);
             player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.2f, 0.6f);
             player.sendMessage(miniMessage.deserialize("<gold><bold>✦ [100% COMBO LOCK-ON]</bold></gold> <yellow>Chains locked onto airborne victim! Press RMB again to slam!</yellow>"));
-            VFXUtil.drawTetherChain(eye, comboTarget.getLocation().add(0, 1.0, 0), 16, Color.fromRGB(220, 20, 20), true, 0);
+            VFXUtil.drawRedBlockChain(eye, comboTarget.getLocation().add(0, 1.0, 0), 16, true, 0);
             startRustyBloodSiphon(player, comboTarget);
             return;
         }
@@ -1811,9 +1817,9 @@ public class SinGemAbilityExecutor {
                     blockDisplay.teleport(currentLoc);
                 }
 
-                // Render physical link chain from player to projectile
+                // Render physical red block particle link chain from player to projectile
                 Location handLoc = player.getEyeLocation().add(0, -0.3, 0);
-                VFXUtil.drawTetherChain(handLoc, currentLoc, 10, Color.fromRGB(180, 0, 0), true, step);
+                VFXUtil.drawRedBlockChain(handLoc, currentLoc, 12, true, step);
 
                 // Rotating redstone aura particles
                 player.getWorld().spawnParticle(Particle.DUST, currentLoc, 4, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.4f));
@@ -1827,7 +1833,8 @@ public class SinGemAbilityExecutor {
 
                     target.getWorld().playSound(target.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.4f, 0.8f);
                     target.getWorld().playSound(target.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.0f, 1.4f);
-                    target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 20, 0.3, 0.3, 0.3, Material.REDSTONE_BLOCK.createBlockData());
+                    target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 25, 0.3, 0.3, 0.3, Material.REDSTONE_BLOCK.createBlockData());
+                    target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 15, 0.3, 0.3, 0.3, Material.RED_CONCRETE.createBlockData());
                     player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [RUSTY BLOOD]</bold></dark_red> <red>Chain latched! Siphoning health (6s). Press RMB again to Drill or Slam!</red>"));
 
                     startRustyBloodSiphon(player, target);
@@ -1852,6 +1859,12 @@ public class SinGemAbilityExecutor {
         long expireTime = System.currentTimeMillis() + 6000L;
         sinRustyBloodTetherExpires.put(pId, expireTime);
 
+        // Spawn physical 3D RedChain block links
+        Location handInit = player.getEyeLocation().add(0, -0.3, 0);
+        RedChain displayChain = new RedChain(handInit, 12);
+        displayChain.update(handInit, victim.getLocation().add(0, 1.0, 0));
+        sinRustyBloodDisplayChains.put(pId, displayChain);
+
         BukkitRunnable siphonTask = new BukkitRunnable() {
             int tick = 0;
             @Override
@@ -1872,10 +1885,9 @@ public class SinGemAbilityExecutor {
                     return;
                 }
 
-                // Physical red particle link chain
-                if (tick % 2 == 0) {
-                    VFXUtil.drawTetherChain(pLoc, vLoc, 12, Color.fromRGB(180, 0, 0), true, tick / 2);
-                }
+                // Update physical 3D block links and red block particle chain
+                displayChain.update(pLoc, vLoc);
+                VFXUtil.drawRedBlockChain(pLoc, vLoc, 14, true, tick);
 
                 // Drains health every second (20 ticks) for 6s
                 if (tick % 20 == 0) {
@@ -1883,6 +1895,7 @@ public class SinGemAbilityExecutor {
                     player.setHealth(Math.min(player.getMaxHealth(), player.getHealth() + 1.0));
                     player.getWorld().playSound(pLoc, Sound.ENTITY_GENERIC_DRINK, 0.6f, 1.5f);
                     victim.getWorld().playSound(vLoc, Sound.ENTITY_PLAYER_HURT, 0.6f, 0.8f);
+                    VFXUtil.drawLine(vLoc, pLoc, Particle.BLOCK, 0.8, Material.REDSTONE_BLOCK.createBlockData());
                     VFXUtil.drawLine(vLoc, pLoc, Particle.DUST, 0.6, new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.2f));
                 }
             }
@@ -2014,16 +2027,20 @@ public class SinGemAbilityExecutor {
         UUID uuid = player.getUniqueId();
         flagitiousCasters.add(uuid);
 
+        boolean wasFlying = player.isFlying();
+        boolean wasAllowFlight = player.getAllowFlight();
+        player.setAllowFlight(true);
+        player.setFlying(true);
+
         // Invisibility & equipment hide
         player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 85, 0, false, false, false));
         broadcastEquipmentMask(player, true);
 
-        Location coreLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(1.5));
         Set<UUID> caughtVictims = new HashSet<>();
 
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.8f, 1.6f);
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 0.5f);
-        player.sendTitle("§4§lVEINS OF FLAGITIOUS", "§cSteer the Crimson Core • Accelerating (8m/s)", 5, 20, 10);
+        player.sendTitle("§4§lVEINS OF FLAGITIOUS", "§cSteer the Crimson Void • 8 blocks/sec", 5, 20, 10);
 
         new BukkitRunnable() {
             int tick = 0;
@@ -2032,49 +2049,57 @@ public class SinGemAbilityExecutor {
                 tick++;
                 if (tick > 80 || !player.isOnline()) { // 4.0 seconds (80 ticks)
                     cancel();
+                    if (player.isOnline()) {
+                        player.setFlying(wasFlying && wasAllowFlight);
+                        player.setAllowFlight(wasAllowFlight);
+                    }
                     finishVeinsOfFlagitious(player, caughtVictims);
                     return;
                 }
 
-                // Acceleration from 0.10 to 0.40 blocks/tick (8 blocks/sec)
-                double speed = 0.10 + (tick * (0.30 / 80.0));
+                // Genuine 8 blocks/second = 0.40 blocks/tick in look direction
+                double speed = 0.40;
                 Vector dir = player.getEyeLocation().getDirection().normalize();
-                coreLoc.add(dir.clone().multiply(speed));
 
-                // Gently glide player along with the core
-                player.setVelocity(dir.clone().multiply(speed * 0.75));
+                // Move player smoothly at 8 blocks/s without drag friction
+                player.setVelocity(dir.clone().multiply(speed));
 
-                // Dark red core center
-                player.getWorld().spawnParticle(Particle.DUST, coreLoc, 6, 0.12, 0.12, 0.12, new Particle.DustOptions(Color.fromRGB(150, 0, 0), 2.2f));
-                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, coreLoc, 4, 0.2, 0.2, 0.2, 0.05);
-                player.getWorld().spawnParticle(Particle.PORTAL, coreLoc, 3, 0.1, 0.1, 0.1, 0.2);
+                Location coreLoc = player.getEyeLocation().add(dir.clone().multiply(0.4));
 
-                // 2 Orbiting white orbs
-                double theta = tick * 0.35;
+                // Dark red core center (the player's visible particle body)
+                player.getWorld().spawnParticle(Particle.DUST, coreLoc, 8, 0.2, 0.2, 0.2, new Particle.DustOptions(Color.fromRGB(160, 0, 0), 2.5f));
+                player.getWorld().spawnParticle(Particle.BLOCK, coreLoc, 4, 0.15, 0.15, 0.15, 0.0, Material.REDSTONE_BLOCK.createBlockData());
+                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, coreLoc, 6, 0.25, 0.25, 0.25, 0.05);
+                player.getWorld().spawnParticle(Particle.PORTAL, coreLoc, 5, 0.2, 0.2, 0.2, 0.3);
+
+                // 2 Orbiting bright white orbs revolving around player
+                double theta = tick * 0.4;
                 for (int o = 0; o < 2; o++) {
                     double oAngle = theta + (o * Math.PI);
-                    Location orbLoc = coreLoc.clone().add(Math.cos(oAngle) * 0.85, Math.sin(oAngle * 2.0) * 0.25, Math.sin(oAngle) * 0.85);
-                    player.getWorld().spawnParticle(Particle.END_ROD, orbLoc, 1, 0, 0, 0, 0.01);
-                    player.getWorld().spawnParticle(Particle.DUST, orbLoc, 2, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.5f));
+                    Location orbLoc = coreLoc.clone().add(Math.cos(oAngle) * 0.9, Math.sin(oAngle * 1.5) * 0.35, Math.sin(oAngle) * 0.9);
+                    player.getWorld().spawnParticle(Particle.END_ROD, orbLoc, 2, 0.02, 0.02, 0.02, 0.01);
+                    player.getWorld().spawnParticle(Particle.DUST, orbLoc, 3, 0.05, 0.05, 0.05, new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f));
                 }
 
-                // Trailing void/crimson smoke behind core
-                Vector back = dir.clone().multiply(-0.4);
+                // Trailing void/crimson smoke stream behind player
+                Vector back = dir.clone().multiply(-0.6);
                 Location trailLoc = coreLoc.clone().add(back);
-                player.getWorld().spawnParticle(Particle.SQUID_INK, trailLoc, 2, 0.05, 0.05, 0.05, 0.02);
-                player.getWorld().spawnParticle(Particle.DUST, trailLoc, 3, 0.1, 0.1, 0.1, new Particle.DustOptions(Color.fromRGB(60, 0, 0), 1.4f));
+                player.getWorld().spawnParticle(Particle.SQUID_INK, trailLoc, 3, 0.1, 0.1, 0.1, 0.02);
+                player.getWorld().spawnParticle(Particle.DUST, trailLoc, 4, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(50, 0, 0), 1.6f));
 
-                if (tick % 10 == 0) {
+                if (tick % 8 == 0) {
                     player.getWorld().playSound(coreLoc, Sound.BLOCK_BEACON_AMBIENT, 0.6f, 1.8f);
+                    player.getWorld().playSound(coreLoc, Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 0.7f);
                 }
 
-                // Check for caught entities
-                for (LivingEntity entity : player.getWorld().getNearbyLivingEntities(coreLoc, 2.5)) {
+                // Check for caught entities within 3.0 blocks
+                for (LivingEntity entity : player.getWorld().getNearbyLivingEntities(coreLoc, 3.0)) {
                     if (entity.equals(player) || caughtVictims.contains(entity.getUniqueId())) continue;
                     caughtVictims.add(entity.getUniqueId());
                     flagitiousMarkedEntities.put(entity.getUniqueId(), System.currentTimeMillis() + 10000L);
 
-                    entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.9f);
+                    entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.2f, 1.9f);
+                    entity.getWorld().spawnParticle(Particle.BLOCK, entity.getLocation().add(0, 1.0, 0), 25, 0.4, 0.4, 0.4, Material.REDSTONE_BLOCK.createBlockData());
                     entity.getWorld().spawnParticle(Particle.CRIMSON_SPORE, entity.getLocation().add(0, 1.0, 0), 20, 0.4, 0.4, 0.4, 0.1);
                     player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [VEINS OF FLAGITIOUS]</bold></dark_red> <red>Ensnared </red><white>" + entity.getName() + "</white><red>! Marked for Reverse Lightning launch!</red>"));
                     if (entity instanceof Player pVictim) {
@@ -2091,34 +2116,88 @@ public class SinGemAbilityExecutor {
 
         if (!player.isOnline()) return;
 
-        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.2f);
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.6f, 1.2f);
 
         for (UUID victimId : caughtVictims) {
             Entity ent = Bukkit.getEntity(victimId);
             if (!(ent instanceof LivingEntity victim) || !victim.isValid() || victim.isDead()) continue;
 
-            Location vLoc = victim.getLocation();
+            Location groundLoc = victim.getLocation().clone();
 
-            // Reverse red particle lightning bolt shooting upward from ground to Y+50!
-            for (int y = 0; y <= 50; y++) {
-                Location boltPt = vLoc.clone().add(0, y, 0);
-                victim.getWorld().spawnParticle(Particle.DUST, boltPt, 3, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(255, 20, 20), 2.2f));
-                if (y % 2 == 0) {
-                    victim.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, boltPt, 1, 0.1, 0.1, 0.1, 0.02);
-                }
-            }
-            victim.getWorld().playSound(vLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.8f, 1.5f);
-            victim.getWorld().playSound(vLoc, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 0.7f);
-
-            // Explode as shockwave 1 dmg
+            // 1. Initial ground seal detonation & shockwave 1 damage
             dealTrueDamage(victim, 1.0, player);
-            victim.getWorld().spawnParticle(Particle.EXPLOSION, vLoc.clone().add(0, 1.0, 0), 2, 0.3, 0.3, 0.3, 0);
+            groundLoc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, groundLoc, 1);
+            groundLoc.getWorld().spawnParticle(Particle.BLOCK, groundLoc.clone().add(0, 0.5, 0), 40, 1.0, 0.3, 1.0, Material.REDSTONE_BLOCK.createBlockData());
+            groundLoc.getWorld().playSound(groundLoc, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 2.0f, 0.7f);
+            groundLoc.getWorld().playSound(groundLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 1.8f);
 
-            // Flung upward 40 blocks (Y velocity ~2.65)
-            victim.setVelocity(new Vector(0, 2.65, 0));
+            // 2. Fling victim upward 40 blocks (Y velocity ~2.70 gives ~40 blocks apex)
+            victim.setVelocity(new Vector(0, 2.70, 0));
 
             // Mark as airborne combo target for 6 seconds
             flagitiousAirborneComboTargets.put(victimId, System.currentTimeMillis() + 6000L);
+
+            // 3. Ascending Reverse Lightning Bolt Task over 14 ticks
+            new BukkitRunnable() {
+                int boltTick = 0;
+                final double totalHeight = 42.0;
+
+                @Override
+                public void run() {
+                    boltTick++;
+                    if (boltTick > 14 || !victim.isValid()) {
+                        cancel();
+                        // Apex burst when bolt finishes
+                        Location apexLoc = groundLoc.clone().add(0, totalHeight, 0);
+                        apexLoc.getWorld().spawnParticle(Particle.EXPLOSION, apexLoc, 3, 0.5, 0.5, 0.5, 0.1);
+                        apexLoc.getWorld().spawnParticle(Particle.BLOCK, apexLoc, 30, 0.8, 0.8, 0.8, Material.REDSTONE_BLOCK.createBlockData());
+                        apexLoc.getWorld().playSound(apexLoc, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 0.9f);
+                        return;
+                    }
+
+                    double prevY = (boltTick - 1) * (totalHeight / 14.0);
+                    double currY = boltTick * (totalHeight / 14.0);
+
+                    // Draw jagged ascending lightning column from prevY to currY
+                    for (double y = prevY; y <= currY; y += 0.45) {
+                        double jx = (random.nextDouble() - 0.5) * 0.9;
+                        double jz = (random.nextDouble() - 0.5) * 0.9;
+                        Location boltPt = groundLoc.clone().add(jx, y, jz);
+
+                        // Dense glowing red lightning bolt particles
+                        boltPt.getWorld().spawnParticle(Particle.DUST, boltPt, 3, 0.12, 0.12, 0.12, new Particle.DustOptions(Color.fromRGB(255, 10, 30), 2.4f));
+                        boltPt.getWorld().spawnParticle(Particle.BLOCK, boltPt, 2, 0.08, 0.08, 0.08, Material.REDSTONE_BLOCK.createBlockData());
+                        boltPt.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, boltPt, 2, 0.1, 0.1, 0.1, 0.04);
+
+                        // Horizontal branching mini-bolts
+                        if (random.nextDouble() < 0.25) {
+                            Vector bDir = new Vector((random.nextDouble() - 0.5) * 1.8, (random.nextDouble() - 0.2) * 0.6, (random.nextDouble() - 0.5) * 1.8);
+                            for (double b = 0.3; b <= 1.8; b += 0.4) {
+                                Location bPt = boltPt.clone().add(bDir.clone().multiply(b));
+                                bPt.getWorld().spawnParticle(Particle.DUST, bPt, 1, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(220, 0, 0), 1.6f));
+                                bPt.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bPt, 1, 0, 0, 0, 0.02);
+                            }
+                        }
+                    }
+
+                    // Helix of crimson electricity around ascending victim
+                    Location vCurr = victim.getLocation();
+                    for (int h = 0; h < 2; h++) {
+                        double a = (boltTick * 0.9) + (h * Math.PI);
+                        Location hPt = vCurr.clone().add(Math.cos(a) * 0.9, 0.8, Math.sin(a) * 0.9);
+                        vCurr.getWorld().spawnParticle(Particle.DUST, hPt, 2, 0.05, 0.05, 0.05, new Particle.DustOptions(Color.fromRGB(255, 60, 60), 1.8f));
+                        vCurr.getWorld().spawnParticle(Particle.CRIMSON_SPORE, hPt, 2, 0.05, 0.05, 0.05, 0.02);
+                    }
+
+                    // Flash and thunder sound ascending with the bolt
+                    if (boltTick % 3 == 0) {
+                        Location soundPt = groundLoc.clone().add(0, currY, 0);
+                        soundPt.getWorld().spawnParticle(Particle.FLASH, soundPt, 1);
+                        soundPt.getWorld().playSound(soundPt, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 1.2f + (boltTick * 0.05f));
+                        soundPt.getWorld().playSound(soundPt, Sound.ITEM_TRIDENT_THUNDER, 1.6f, 0.9f + (boltTick * 0.06f));
+                    }
+                }
+            }.runTaskTimer(plugin, 1L, 1L);
         }
 
         if (!caughtVictims.isEmpty()) {
