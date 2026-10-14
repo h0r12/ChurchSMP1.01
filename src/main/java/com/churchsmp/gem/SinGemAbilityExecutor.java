@@ -1952,6 +1952,17 @@ public class SinGemAbilityExecutor {
 
                     // 1. Crater shockwave rings (3 expanding tiers)
                     VFXUtil.drawExpandingCraterShockwave(impact, 4.5, Color.fromRGB(180, 0, 0), Color.fromRGB(60, 0, 0), true);
+
+                    // Radial ground fractal fissures (Screenshots 1 & 2)
+                    for (int f = 0; f < 6; f++) {
+                        double fAngle = (2 * Math.PI / 6) * f + (Math.random() - 0.5) * 0.2;
+                        Vector fDir = new Vector(Math.cos(fAngle), 0.05, Math.sin(fAngle));
+                        VFXUtil.drawFractalLightningTree(impact.clone().add(0, 0.1, 0), fDir, 4.2, 2, 28.0, Color.fromRGB(240, 20, 20), 1.1f);
+                    }
+
+                    // Expanding upward slash spiral ribbon from the epicenter (Screenshot 4)
+                    VFXUtil.drawCrispSpiralRibbon(impact.clone().add(0, 0.3, 0), new Vector(0, 1, 0), 0.5, 4.0, 0, Math.PI * 2.0, 3, Color.fromRGB(255, 255, 255), 1.1f);
+
                     impact.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, impact, 1);
                     impact.getWorld().spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 40, 1.0, 0.5, 1.0, Material.REDSTONE_BLOCK.createBlockData());
                     impact.getWorld().spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 25, 0.8, 0.5, 0.8, Material.NETHERITE_BLOCK.createBlockData());
@@ -1999,14 +2010,27 @@ public class SinGemAbilityExecutor {
                 }
 
                 Location pLoc = player.getLocation().add(0, 1.0, 0);
-                // Drill helix particles around player
-                for (int h = 0; h < 2; h++) {
-                    double angle = (t * 0.8) + (h * Math.PI);
-                    Location pPt = pLoc.clone().add(Math.cos(angle) * 0.8, Math.sin(angle) * 0.8, 0);
-                    player.getWorld().spawnParticle(Particle.DUST, pPt, 3, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(200, 20, 20), 1.8f));
-                    player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, pPt, 2, 0.1, 0.1, 0.1, 0.05);
+
+                // 1. Razor-Sharp White Spiral Slash Ribbon swirling perpendicular to dash (Screenshot 4)
+                double ribbonAngle = t * 0.85;
+                VFXUtil.drawCrispSpiralRibbon(pLoc, dir, 0.4, 1.6, ribbonAngle, Math.PI * 1.8, 3, Color.fromRGB(255, 255, 255), 1.1f);
+                VFXUtil.drawCrispSpiralRibbon(pLoc, dir, 0.3, 1.3, ribbonAngle + Math.PI, Math.PI * 1.5, 2, Color.fromRGB(240, 20, 20), 1.2f);
+
+                // 2. Conical Blood Drill Streamlines piercing forward ahead of player
+                Vector ortho1 = VFXUtil.getPerpendicularVector(dir);
+                Vector ortho2 = dir.clone().crossProduct(ortho1).normalize();
+                for (int strand = 0; strand < 3; strand++) {
+                    double strandBase = ribbonAngle + (strand * 2.0 * Math.PI / 3.0);
+                    for (double d = 0.4; d <= 2.2; d += 0.25) {
+                        double coneFrac = (2.4 - d) / 2.0; // tapers to tip
+                        double sa = strandBase + (d * 1.6);
+                        Vector coneOffset = ortho1.clone().multiply(Math.cos(sa) * coneFrac * 0.65)
+                                .add(ortho2.clone().multiply(Math.sin(sa) * coneFrac * 0.65));
+                        Location conePt = pLoc.clone().add(dir.clone().multiply(d)).add(coneOffset);
+                        player.getWorld().spawnParticle(Particle.DUST, conePt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 10, 20), 1.4f));
+                    }
                 }
-                player.getWorld().spawnParticle(Particle.SWEEP_ATTACK, pLoc, 1, 0.2, 0.2, 0.2, 0);
+                player.getWorld().spawnParticle(Particle.SWEEP_ATTACK, pLoc.clone().add(dir.clone().multiply(1.2)), 1, 0, 0, 0, 0);
 
                 // Pierce through enemies
                 for (LivingEntity target : player.getWorld().getNearbyLivingEntities(pLoc, 2.4)) {
@@ -2078,25 +2102,28 @@ public class SinGemAbilityExecutor {
                 Location coreLoc = player.getEyeLocation().add(dir.clone().multiply(0.4));
 
                 // Dark red core center (the player's visible particle body)
-                player.getWorld().spawnParticle(Particle.DUST, coreLoc, 8, 0.2, 0.2, 0.2, new Particle.DustOptions(Color.fromRGB(160, 0, 0), 2.5f));
-                player.getWorld().spawnParticle(Particle.BLOCK, coreLoc, 4, 0.15, 0.15, 0.15, 0.0, Material.REDSTONE_BLOCK.createBlockData());
-                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, coreLoc, 6, 0.25, 0.25, 0.25, 0.05);
-                player.getWorld().spawnParticle(Particle.PORTAL, coreLoc, 5, 0.2, 0.2, 0.2, 0.3);
+                player.getWorld().spawnParticle(Particle.DUST, coreLoc, 2, 0.04, 0.04, 0.04, new Particle.DustOptions(Color.fromRGB(160, 0, 0), 2.2f));
+                player.getWorld().spawnParticle(Particle.BLOCK, coreLoc, 2, 0.04, 0.04, 0.04, 0.0, Material.REDSTONE_BLOCK.createBlockData());
+                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, coreLoc, 3, 0.08, 0.08, 0.08, 0.02);
 
-                // 2 Orbiting bright white orbs revolving around player
+                // Razor-Sharp White Spiral Slash Ribbon swirling around the core (Screenshot 4)
+                double ribbonAngle = tick * 0.45;
+                VFXUtil.drawCrispSpiralRibbon(coreLoc, dir, 0.35, 1.25, ribbonAngle, Math.PI * 1.6, 3, Color.fromRGB(255, 255, 255), 1.0f);
+
+                // 2 Orbiting bright white orbs revolving around player with zero scatter
                 double theta = tick * 0.4;
                 for (int o = 0; o < 2; o++) {
                     double oAngle = theta + (o * Math.PI);
                     Location orbLoc = coreLoc.clone().add(Math.cos(oAngle) * 0.9, Math.sin(oAngle * 1.5) * 0.35, Math.sin(oAngle) * 0.9);
-                    player.getWorld().spawnParticle(Particle.END_ROD, orbLoc, 2, 0.02, 0.02, 0.02, 0.01);
-                    player.getWorld().spawnParticle(Particle.DUST, orbLoc, 3, 0.05, 0.05, 0.05, new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f));
+                    player.getWorld().spawnParticle(Particle.END_ROD, orbLoc, 1, 0, 0, 0, 0.005);
+                    player.getWorld().spawnParticle(Particle.DUST, orbLoc, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.6f));
                 }
 
-                // Trailing void/crimson smoke stream behind player
+                // Trailing void/crimson streamline behind player
                 Vector back = dir.clone().multiply(-0.6);
                 Location trailLoc = coreLoc.clone().add(back);
-                player.getWorld().spawnParticle(Particle.SQUID_INK, trailLoc, 3, 0.1, 0.1, 0.1, 0.02);
-                player.getWorld().spawnParticle(Particle.DUST, trailLoc, 4, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(50, 0, 0), 1.6f));
+                player.getWorld().spawnParticle(Particle.DUST, trailLoc, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(40, 0, 0), 1.4f));
+                player.getWorld().spawnParticle(Particle.SQUID_INK, trailLoc, 1, 0, 0, 0, 0.01);
 
                 if (tick % 8 == 0) {
                     player.getWorld().playSound(coreLoc, Sound.BLOCK_BEACON_AMBIENT, 0.6f, 1.8f);
@@ -2138,9 +2165,11 @@ public class SinGemAbilityExecutor {
             // 1. Initial ground seal detonation & shockwave 1 damage
             dealTrueDamage(victim, 1.0, player);
             groundLoc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, groundLoc, 1);
-            groundLoc.getWorld().spawnParticle(Particle.BLOCK, groundLoc.clone().add(0, 0.5, 0), 40, 1.0, 0.3, 1.0, Material.REDSTONE_BLOCK.createBlockData());
             groundLoc.getWorld().playSound(groundLoc, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 2.0f, 0.7f);
             groundLoc.getWorld().playSound(groundLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 1.8f);
+
+            // Hyperbolic Parametric Streamline Canopy (Screenshot 3) blooming from the ground!
+            VFXUtil.drawParametricCanopy(groundLoc, 0.75, 5.5, 5.0, 22, Math.toRadians(140), Color.fromRGB(240, 20, 20), Color.fromRGB(40, 0, 0), 1.2f);
 
             // 2. Fling victim upward 40 blocks (Y velocity ~2.70 gives ~40 blocks apex)
             victim.setVelocity(new Vector(0, 2.70, 0));
@@ -2158,46 +2187,45 @@ public class SinGemAbilityExecutor {
                     boltTick++;
                     if (boltTick > 14 || !victim.isValid()) {
                         cancel();
-                        // Apex burst when bolt finishes
+                        // Apex burst: Radial Starburst Lightning Discharge (Screenshots 1 & 2)!
                         Location apexLoc = groundLoc.clone().add(0, totalHeight, 0);
-                        apexLoc.getWorld().spawnParticle(Particle.EXPLOSION, apexLoc, 3, 0.5, 0.5, 0.5, 0.1);
-                        apexLoc.getWorld().spawnParticle(Particle.BLOCK, apexLoc, 30, 0.8, 0.8, 0.8, Material.REDSTONE_BLOCK.createBlockData());
+                        VFXUtil.drawRadialLightningBurst(apexLoc, 12, 12.0, Color.fromRGB(255, 255, 255), 1.1f);
+                        VFXUtil.drawRadialLightningBurst(apexLoc, 6, 7.5, Color.fromRGB(255, 40, 50), 0.9f);
+
+                        apexLoc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, apexLoc, 1);
+                        apexLoc.getWorld().spawnParticle(Particle.BLOCK, apexLoc, 25, 0.4, 0.4, 0.4, Material.REDSTONE_BLOCK.createBlockData());
                         apexLoc.getWorld().playSound(apexLoc, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 0.9f);
+                        apexLoc.getWorld().playSound(apexLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.5f, 0.8f);
                         return;
                     }
 
                     double prevY = (boltTick - 1) * (totalHeight / 14.0);
                     double currY = boltTick * (totalHeight / 14.0);
+                    double ySpan = currY - prevY;
 
-                    // Draw jagged ascending lightning column from prevY to currY
-                    for (double y = prevY; y <= currY; y += 0.45) {
-                        double jx = (random.nextDouble() - 0.5) * 0.9;
-                        double jz = (random.nextDouble() - 0.5) * 0.9;
-                        Location boltPt = groundLoc.clone().add(jx, y, jz);
+                    // Continuous rising twin helix column (Screenshots 1 & 3)
+                    int subSteps = (int) (ySpan * 6.0);
+                    for (int s = 0; s <= subSteps; s++) {
+                        double y = prevY + (s / (double) subSteps) * ySpan;
+                        double a1 = y * 0.75 + (boltTick * 0.4);
+                        double a2 = a1 + Math.PI;
 
-                        // Dense glowing red lightning bolt particles
-                        boltPt.getWorld().spawnParticle(Particle.DUST, boltPt, 3, 0.12, 0.12, 0.12, new Particle.DustOptions(Color.fromRGB(255, 10, 30), 2.4f));
-                        boltPt.getWorld().spawnParticle(Particle.BLOCK, boltPt, 2, 0.08, 0.08, 0.08, Material.REDSTONE_BLOCK.createBlockData());
-                        boltPt.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, boltPt, 2, 0.1, 0.1, 0.1, 0.04);
+                        Location h1 = groundLoc.clone().add(Math.cos(a1) * 0.45, y, Math.sin(a1) * 0.45);
+                        Location h2 = groundLoc.clone().add(Math.cos(a2) * 0.45, y, Math.sin(a2) * 0.45);
 
-                        // Horizontal branching mini-bolts
-                        if (random.nextDouble() < 0.25) {
-                            Vector bDir = new Vector((random.nextDouble() - 0.5) * 1.8, (random.nextDouble() - 0.2) * 0.6, (random.nextDouble() - 0.5) * 1.8);
-                            for (double b = 0.3; b <= 1.8; b += 0.4) {
-                                Location bPt = boltPt.clone().add(bDir.clone().multiply(b));
-                                bPt.getWorld().spawnParticle(Particle.DUST, bPt, 1, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(220, 0, 0), 1.6f));
-                                bPt.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bPt, 1, 0, 0, 0, 0.02);
-                            }
+                        groundLoc.getWorld().spawnParticle(Particle.DUST, h1, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 30, 40), 1.6f));
+                        groundLoc.getWorld().spawnParticle(Particle.DUST, h2, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(200, 10, 20), 1.4f));
+
+                        if (s % 4 == 0) {
+                            groundLoc.getWorld().spawnParticle(Particle.BLOCK, h1, 1, 0, 0, 0, 0, Material.REDSTONE_BLOCK.createBlockData());
                         }
                     }
 
-                    // Helix of crimson electricity around ascending victim
-                    Location vCurr = victim.getLocation();
-                    for (int h = 0; h < 2; h++) {
-                        double a = (boltTick * 0.9) + (h * Math.PI);
-                        Location hPt = vCurr.clone().add(Math.cos(a) * 0.9, 0.8, Math.sin(a) * 0.9);
-                        vCurr.getWorld().spawnParticle(Particle.DUST, hPt, 2, 0.05, 0.05, 0.05, new Particle.DustOptions(Color.fromRGB(255, 60, 60), 1.8f));
-                        vCurr.getWorld().spawnParticle(Particle.CRIMSON_SPORE, hPt, 2, 0.05, 0.05, 0.05, 0.02);
+                    // Lateral branching fractal lightning mini-arcs (Screenshots 1 & 2)
+                    if (boltTick % 2 == 0) {
+                        Location branchLoc = groundLoc.clone().add(0, currY, 0);
+                        Vector bDir = new Vector((random.nextDouble() - 0.5) * 2.0, (random.nextDouble() - 0.2) * 0.8, (random.nextDouble() - 0.5) * 2.0).normalize();
+                        VFXUtil.drawFractalLightningTree(branchLoc, bDir, 3.2, 2, 35.0, Color.fromRGB(255, 245, 245), 1.0f);
                     }
 
                     // Flash and thunder sound ascending with the bolt
