@@ -38,6 +38,14 @@ public class FallenEffectManager {
      * - Thick orbiting soul sand & dark particles
      */
     public void applyFallen(LivingEntity target) {
+        if (target instanceof Player player && plugin.getSinGemManager() != null && plugin.getSinGemManager().isHoldingGem(player, com.churchsmp.gem.SinGemType.SIN)) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(PotionEffectType.STRENGTH, 100, 2, false, false, true));
+            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.8f, 1.8f);
+            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                    .deserialize("<dark_red><bold>☠ [BLOODFEAST]</bold></dark_red> <red>Total Immunity! Transmuted </red><dark_purple><bold>FALLEN</bold></dark_purple> <red>into </red><gold><bold>STRENGTH III</bold></gold><red> for 5s!</red>"));
+            return;
+        }
+
         long expireAt = System.currentTimeMillis() + 5000L;
         activeFallen.put(target.getUniqueId(), expireAt);
 

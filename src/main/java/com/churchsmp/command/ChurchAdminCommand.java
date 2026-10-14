@@ -118,7 +118,7 @@ public class ChurchAdminCommand implements CommandExecutor, TabCompleter {
                     target.getInventory().addItem(plugin.getSinGemManager().createGemItem(gem));
                     sender.sendMessage(Component.text("Gave ", NamedTextColor.GREEN).append(gem.getFormattedName()).append(Component.text(" to " + target.getName())));
                 } catch (IllegalArgumentException e) {
-                    sender.sendMessage(Component.text("Invalid gem! Choose from: Wrath, Greed, Gluttony, Lust, Envy, Pride, Sloth", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Invalid gem! Choose from: Wrath, Greed, Gluttony, Lust, Envy, Pride, Sloth, Sin", NamedTextColor.RED));
                 }
             }
             case "menu" -> {

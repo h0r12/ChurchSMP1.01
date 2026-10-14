@@ -247,6 +247,28 @@ public class PlayerListener implements Listener {
     public void onPotionEffect(org.bukkit.event.entity.EntityPotionEffectEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
+        // Bloodfeast Passive: SIN Gem holder is totally immune to negative effects; converts them into Strength III for same duration!
+        if (plugin.getSinGemManager() != null && plugin.getSinGemManager().isHoldingGem(player, com.churchsmp.gem.SinGemType.SIN)) {
+            org.bukkit.potion.PotionEffect effect = event.getNewEffect();
+            org.bukkit.potion.PotionEffectType type = event.getModifiedType();
+            if (isHarmfulEffect(type)) {
+                event.setCancelled(true);
+                int duration = (effect != null && effect.getDuration() > 0) ? Math.min(effect.getDuration(), 72000) : 120;
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline()) {
+                        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                                org.bukkit.potion.PotionEffectType.STRENGTH, duration, 2, false, false, true
+                        ));
+                        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 0.7f, 1.6f);
+                        player.getWorld().spawnParticle(org.bukkit.Particle.CRIMSON_SPORE, player.getLocation().add(0, 1.2, 0), 15, 0.3, 0.5, 0.3, 0.05);
+                        player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                                .deserialize("<dark_red><bold>☠ [BLOODFEAST]</bold></dark_red> <red>Debuff absorbed into </red><gold><bold>STRENGTH III</bold></gold><red>!</red>"));
+                    }
+                });
+                return;
+            }
+        }
+
         // Dark Resilience: Depraved players (score <= -50) are immune to Darkness & Wither
         if (plugin.getAlignmentManager().hasDarkResilience(player)) {
             org.bukkit.potion.PotionEffectType type = event.getModifiedType();
@@ -313,6 +335,27 @@ public class PlayerListener implements Listener {
                 }
             }
         }, 40L, 40L);
+    }
+
+    private boolean isHarmfulEffect(org.bukkit.potion.PotionEffectType type) {
+        if (type == null) return false;
+        try {
+            return type.getCategory() == org.bukkit.potion.PotionEffectTypeCategory.HARMFUL;
+        } catch (Throwable ignored) {
+            return type == org.bukkit.potion.PotionEffectType.SLOWNESS
+                    || type == org.bukkit.potion.PotionEffectType.MINING_FATIGUE
+                    || type == org.bukkit.potion.PotionEffectType.INSTANT_DAMAGE
+                    || type == org.bukkit.potion.PotionEffectType.NAUSEA
+                    || type == org.bukkit.potion.PotionEffectType.BLINDNESS
+                    || type == org.bukkit.potion.PotionEffectType.HUNGER
+                    || type == org.bukkit.potion.PotionEffectType.WEAKNESS
+                    || type == org.bukkit.potion.PotionEffectType.POISON
+                    || type == org.bukkit.potion.PotionEffectType.WITHER
+                    || type == org.bukkit.potion.PotionEffectType.LEVITATION
+                    || type == org.bukkit.potion.PotionEffectType.UNLUCK
+                    || type == org.bukkit.potion.PotionEffectType.BAD_OMEN
+                    || type == org.bukkit.potion.PotionEffectType.DARKNESS;
+        }
     }
 }
 

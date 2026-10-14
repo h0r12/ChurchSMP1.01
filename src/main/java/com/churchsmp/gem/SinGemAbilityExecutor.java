@@ -22,6 +22,11 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.ProtocolManager;
+import com.comphenix.protocol.events.PacketContainer;
+import com.comphenix.protocol.wrappers.EnumWrappers;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +70,15 @@ public class SinGemAbilityExecutor {
     private final Map<UUID, Long> delayedStasisEndTimes = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastSneakLMBTimes = new ConcurrentHashMap<>();
     private final Set<UUID> floatingSlothTargets = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    // SIN (Mythic Gem) state
+    private final Map<UUID, Long> bloodfeastResetCooldowns = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> sinRustyBloodTethers = new ConcurrentHashMap<>(); // Caster UUID -> Victim UUID
+    private final Map<UUID, Long> sinRustyBloodTetherExpires = new ConcurrentHashMap<>(); // Caster UUID -> Expire Timestamp
+    private final Map<UUID, BukkitRunnable> sinRustyBloodSiphonTasks = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> flagitiousMarkedEntities = new ConcurrentHashMap<>(); // Victim UUID -> Mark Expire Timestamp
+    private final Map<UUID, Long> flagitiousAirborneComboTargets = new ConcurrentHashMap<>(); // Victim UUID -> Airborne Combo Expire Timestamp
+    private final Set<UUID> flagitiousCasters = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public SinGemAbilityExecutor(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -346,6 +360,11 @@ public class SinGemAbilityExecutor {
                 activateTemporalEcho(player);
                 return true;
             }
+            case SIN -> {
+                // Skill 1: Rusty Blood (RMB | 35s CD)
+                handleRustyBloodClick(player);
+                return true;
+            }
             default -> { return false; }
         }
     }
@@ -419,6 +438,13 @@ public class SinGemAbilityExecutor {
                 String key = "gem_sloth_stasis";
                 if (checkCooldown(player, key, 45)) return true;
                 activateDelayedStasis(player);
+                return true;
+            }
+            case SIN -> {
+                // Skill 2: Veins of Flagitious (Sneak + RMB | 50s CD)
+                String key = "gem_sin_flagitious";
+                if (checkCooldown(player, key, 50)) return true;
+                activateVeinsOfFlagitious(player);
                 return true;
             }
             default -> { return false; }
@@ -624,6 +650,7 @@ public class SinGemAbilityExecutor {
                 case ENVY -> "gem_envy_mirror";
                 case PRIDE -> "gem_pride_charge";
                 case SLOTH -> "gem_sloth_echo";
+                case SIN -> "gem_sin_rusty_blood";
             };
         } else {
             return switch (gem) {
@@ -634,6 +661,7 @@ public class SinGemAbilityExecutor {
                 case ENVY -> "gem_envy_covet";
                 case PRIDE -> "gem_pride_duel";
                 case SLOTH -> "gem_sloth_stasis";
+                case SIN -> "gem_sin_flagitious";
             };
         }
     }
@@ -641,6 +669,9 @@ public class SinGemAbilityExecutor {
     public boolean isGemAbilityOnCooldown(Player player, boolean sneak) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return false;
+        if (!sneak && gem == SinGemType.SIN && hasRustyBloodRecast(player)) {
+            return false;
+        }
         String key = getGemAbilityCooldownKey(gem, sneak);
         return key != null && plugin.getCooldownManager().isOnCooldown(player, key);
     }
@@ -648,6 +679,9 @@ public class SinGemAbilityExecutor {
     public double getGemAbilityRemainingCooldown(Player player, boolean sneak) {
         SinGemType gem = getEffectiveGem(player);
         if (gem == null) return 0.0;
+        if (!sneak && gem == SinGemType.SIN && hasRustyBloodRecast(player)) {
+            return 0.0;
+        }
         String key = getGemAbilityCooldownKey(gem, sneak);
         if (key == null) return 0.0;
         return plugin.getCooldownManager().getRemainingCooldownSeconds(player, key);
@@ -1553,9 +1587,12 @@ public class SinGemAbilityExecutor {
             }
         }
 
-        // Lust Narcissism
-        if (gem == SinGemType.LUST && event instanceof EntityDamageByEntityEvent edbe && edbe.getDamager() instanceof Player) {
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 2, false, false)); // Speed III for 2s
+        // Bloodfeast Passive: When health drops below 4 HP (< 2 hearts)
+        if (gem == SinGemType.SIN) {
+            double finalHealth = player.getHealth() - event.getFinalDamage();
+            if (finalHealth > 0 && finalHealth < 4.0) {
+                triggerBloodfeastLowHealth(player);
+            }
         }
     }
 
@@ -1574,7 +1611,16 @@ public class SinGemAbilityExecutor {
         if (player == null || gem == null) return null;
         UUID uuid = player.getUniqueId();
         if (!secondary) {
-            if (gem == SinGemType.WRATH) {
+            if (gem == SinGemType.SIN) {
+                if (hasRustyBloodRecast(player)) {
+                    Long exp = sinRustyBloodTetherExpires.get(uuid);
+                    if (exp != null) {
+                        double rem = Math.max(0, (exp - System.currentTimeMillis()) / 1000.0);
+                        return "ʀᴇᴄᴀꜱᴛ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)";
+                    }
+                    return "ʀᴇᴄᴀꜱᴛ ʀᴇᴀᴅʏ";
+                }
+            } else if (gem == SinGemType.WRATH) {
                 if (isFuryActive(player)) {
                     Long end = furyEndTimes.get(uuid);
                     if (end != null) {
@@ -1589,7 +1635,14 @@ public class SinGemAbilityExecutor {
                 }
             }
         } else {
-            if (gem == SinGemType.WRATH) {
+            if (gem == SinGemType.SIN) {
+                if (flagitiousCasters.contains(uuid)) {
+                    return "ꜱᴛᴇᴇʀɪɴɢ ᴄᴏʀᴇ";
+                }
+                if (!flagitiousAirborneComboTargets.isEmpty()) {
+                    return "ᴄᴏᴍʙᴏ ʀᴇᴀᴅʏ";
+                }
+            } else if (gem == SinGemType.WRATH) {
                 int stacks = revengeStacks.getOrDefault(uuid, 0);
                 if (stacks > 0) {
                     return stacks + "/2 ꜱᴛᴀᴄᴋꜱ";
@@ -1609,5 +1662,541 @@ public class SinGemAbilityExecutor {
 
     public double getDamageMultiplier(Player player) {
         return 1.0;
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. MYTHIC SIN GEM: RUSTY BLOOD & VEINS OF FLAGITIOUS IMPLEMENTATION
+    // -------------------------------------------------------------------------
+
+    public boolean hasRustyBloodRecast(Player player) {
+        UUID uuid = player.getUniqueId();
+        Long exp = sinRustyBloodTetherExpires.get(uuid);
+        if (exp == null) return false;
+        if (System.currentTimeMillis() > exp) {
+            clearRustyBloodTether(player);
+            return false;
+        }
+        return sinRustyBloodTethers.containsKey(uuid);
+    }
+
+    public void clearRustyBloodTether(Player player) {
+        UUID uuid = player.getUniqueId();
+        sinRustyBloodTethers.remove(uuid);
+        sinRustyBloodTetherExpires.remove(uuid);
+        BukkitRunnable task = sinRustyBloodSiphonTasks.remove(uuid);
+        if (task != null) {
+            try { task.cancel(); } catch (Throwable ignored) {}
+        }
+    }
+
+    public boolean isFlagitiousMarked(UUID victimId) {
+        Long exp = flagitiousMarkedEntities.get(victimId);
+        if (exp == null) return false;
+        if (System.currentTimeMillis() > exp) {
+            flagitiousMarkedEntities.remove(victimId);
+            return false;
+        }
+        return true;
+    }
+
+    public boolean isFlagitiousAirborne(UUID victimId) {
+        Long exp = flagitiousAirborneComboTargets.get(victimId);
+        if (exp == null) return false;
+        if (System.currentTimeMillis() > exp) {
+            flagitiousAirborneComboTargets.remove(victimId);
+            return false;
+        }
+        return true;
+    }
+
+    public LivingEntity findAirborneComboTarget(Player player, double maxDist) {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<UUID, Long> entry : flagitiousAirborneComboTargets.entrySet()) {
+            if (now > entry.getValue()) {
+                flagitiousAirborneComboTargets.remove(entry.getKey());
+                continue;
+            }
+            Entity ent = Bukkit.getEntity(entry.getKey());
+            if (ent instanceof LivingEntity target && target.isValid() && !target.isDead() && !target.equals(player)) {
+                if (player.getWorld().equals(target.getWorld()) && player.getLocation().distanceSquared(target.getLocation()) <= (maxDist * maxDist)) {
+                    return target;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void handleRustyBloodClick(Player player) {
+        if (hasRustyBloodRecast(player)) {
+            // Recast: Slam if target is above player / airborne; Drill Cyclone if grounded
+            UUID victimId = sinRustyBloodTethers.get(player.getUniqueId());
+            Entity ent = victimId != null ? Bukkit.getEntity(victimId) : null;
+            if (!(ent instanceof LivingEntity victim) || !victim.isValid() || victim.isDead()) {
+                clearRustyBloodTether(player);
+                player.sendMessage(miniMessage.deserialize("<red>✦ Tethered victim was lost or slain! ✦</red>"));
+                return;
+            }
+
+            boolean isAirborne = (victim.getLocation().getY() - player.getLocation().getY() >= 2.5) || isFlagitiousAirborne(victimId);
+            if (isAirborne) {
+                executeRustyBloodAerialSlam(player, victim);
+            } else {
+                executeRustyBloodDrillCyclone(player, victim);
+            }
+        } else {
+            // Initial throw: 35s CD
+            String key = "gem_sin_rusty_blood";
+            if (checkCooldown(player, key, 35)) return;
+            executeRustyBloodThrow(player);
+        }
+    }
+
+    private void executeRustyBloodThrow(Player player) {
+        Location eye = player.getEyeLocation();
+        Vector dir = eye.getDirection().normalize();
+
+        // Check if there is an airborne combo victim for 100% lock-on hit
+        LivingEntity comboTarget = findAirborneComboTarget(player, 35.0);
+        if (comboTarget != null) {
+            // 100% Lock-on guaranteed hit!
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1.4f, 1.8f);
+            player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.2f, 0.6f);
+            player.sendMessage(miniMessage.deserialize("<gold><bold>✦ [100% COMBO LOCK-ON]</bold></gold> <yellow>Chains locked onto airborne victim! Press RMB again to slam!</yellow>"));
+            VFXUtil.drawTetherChain(eye, comboTarget.getLocation().add(0, 1.0, 0), 16, Color.fromRGB(220, 20, 20), true, 0);
+            startRustyBloodSiphon(player, comboTarget);
+            return;
+        }
+
+        // Standard projectile launch: thrown rotating redstone block with physical link chain
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITCH_THROW, 1.2f, 0.6f);
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_CHAIN_PLACE, 1.0f, 1.2f);
+
+        // Spawn visual block display or fallback
+        Location spawnLoc = eye.clone().add(dir.clone().multiply(1.2));
+        Entity visualEntity = null;
+        try {
+            org.bukkit.entity.ItemDisplay display = player.getWorld().spawn(spawnLoc, org.bukkit.entity.ItemDisplay.class, d -> {
+                d.setItemStack(new ItemStack(Material.REDSTONE_BLOCK));
+                d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+                d.setTransformation(new org.bukkit.util.Transformation(
+                        new org.joml.Vector3f(0, 0, 0),
+                        new org.joml.Quaternionf(),
+                        new org.joml.Vector3f(0.6f, 0.6f, 0.6f),
+                        new org.joml.Quaternionf()
+                ));
+            });
+            visualEntity = display;
+        } catch (Throwable ignored) {}
+
+        final Entity blockDisplay = visualEntity;
+        Location currentLoc = spawnLoc.clone();
+
+        new BukkitRunnable() {
+            int step = 0;
+            double rotation = 0;
+
+            @Override
+            public void run() {
+                step++;
+                if (step > 25 || !player.isOnline()) {
+                    cancel();
+                    if (blockDisplay != null && blockDisplay.isValid()) blockDisplay.remove();
+                    return;
+                }
+
+                currentLoc.add(dir.clone().multiply(1.4));
+                rotation += 0.4;
+
+                if (blockDisplay != null && blockDisplay.isValid()) {
+                    blockDisplay.teleport(currentLoc);
+                }
+
+                // Render physical link chain from player to projectile
+                Location handLoc = player.getEyeLocation().add(0, -0.3, 0);
+                VFXUtil.drawTetherChain(handLoc, currentLoc, 10, Color.fromRGB(180, 0, 0), true, step);
+
+                // Rotating redstone aura particles
+                player.getWorld().spawnParticle(Particle.DUST, currentLoc, 4, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.4f));
+                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, currentLoc, 2, 0.1, 0.1, 0.1, 0.02);
+
+                // Check collision with living entities
+                for (LivingEntity target : currentLoc.getWorld().getNearbyLivingEntities(currentLoc, 1.5)) {
+                    if (target.equals(player)) continue;
+                    cancel();
+                    if (blockDisplay != null && blockDisplay.isValid()) blockDisplay.remove();
+
+                    target.getWorld().playSound(target.getLocation(), Sound.ITEM_TRIDENT_HIT, 1.4f, 0.8f);
+                    target.getWorld().playSound(target.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.0f, 1.4f);
+                    target.getWorld().spawnParticle(Particle.BLOCK, target.getLocation().add(0, 1.0, 0), 20, 0.3, 0.3, 0.3, Material.REDSTONE_BLOCK.createBlockData());
+                    player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [RUSTY BLOOD]</bold></dark_red> <red>Chain latched! Siphoning health (6s). Press RMB again to Drill or Slam!</red>"));
+
+                    startRustyBloodSiphon(player, target);
+                    return;
+                }
+
+                // Check collision with solid blocks
+                if (currentLoc.getBlock().getType().isSolid()) {
+                    cancel();
+                    if (blockDisplay != null && blockDisplay.isValid()) blockDisplay.remove();
+                    currentLoc.getWorld().playSound(currentLoc, Sound.BLOCK_CHAIN_BREAK, 1.2f, 0.9f);
+                    currentLoc.getWorld().spawnParticle(Particle.BLOCK, currentLoc, 15, 0.2, 0.2, 0.2, Material.REDSTONE_BLOCK.createBlockData());
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    private void startRustyBloodSiphon(Player player, LivingEntity victim) {
+        UUID pId = player.getUniqueId();
+        UUID vId = victim.getUniqueId();
+        sinRustyBloodTethers.put(pId, vId);
+        long expireTime = System.currentTimeMillis() + 6000L;
+        sinRustyBloodTetherExpires.put(pId, expireTime);
+
+        BukkitRunnable siphonTask = new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                tick++;
+                if (!player.isOnline() || !victim.isValid() || victim.isDead() || System.currentTimeMillis() > expireTime) {
+                    clearRustyBloodTether(player);
+                    cancel();
+                    return;
+                }
+
+                Location pLoc = player.getLocation().add(0, 1.2, 0);
+                Location vLoc = victim.getLocation().add(0, 1.0, 0);
+                if (pLoc.distanceSquared(vLoc) > 1024.0) { // 32 blocks max
+                    player.sendMessage(miniMessage.deserialize("<gray>✦ Rusty Blood tether snapped: target too far!</gray>"));
+                    clearRustyBloodTether(player);
+                    cancel();
+                    return;
+                }
+
+                // Physical red particle link chain
+                if (tick % 2 == 0) {
+                    VFXUtil.drawTetherChain(pLoc, vLoc, 12, Color.fromRGB(180, 0, 0), true, tick / 2);
+                }
+
+                // Drains health every second (20 ticks) for 6s
+                if (tick % 20 == 0) {
+                    dealTrueDamage(victim, 1.0, player);
+                    player.setHealth(Math.min(player.getMaxHealth(), player.getHealth() + 1.0));
+                    player.getWorld().playSound(pLoc, Sound.ENTITY_GENERIC_DRINK, 0.6f, 1.5f);
+                    victim.getWorld().playSound(vLoc, Sound.ENTITY_PLAYER_HURT, 0.6f, 0.8f);
+                    VFXUtil.drawLine(vLoc, pLoc, Particle.DUST, 0.6, new Particle.DustOptions(Color.fromRGB(220, 20, 20), 1.2f));
+                }
+            }
+        };
+        siphonTask.runTaskTimer(plugin, 1L, 1L);
+        sinRustyBloodSiphonTasks.put(pId, siphonTask);
+    }
+
+    private void executeRustyBloodAerialSlam(Player player, LivingEntity victim) {
+        clearRustyBloodTether(player);
+        boolean isCombo = isFlagitiousMarked(victim.getUniqueId()) || isFlagitiousAirborne(victim.getUniqueId());
+        double slamDamage = isCombo ? 12.0 : 8.0; // 6 true hearts if comboed, 4 true hearts normal
+        flagitiousAirborneComboTargets.remove(victim.getUniqueId());
+        flagitiousMarkedEntities.remove(victim.getUniqueId());
+
+        Location vLoc = victim.getLocation();
+        Location pLoc = player.getLocation();
+
+        player.getWorld().playSound(vLoc, Sound.ITEM_TRIDENT_RIPTIDE_3, 1.5f, 0.5f);
+        player.getWorld().playSound(pLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.2f, 1.8f);
+
+        // Pull victim violently downward and leap player towards them
+        victim.setVelocity(new Vector(0, -3.2, 0));
+        Vector leap = vLoc.toVector().subtract(pLoc.toVector()).normalize().multiply(1.2).setY(1.0);
+        player.setVelocity(leap);
+
+        // Constricting chain spiral on victim
+        for (int i = 0; i < 20; i++) {
+            double angle = i * 0.6;
+            Location cPt = vLoc.clone().add(Math.cos(angle) * 0.8, -i * 0.12, Math.sin(angle) * 0.8);
+            victim.getWorld().spawnParticle(Particle.DUST, cPt, 2, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.6f));
+        }
+
+        new BukkitRunnable() {
+            int wait = 0;
+            @Override
+            public void run() {
+                wait++;
+                boolean landed = victim.isOnGround() || wait >= 12 || !victim.isValid();
+                if (landed) {
+                    cancel();
+                    Location impact = victim.getLocation();
+
+                    // 1. Crater shockwave rings (3 expanding tiers)
+                    VFXUtil.drawExpandingCraterShockwave(impact, 4.5, Color.fromRGB(180, 0, 0), Color.fromRGB(60, 0, 0), true);
+                    impact.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, impact, 1);
+                    impact.getWorld().spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 40, 1.0, 0.5, 1.0, Material.REDSTONE_BLOCK.createBlockData());
+                    impact.getWorld().spawnParticle(Particle.BLOCK, impact.clone().add(0, 0.5, 0), 25, 0.8, 0.5, 0.8, Material.NETHERITE_BLOCK.createBlockData());
+                    impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.6f);
+                    impact.getWorld().playSound(impact, Sound.ITEM_MACE_SMASH_GROUND, 1.8f, 0.5f);
+                    impact.getWorld().playSound(impact, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.6f, 1.2f);
+
+                    // 2. Direct slam damage
+                    dealTrueDamage(victim, slamDamage, player);
+
+                    // 3. Shockwave AoE damage to nearby enemies
+                    for (LivingEntity nearby : impact.getWorld().getNearbyLivingEntities(impact, 5.0)) {
+                        if (nearby.equals(player) || nearby.equals(victim)) continue;
+                        dealTrueDamage(nearby, 4.0, player);
+                        Vector kb = nearby.getLocation().toVector().subtract(impact.toVector()).normalize().setY(0.4).multiply(1.2);
+                        nearby.setVelocity(kb);
+                    }
+
+                    // 4. Instantly self reset cooldown!
+                    plugin.getCooldownManager().resetCooldown(player, "gem_sin_rusty_blood");
+                    player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1.8f);
+                    player.sendTitle("§4§lAERIAL CRATER SLAM", isCombo ? "§c§l6 TRUE HEARTS • COMBO DETONATION" : "§c4 TRUE HEARTS • COOLDOWN RESET", 5, 25, 10);
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    private void executeRustyBloodDrillCyclone(Player player, LivingEntity victim) {
+        clearRustyBloodTether(player);
+        Vector dir = player.getLocation().getDirection().setY(0.12).normalize();
+        player.setVelocity(dir.clone().multiply(2.2));
+
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, 1.5f, 0.6f);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.2f, 0.5f);
+
+        Set<UUID> hitEnemies = new HashSet<>();
+        new BukkitRunnable() {
+            int t = 0;
+            @Override
+            public void run() {
+                t++;
+                if (t > 10 || !player.isOnline()) {
+                    cancel();
+                    return;
+                }
+
+                Location pLoc = player.getLocation().add(0, 1.0, 0);
+                // Drill helix particles around player
+                for (int h = 0; h < 2; h++) {
+                    double angle = (t * 0.8) + (h * Math.PI);
+                    Location pPt = pLoc.clone().add(Math.cos(angle) * 0.8, Math.sin(angle) * 0.8, 0);
+                    player.getWorld().spawnParticle(Particle.DUST, pPt, 3, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(200, 20, 20), 1.8f));
+                    player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, pPt, 2, 0.1, 0.1, 0.1, 0.05);
+                }
+                player.getWorld().spawnParticle(Particle.SWEEP_ATTACK, pLoc, 1, 0.2, 0.2, 0.2, 0);
+
+                // Pierce through enemies
+                for (LivingEntity target : player.getWorld().getNearbyLivingEntities(pLoc, 2.4)) {
+                    if (target.equals(player) || hitEnemies.contains(target.getUniqueId())) continue;
+                    hitEnemies.add(target.getUniqueId());
+
+                    // Breaking shields
+                    if (target instanceof Player targetPlayer && targetPlayer.isBlocking()) {
+                        targetPlayer.setCooldown(Material.SHIELD, 100);
+                        targetPlayer.getWorld().playSound(targetPlayer.getLocation(), Sound.ITEM_SHIELD_BREAK, 1.5f, 0.8f);
+                        targetPlayer.sendMessage(miniMessage.deserialize("<red>✦ [SHIELD CRUSH] Your shield was shattered by Blood Drill! ✦</red>"));
+                    }
+
+                    // Deal 3 true hearts (6.0 true damage)
+                    dealTrueDamage(target, 6.0, player);
+                    target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT, 1.0f, 0.7f);
+
+                    // Cooldown reduction for each enemy pierced
+                    double rem = plugin.getCooldownManager().getRemainingCooldownSeconds(player, "gem_sin_rusty_blood");
+                    if (rem > 0) {
+                        plugin.getCooldownManager().setCooldown(player, "gem_sin_rusty_blood", Math.max(0, (long) (rem - 6.0)));
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    private void activateVeinsOfFlagitious(Player player) {
+        UUID uuid = player.getUniqueId();
+        flagitiousCasters.add(uuid);
+
+        // Invisibility & equipment hide
+        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 85, 0, false, false, false));
+        broadcastEquipmentMask(player, true);
+
+        Location coreLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(1.5));
+        Set<UUID> caughtVictims = new HashSet<>();
+
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.8f, 1.6f);
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.2f, 0.5f);
+        player.sendTitle("§4§lVEINS OF FLAGITIOUS", "§cSteer the Crimson Core • Accelerating (8m/s)", 5, 20, 10);
+
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                tick++;
+                if (tick > 80 || !player.isOnline()) { // 4.0 seconds (80 ticks)
+                    cancel();
+                    finishVeinsOfFlagitious(player, caughtVictims);
+                    return;
+                }
+
+                // Acceleration from 0.10 to 0.40 blocks/tick (8 blocks/sec)
+                double speed = 0.10 + (tick * (0.30 / 80.0));
+                Vector dir = player.getEyeLocation().getDirection().normalize();
+                coreLoc.add(dir.clone().multiply(speed));
+
+                // Gently glide player along with the core
+                player.setVelocity(dir.clone().multiply(speed * 0.75));
+
+                // Dark red core center
+                player.getWorld().spawnParticle(Particle.DUST, coreLoc, 6, 0.12, 0.12, 0.12, new Particle.DustOptions(Color.fromRGB(150, 0, 0), 2.2f));
+                player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, coreLoc, 4, 0.2, 0.2, 0.2, 0.05);
+                player.getWorld().spawnParticle(Particle.PORTAL, coreLoc, 3, 0.1, 0.1, 0.1, 0.2);
+
+                // 2 Orbiting white orbs
+                double theta = tick * 0.35;
+                for (int o = 0; o < 2; o++) {
+                    double oAngle = theta + (o * Math.PI);
+                    Location orbLoc = coreLoc.clone().add(Math.cos(oAngle) * 0.85, Math.sin(oAngle * 2.0) * 0.25, Math.sin(oAngle) * 0.85);
+                    player.getWorld().spawnParticle(Particle.END_ROD, orbLoc, 1, 0, 0, 0, 0.01);
+                    player.getWorld().spawnParticle(Particle.DUST, orbLoc, 2, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.5f));
+                }
+
+                // Trailing void/crimson smoke behind core
+                Vector back = dir.clone().multiply(-0.4);
+                Location trailLoc = coreLoc.clone().add(back);
+                player.getWorld().spawnParticle(Particle.SQUID_INK, trailLoc, 2, 0.05, 0.05, 0.05, 0.02);
+                player.getWorld().spawnParticle(Particle.DUST, trailLoc, 3, 0.1, 0.1, 0.1, new Particle.DustOptions(Color.fromRGB(60, 0, 0), 1.4f));
+
+                if (tick % 10 == 0) {
+                    player.getWorld().playSound(coreLoc, Sound.BLOCK_BEACON_AMBIENT, 0.6f, 1.8f);
+                }
+
+                // Check for caught entities
+                for (LivingEntity entity : player.getWorld().getNearbyLivingEntities(coreLoc, 2.5)) {
+                    if (entity.equals(player) || caughtVictims.contains(entity.getUniqueId())) continue;
+                    caughtVictims.add(entity.getUniqueId());
+                    flagitiousMarkedEntities.put(entity.getUniqueId(), System.currentTimeMillis() + 10000L);
+
+                    entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.9f);
+                    entity.getWorld().spawnParticle(Particle.CRIMSON_SPORE, entity.getLocation().add(0, 1.0, 0), 20, 0.4, 0.4, 0.4, 0.1);
+                    player.sendMessage(miniMessage.deserialize("<dark_red><bold>✦ [VEINS OF FLAGITIOUS]</bold></dark_red> <red>Ensnared </red><white>" + entity.getName() + "</white><red>! Marked for Reverse Lightning launch!</red>"));
+                    if (entity instanceof Player pVictim) {
+                        pVictim.sendMessage(miniMessage.deserialize("<dark_red><bold>☠ [FLAGITIOUS MARK]</bold></dark_red> <red>You have been caught by the void particle! Retaliation draws near...</red>"));
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    private void finishVeinsOfFlagitious(Player player, Set<UUID> caughtVictims) {
+        flagitiousCasters.remove(player.getUniqueId());
+        broadcastEquipmentMask(player, false);
+
+        if (!player.isOnline()) return;
+
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_THUNDER, 1.4f, 1.2f);
+
+        for (UUID victimId : caughtVictims) {
+            Entity ent = Bukkit.getEntity(victimId);
+            if (!(ent instanceof LivingEntity victim) || !victim.isValid() || victim.isDead()) continue;
+
+            Location vLoc = victim.getLocation();
+
+            // Reverse red particle lightning bolt shooting upward from ground to Y+50!
+            for (int y = 0; y <= 50; y++) {
+                Location boltPt = vLoc.clone().add(0, y, 0);
+                victim.getWorld().spawnParticle(Particle.DUST, boltPt, 3, 0.15, 0.15, 0.15, new Particle.DustOptions(Color.fromRGB(255, 20, 20), 2.2f));
+                if (y % 2 == 0) {
+                    victim.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, boltPt, 1, 0.1, 0.1, 0.1, 0.02);
+                }
+            }
+            victim.getWorld().playSound(vLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.8f, 1.5f);
+            victim.getWorld().playSound(vLoc, Sound.ITEM_TRIDENT_THUNDER, 1.5f, 0.7f);
+
+            // Explode as shockwave 1 dmg
+            dealTrueDamage(victim, 1.0, player);
+            victim.getWorld().spawnParticle(Particle.EXPLOSION, vLoc.clone().add(0, 1.0, 0), 2, 0.3, 0.3, 0.3, 0);
+
+            // Flung upward 40 blocks (Y velocity ~2.65)
+            victim.setVelocity(new Vector(0, 2.65, 0));
+
+            // Mark as airborne combo target for 6 seconds
+            flagitiousAirborneComboTargets.put(victimId, System.currentTimeMillis() + 6000L);
+        }
+
+        if (!caughtVictims.isEmpty()) {
+            player.sendMessage(miniMessage.deserialize("<gold><bold>✦ [AIRBORNE COMBO ACTIVE]</bold></gold> <yellow>Victims flung 40m into the sky! Throw </yellow><red><bold>Rusty Blood</bold></red><yellow> now for 100% lock-on & 6 TRUE HEARTS slam!</yellow>"));
+            player.sendTitle("§e§lCOMBO WINDOW ACTIVE", "§6Throw Rusty Blood • 100% Lock-on & 6 True Hearts", 5, 25, 10);
+        }
+    }
+
+    private void broadcastEquipmentMask(Player player, boolean hide) {
+        try {
+            ProtocolManager pm = ProtocolLibrary.getProtocolManager();
+            if (pm == null) return;
+            PacketContainer packet = pm.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
+            packet.getIntegers().write(0, player.getEntityId());
+            List<com.comphenix.protocol.wrappers.Pair<EnumWrappers.ItemSlot, ItemStack>> slots = new ArrayList<>();
+            ItemStack air = new ItemStack(Material.AIR);
+            for (EnumWrappers.ItemSlot slot : EnumWrappers.ItemSlot.values()) {
+                ItemStack item;
+                if (hide) {
+                    item = air;
+                } else {
+                    item = switch (slot) {
+                        case MAINHAND -> player.getInventory().getItemInMainHand();
+                        case OFFHAND -> player.getInventory().getItemInOffHand();
+                        case HEAD -> player.getInventory().getHelmet();
+                        case CHEST -> player.getInventory().getChestplate();
+                        case LEGS -> player.getInventory().getLeggings();
+                        case FEET -> player.getInventory().getBoots();
+                        default -> air;
+                    };
+                    if (item == null) item = air;
+                }
+                slots.add(new com.comphenix.protocol.wrappers.Pair<>(slot, item));
+            }
+            packet.getSlotStackPairLists().write(0, slots);
+            for (Player viewer : Bukkit.getOnlinePlayers()) {
+                if (!viewer.equals(player)) {
+                    pm.sendServerPacket(viewer, packet);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public void triggerBloodfeastLowHealth(Player player) {
+        UUID uuid = player.getUniqueId();
+        Long nextAllowed = bloodfeastResetCooldowns.get(uuid);
+        long now = System.currentTimeMillis();
+        if (nextAllowed != null && now < nextAllowed) return;
+
+        bloodfeastResetCooldowns.put(uuid, now + 45000L); // 45s internal CD
+
+        // Instant Cooldown Reset!
+        plugin.getCooldownManager().resetAllCooldowns(player);
+
+        // 2x Clocking Pacing for 15 seconds!
+        plugin.getCooldownManager().setDoublePacing(uuid, 15000L);
+
+        // Apocalyptic effects
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 1.8f, 0.8f);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.2f, 1.8f);
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 0.9f, 0.6f);
+
+        player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, player.getLocation().add(0, 1.2, 0), 40, 0.5, 0.8, 0.5, 0.15);
+        player.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, player.getLocation().add(0, 1.0, 0), 10, 0.3, 0.4, 0.3, 0.1);
+
+        player.sendTitle("§4§lBLOODFEAST", "§cCooldowns Reset • 2x Clocking Activated", 5, 30, 10);
+        player.sendMessage(miniMessage.deserialize("<dark_red><bold>☠ [BLOODFEAST OVERDRIVE] ☠</bold></dark_red> <red>Health dropped below 4 HP! All cooldowns instantly reset & ticking at 2x pacing for 15s!</red>"));
+    }
+
+    private void dealTrueDamage(LivingEntity target, double damage, Player source) {
+        if (target == null || target.isDead()) return;
+        double newHealth = Math.max(0.0, target.getHealth() - damage);
+        if (newHealth <= 0.0) {
+            target.damage(1000.0, source);
+        } else {
+            target.setHealth(newHealth);
+            target.playHurtAnimation(0.0f);
+            target.damage(0.001, source);
+        }
     }
 }

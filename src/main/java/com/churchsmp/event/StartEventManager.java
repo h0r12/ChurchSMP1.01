@@ -843,6 +843,7 @@ public class StartEventManager implements Listener {
                         case ENVY -> 1.20f;
                         case PRIDE -> 1.95f;
                         case SLOTH -> 0.70f;
+                        case SIN -> 0.50f;
                     };
 
                     for (Player p : Bukkit.getOnlinePlayers()) {

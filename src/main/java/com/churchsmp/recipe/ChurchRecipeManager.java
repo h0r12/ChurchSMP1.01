@@ -20,10 +20,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -31,10 +33,13 @@ import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import com.churchsmp.gem.SinGemType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ChurchRecipeManager implements Listener {
 
@@ -88,6 +93,43 @@ public class ChurchRecipeManager implements Listener {
             recipe.setIngredient('X', Material.OBSIDIAN);
             Bukkit.addRecipe(recipe);
         } catch (Throwable ignored) {}
+
+        // Mythic SIN Gem: Requires all 7 Base Sin Gems
+        try {
+            NamespacedKey key = new NamespacedKey(plugin, "recipe_mythic_sin");
+            try { Bukkit.removeRecipe(key); } catch (Throwable ignored) {}
+            ShapelessRecipe mythicRecipe = new ShapelessRecipe(key, plugin.getSinGemManager().createGemItem(SinGemType.SIN));
+            for (SinGemType baseSin : SinGemType.BASE_SINS) {
+                mythicRecipe.addIngredient(new RecipeChoice.ExactChoice(plugin.getSinGemManager().createGemItem(baseSin)));
+            }
+            Bukkit.addRecipe(mythicRecipe);
+        } catch (Throwable ignored) {}
+    }
+
+    @EventHandler
+    public void onPrepareCraft(PrepareItemCraftEvent event) {
+        CraftingInventory inv = event.getInventory();
+        ItemStack[] matrix = inv.getMatrix();
+        Set<SinGemType> presentSins = new HashSet<>();
+        int nonSinItems = 0;
+
+        for (ItemStack item : matrix) {
+            if (item == null || item.getType() == Material.AIR) continue;
+            SinGemType type = plugin.getSinGemManager().getGemType(item);
+            if (type != null && !type.isMythic()) {
+                presentSins.add(type);
+            } else {
+                nonSinItems++;
+            }
+        }
+
+        if (presentSins.size() == 7 && nonSinItems == 0) {
+            if (plugin.getSinGemManager().doesMythicSinGemExist()) {
+                inv.setResult(null);
+            } else {
+                inv.setResult(plugin.getSinGemManager().createGemItem(SinGemType.SIN));
+            }
+        }
     }
 
     @EventHandler
@@ -96,6 +138,48 @@ public class ChurchRecipeManager implements Listener {
         if (result == null) return;
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        SinGemType sinType = plugin.getSinGemManager().getGemType(result);
+        if (sinType == SinGemType.SIN) {
+            if (plugin.getSinGemManager().doesMythicSinGemExist()) {
+                event.setCancelled(true);
+                player.sendMessage(miniMessage.deserialize("<dark_red><bold>☠ [THE ONE AND ONLY]</bold></dark_red> <red>The Mythic SIN Gem already exists in this realm! Only one can exist.</red>"));
+                player.playSound(player.getLocation(), Sound.ENTITY_VEX_HURT, 1.0f, 0.5f);
+                return;
+            }
+
+            event.setCancelled(true);
+            CraftingInventory inv = event.getInventory();
+            ItemStack[] matrix = inv.getMatrix();
+            for (int i = 0; i < matrix.length; i++) {
+                if (matrix[i] != null && matrix[i].getAmount() > 0) {
+                    matrix[i].setAmount(matrix[i].getAmount() - 1);
+                    if (matrix[i].getAmount() <= 0) {
+                        matrix[i] = null;
+                    }
+                }
+            }
+            inv.setMatrix(matrix);
+            inv.setResult(null);
+            player.closeInventory();
+
+            plugin.getSinGemManager().setMythicSinGemExists(true);
+
+            // Server-wide cataclysmic announcement
+            Bukkit.broadcast(miniMessage.deserialize("<dark_red><bold>☠ -------------------------------------------------- ☠</bold></dark_red>"));
+            Bukkit.broadcast(miniMessage.deserialize("<gradient:#000000:#434343:#888888><bold>✦ AN APEX HERETIC HAS FORGED THE ONE AND ONLY SIN GEM! ✦</bold></gradient>"));
+            Bukkit.broadcast(miniMessage.deserialize("<italic><gray>\"Weighed by a thousand losses, the definition of retaliation.\"</gray></italic>"));
+            Bukkit.broadcast(miniMessage.deserialize("<gold>Forged by: <white><bold>" + player.getName() + "</bold></white></gold>"));
+            Bukkit.broadcast(miniMessage.deserialize("<dark_red><bold>☠ -------------------------------------------------- ☠</bold></dark_red>"));
+
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.2f, 0.5f);
+                p.playSound(p.getLocation(), Sound.ENTITY_WARDEN_ROAR, 1.0f, 0.6f);
+            }
+
+            playMythicSinForgeCinematic(player);
+            return;
+        }
 
         RelicItem.RelicType relic = RelicItem.getRelicType(result, plugin);
         if (relic != null) {
@@ -346,5 +430,163 @@ public class ChurchRecipeManager implements Listener {
         for (ItemStack left : overflow.values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), left);
         }
+    }
+
+    public void playMythicSinForgeCinematic(Player player) {
+        player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 70, 1, false, false, false));
+
+        List<ItemStack> sinIcons = new ArrayList<>();
+        sinIcons.add(new ItemStack(Material.REDSTONE_BLOCK));   // Wrath
+        sinIcons.add(new ItemStack(Material.GOLD_BLOCK));       // Greed
+        sinIcons.add(new ItemStack(Material.SLIME_BLOCK));      // Gluttony
+        sinIcons.add(new ItemStack(Material.AMETHYST_BLOCK));   // Lust
+        sinIcons.add(new ItemStack(Material.EMERALD_BLOCK));    // Envy
+        sinIcons.add(new ItemStack(Material.QUARTZ_BLOCK));     // Pride
+        sinIcons.add(new ItemStack(Material.CRYING_OBSIDIAN));  // Sloth
+
+        List<Item> orbitingItems = new ArrayList<>();
+        for (ItemStack stack : sinIcons) {
+            Item it = player.getWorld().dropItem(player.getLocation().add(0, 1.0, 0), stack);
+            it.setGravity(false);
+            it.setPickupDelay(Integer.MAX_VALUE);
+            it.setCanMobPickup(false);
+            it.setVelocity(new Vector(0, 0, 0));
+            orbitingItems.add(it);
+        }
+
+        ItemStack mythicItem = plugin.getSinGemManager().createGemItem(SinGemType.SIN);
+        Entity scalingEntity = null;
+        try {
+            Location mythicSpawn = player.getEyeLocation().add(0, 2.0, 0);
+            ItemDisplay display = player.getWorld().spawn(mythicSpawn, ItemDisplay.class, d -> {
+                d.setItemStack(mythicItem);
+                d.setBillboard(Display.Billboard.CENTER);
+                d.setBrightness(new Display.Brightness(15, 15));
+                d.setGlowing(true);
+                d.setGlowColorOverride(Color.fromRGB(220, 38, 38));
+                d.setTransformation(new Transformation(
+                        new Vector3f(0, 0, 0),
+                        new Quaternionf(),
+                        new Vector3f(1.0f, 1.0f, 1.0f),
+                        new Quaternionf()
+                ));
+            });
+            scalingEntity = display;
+        } catch (Throwable ignored) {
+            Item fallbackItem = player.getWorld().dropItem(player.getEyeLocation().add(0, 2.0, 0), mythicItem);
+            fallbackItem.setGravity(false);
+            fallbackItem.setPickupDelay(Integer.MAX_VALUE);
+            fallbackItem.setCanMobPickup(false);
+            fallbackItem.setVelocity(new Vector(0, 0, 0));
+            scalingEntity = fallbackItem;
+        }
+
+        final Entity centralGem = scalingEntity;
+        Particle.DustOptions darkCrimson = new Particle.DustOptions(Color.fromRGB(180, 0, 0), 1.6f);
+        Particle.DustOptions voidBlack = new Particle.DustOptions(Color.fromRGB(20, 20, 20), 1.8f);
+
+        new BukkitRunnable() {
+            int t = 0;
+            boolean finished = false;
+            double rotation = 0;
+
+            @Override
+            public void run() {
+                if (finished) {
+                    cancel();
+                    return;
+                }
+                t++;
+
+                if (t > 65 || !player.isOnline()) {
+                    finished = true;
+                    cancel();
+                    cleanupAndDeliverMythic(player, orbitingItems, centralGem);
+                    return;
+                }
+
+                rotation += 0.30;
+                Location pChest = player.getLocation().add(0, 1.3, 0);
+                Location pGemLoc = player.getEyeLocation().add(0, 2.0, 0);
+
+                if (centralGem != null && centralGem.isValid()) {
+                    centralGem.teleport(pGemLoc);
+                    if (centralGem instanceof ItemDisplay itemDisplay) {
+                        float scale = 1.0f + (t * 0.04f);
+                        try {
+                            itemDisplay.setTransformation(new Transformation(
+                                    new Vector3f(0, 0, 0),
+                                    new Quaternionf().rotateY((float) rotation),
+                                    new Vector3f(scale, scale, scale),
+                                    new Quaternionf()
+                            ));
+                        } catch (Throwable ignored) {}
+                    }
+                }
+
+                // Orbit 7 gems tighter and tighter
+                double orbitRadius = 2.8 - (t * 0.035);
+                for (int i = 0; i < orbitingItems.size(); i++) {
+                    Item it = orbitingItems.get(i);
+                    if (!it.isValid()) continue;
+
+                    double angle = rotation + (i * (2 * Math.PI / orbitingItems.size()));
+                    double yOffset = Math.sin(t * 0.18 + i) * 0.35;
+                    Location itemLoc = pChest.clone().add(Math.cos(angle) * orbitRadius, yOffset, Math.sin(angle) * orbitRadius);
+                    it.teleport(itemLoc);
+
+                    // Energy beams from each sin gem into central apex gem
+                    Vector toGem = pGemLoc.toVector().subtract(itemLoc.toVector());
+                    for (int step = 1; step <= 6; step++) {
+                        Location beamPoint = itemLoc.clone().add(toGem.clone().multiply((double) step / 6.0));
+                        player.getWorld().spawnParticle(Particle.DUST, beamPoint, 1, 0, 0, 0, darkCrimson);
+                    }
+                }
+
+                // Dual void vortex
+                for (int h = 0; h < 2; h++) {
+                    double helixAngle = (rotation * 1.6) + (h * Math.PI);
+                    double helixY = ((t * 0.09) % 3.0);
+                    Location hLoc = player.getLocation().add(Math.cos(helixAngle) * 1.3, helixY, Math.sin(helixAngle) * 1.3);
+                    player.getWorld().spawnParticle(Particle.DUST, hLoc, 1, 0, 0, 0, voidBlack);
+                }
+
+                if (t % 15 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.4f + (t * 0.01f));
+                    player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, pGemLoc, 15, 0.3, 0.3, 0.3, 0.1);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void cleanupAndDeliverMythic(Player player, List<Item> orbitingItems, Entity centralGem) {
+        try {
+            if (centralGem != null && centralGem.isValid()) centralGem.remove();
+            for (Item it : orbitingItems) {
+                if (it.isValid()) it.remove();
+            }
+        } catch (Throwable ignored) {}
+
+        if (!player.isOnline()) return;
+
+        Location pCenter = player.getLocation().add(0, 1.5, 0);
+        player.getWorld().strikeLightningEffect(pCenter);
+        player.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, pCenter, 1);
+        player.getWorld().spawnParticle(Particle.CRIMSON_SPORE, pCenter, 40, 0.5, 0.5, 0.5, 0.2);
+        player.playSound(pCenter, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.6f, 0.8f);
+        player.playSound(pCenter, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 1.5f);
+
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 80, 0, false, false, false));
+        player.setFallDistance(0);
+
+        ItemStack mythicSin = plugin.getSinGemManager().createGemItem(SinGemType.SIN);
+        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(mythicSin);
+        for (ItemStack left : overflow.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), left);
+        }
+
+        player.sendMessage(miniMessage.deserialize(
+                "<dark_red><bold>✦ THE ONE AND ONLY SIN GEM HAS BEEN BOUND TO YOUR SOUL! ✦</bold></dark_red>"
+        ));
     }
 }

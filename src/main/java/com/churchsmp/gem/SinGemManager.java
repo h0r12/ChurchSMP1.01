@@ -50,14 +50,46 @@ public class SinGemManager {
 
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
-            lore.add(Component.text("Sin Relic: ", NamedTextColor.GRAY)
-                    .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));
-            lore.add(Component.text(type.getDescription(), NamedTextColor.WHITE));
-            lore.add(Component.empty());
-            lore.add(Component.text("✦ Skill 1 [RMB]: ", NamedTextColor.GOLD)
-                    .append(Component.text(type.getPrimaryAbilityName(), NamedTextColor.YELLOW)));
-            lore.add(Component.text("✦ Skill 2 [Shift + RMB]: ", NamedTextColor.GOLD)
-                    .append(Component.text(type.getSecondaryAbilityName(), NamedTextColor.YELLOW)));
+            if (type == SinGemType.SIN) {
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<dark_red><bold>✦ MYTHIC APEX RELIC ✦</bold></dark_red>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<italic><gray>\"Weighed by a thousand losses, the definition of retaliation.\"</gray></italic>"));
+                lore.add(Component.empty());
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<dark_red><bold>☠ Passive:</bold></dark_red> <red><bold>Bloodfeast</bold></red>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Immune to negative effects; debuffs become </gray><gold>Strength III</gold><gray>.</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• At < 4 HP (2 hearts): Instant CD reset & 2x clocking rate.</gray>"));
+                lore.add(Component.empty());
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gold><bold>✦ Skill 1 [RMB]:</bold></gold> <yellow><bold>Rusty Blood</bold></yellow> <gray>(35s CD)</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Throws rotating redstone block with physical link chain.</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Siphons life; recast to drill through shields (3 true hearts).</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Airborne targets: Aerial grapple slam into crater shockwave (6 true hearts)!</gray>"));
+                lore.add(Component.empty());
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gold><bold>✦ Skill 2 [Shift + RMB]:</bold></gold> <yellow><bold>Veins of Flagitious</bold></yellow> <gray>(50s CD)</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Dissolve into void. Steer a heavy crimson core with cursor (8m/s).</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Marked victims are struck by reverse red lightning (40m fling)!</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>• Sets up 100% lock-on Aerial Slam combo!</gray>"));
+            } else {
+                lore.add(Component.text("Sin Relic: ", NamedTextColor.GRAY)
+                        .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));
+                lore.add(Component.text(type.getDescription(), NamedTextColor.WHITE));
+                lore.add(Component.empty());
+                lore.add(Component.text("✦ Skill 1 [RMB]: ", NamedTextColor.GOLD)
+                        .append(Component.text(type.getPrimaryAbilityName(), NamedTextColor.YELLOW)));
+                lore.add(Component.text("✦ Skill 2 [Shift + RMB]: ", NamedTextColor.GOLD)
+                        .append(Component.text(type.getSecondaryAbilityName(), NamedTextColor.YELLOW)));
+            }
             lore.add(Component.empty());
             lore.add(Component.text("✦ Hold in hand to channel powers", NamedTextColor.AQUA));
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
@@ -169,13 +201,13 @@ public class SinGemManager {
         PersistentDataContainer pdc = player.getPersistentDataContainer();
         if (!pdc.has(receivedFirstGemKey, PersistentDataType.BYTE)) {
             pdc.set(receivedFirstGemKey, PersistentDataType.BYTE, (byte) 1);
-            SinGemType[] values = SinGemType.values();
+            SinGemType[] values = SinGemType.BASE_SINS;
             SinGemType chosen = values[random.nextInt(values.length)];
             player.getInventory().addItem(createGemItem(chosen));
 
-            player.sendMessage(Component.text("âœ¦ A mysterious relic materialized in your inventory: ", NamedTextColor.YELLOW)
+            player.sendMessage(Component.text("✦ A mysterious relic materialized in your inventory: ", NamedTextColor.YELLOW)
                     .append(chosen.getFormattedName()));
-            player.sendMessage(Component.text("âœ¦ Right-click to attune, or use /church reroll before attuning!", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("✦ Right-click to attune, or use /church reroll before attuning!", NamedTextColor.GRAY));
         }
     }
 
@@ -195,7 +227,7 @@ public class SinGemManager {
             return false;
         }
 
-        SinGemType[] all = SinGemType.values();
+        SinGemType[] all = SinGemType.BASE_SINS;
         SinGemType next;
         do {
             next = all[random.nextInt(all.length)];
@@ -206,6 +238,60 @@ public class SinGemManager {
         player.sendMessage(Component.text("✦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
                 .append(next.getFormattedName()));
         return true;
+    }
+
+    /**
+     * Checks if the Mythic SIN Gem already exists anywhere on the server.
+     * Enforces "The One and Only" rule: only 1 instance can exist across the entire server.
+     */
+    public boolean doesMythicSinGemExist() {
+        org.bukkit.World mainWorld = org.bukkit.Bukkit.getWorlds().isEmpty() ? null : org.bukkit.Bukkit.getWorlds().get(0);
+        if (mainWorld != null) {
+            NamespacedKey mythicKey = new NamespacedKey(plugin, "mythic_sin_gem_exists");
+            if (mainWorld.getPersistentDataContainer().has(mythicKey, PersistentDataType.BYTE)) {
+                return true;
+            }
+        }
+
+        for (Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
+            if (isHoldingGem(p, SinGemType.SIN) || hasGemInInventory(p, SinGemType.SIN)) {
+                return true;
+            }
+            for (ItemStack item : p.getEnderChest().getContents()) {
+                if (item != null && getGemType(item) == SinGemType.SIN) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Records or clears the persistent world flag for the Mythic SIN Gem existence.
+     */
+    public void setMythicSinGemExists(boolean exists) {
+        org.bukkit.World mainWorld = org.bukkit.Bukkit.getWorlds().isEmpty() ? null : org.bukkit.Bukkit.getWorlds().get(0);
+        if (mainWorld != null) {
+            NamespacedKey mythicKey = new NamespacedKey(plugin, "mythic_sin_gem_exists");
+            if (exists) {
+                mainWorld.getPersistentDataContainer().set(mythicKey, PersistentDataType.BYTE, (byte) 1);
+            } else {
+                mainWorld.getPersistentDataContainer().remove(mythicKey);
+            }
+        }
+    }
+
+    /**
+     * Checks if the player has a specific SinGemType anywhere in their inventory.
+     */
+    public boolean hasGemInInventory(Player player, SinGemType targetType) {
+        if (player == null || targetType == null) return false;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && getGemType(item) == targetType) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

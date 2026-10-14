@@ -20,7 +20,15 @@ public enum SinGemType {
     PRIDE("Pride", Material.QUARTZ_BLOCK, TextColor.color(0xFFF8DC),
             "Reach untouchable perfection; devastating power that shatters if struck."),
     SLOTH("Sloth", Material.CRYING_OBSIDIAN, TextColor.color(0x4682B4),
-            "Slow time and movement around you; an immovable anchor of apathy.");
+            "Slow time and movement around you; an immovable anchor of apathy."),
+    SIN("SIN", Material.NETHERITE_BLOCK, TextColor.color(0xDC2626),
+            "Weighed by a thousand losses, the definition of retaliation.");
+
+    public static final SinGemType[] BASE_SINS = { WRATH, GREED, GLUTTONY, LUST, ENVY, PRIDE, SLOTH };
+
+    public boolean isMythic() {
+        return this == SIN;
+    }
 
     private final String displayName;
     private final Material iconMaterial;
@@ -51,6 +59,10 @@ public enum SinGemType {
     }
 
     public Component getFormattedName() {
+        if (this == SIN) {
+            return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                    .deserialize("<bold><gradient:#000000:#434343:#888888>SIN</gradient></bold> <gradient:#FFFFFF:#FFF8DC:#FFD700>Gem</gradient>");
+        }
         return Component.text("Relic Gem of " + displayName, color).decorate(TextDecoration.BOLD);
     }
 
@@ -63,6 +75,7 @@ public enum SinGemType {
             case ENVY -> "Mirror of Shame";
             case PRIDE -> "Sovereign Charge";
             case SLOTH -> "Temporal Echo";
+            case SIN -> "Rusty Blood";
         };
     }
 
@@ -75,6 +88,7 @@ public enum SinGemType {
             case ENVY -> "Shadow Covet";
             case PRIDE -> "Tombstone Duel";
             case SLOTH -> "Delayed Stasis";
+            case SIN -> "Veins of Flagitious";
         };
     }
 
@@ -87,6 +101,7 @@ public enum SinGemType {
             case ENVY -> "gem_envy_mirror";
             case PRIDE -> "gem_pride_charge";
             case SLOTH -> "gem_sloth_echo";
+            case SIN -> "gem_sin_rusty_blood";
         };
     }
 
@@ -99,6 +114,7 @@ public enum SinGemType {
             case ENVY -> "gem_envy_covet";
             case PRIDE -> "gem_pride_duel";
             case SLOTH -> "gem_sloth_stasis";
+            case SIN -> "gem_sin_flagitious";
         };
     }
 
@@ -111,6 +127,7 @@ public enum SinGemType {
             case ENVY -> "<gradient:#008080:#00CED1>";
             case PRIDE -> "<gradient:#FFD700:#FFF8DC>";
             case SLOTH -> "<gradient:#4169E1:#4682B4>";
+            case SIN -> "<gradient:#000000:#DC2626:#FFD700>";
         };
     }
 }

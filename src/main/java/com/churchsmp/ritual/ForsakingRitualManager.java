@@ -360,6 +360,7 @@ public class ForsakingRitualManager implements Listener {
             case ENVY -> Color.fromRGB(180, 255, 255);     // Bright aquamarine
             case PRIDE -> Color.fromRGB(255, 255, 255);    // Diamond pure white
             case SLOTH -> Color.fromRGB(160, 100, 255);    // Void purple
+            case SIN -> Color.fromRGB(255, 215, 0);        // Crimson-Gold Apex
         };
 
         // Sound cues for awakening

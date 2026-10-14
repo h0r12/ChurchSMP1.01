@@ -17,8 +17,51 @@ public class CooldownManager {
     // UUID -> (AbilityKey -> Active Expiration Timestamp in millis)
     private final Map<UUID, Map<String, Long>> activeAbilities = new ConcurrentHashMap<>();
 
+    // UUID -> Expiration Timestamp in millis for 2x pacing mode
+    private final Map<UUID, Long> doublePacingEndTimes = new ConcurrentHashMap<>();
+
     public CooldownManager(ChurchSMP plugin) {
         this.plugin = plugin;
+        startDoublePacingTask();
+    }
+
+    private void startDoublePacingTask() {
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                for (Map.Entry<UUID, Long> entry : doublePacingEndTimes.entrySet()) {
+                    if (now > entry.getValue()) {
+                        doublePacingEndTimes.remove(entry.getKey());
+                        continue;
+                    }
+                    UUID uuid = entry.getKey();
+                    Map<String, Long> userCds = cooldowns.get(uuid);
+                    if (userCds != null && !userCds.isEmpty()) {
+                        for (Map.Entry<String, Long> cdEntry : userCds.entrySet()) {
+                            long exp = cdEntry.getValue();
+                            if (exp > now) {
+                                cdEntry.setValue(exp - 500L);
+                            }
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 10L, 10L);
+    }
+
+    public void setDoublePacing(UUID uuid, long durationMillis) {
+        doublePacingEndTimes.put(uuid, System.currentTimeMillis() + durationMillis);
+    }
+
+    public boolean hasDoublePacing(UUID uuid) {
+        Long expireAt = doublePacingEndTimes.get(uuid);
+        if (expireAt == null) return false;
+        if (System.currentTimeMillis() > expireAt) {
+            doublePacingEndTimes.remove(uuid);
+            return false;
+        }
+        return true;
     }
 
     /**

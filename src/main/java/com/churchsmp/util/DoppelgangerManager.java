@@ -477,8 +477,9 @@ public class DoppelgangerManager {
                         EnumWrappers.PlayerInfoAction.UPDATE_LATENCY,
                         EnumWrappers.PlayerInfoAction.UPDATE_DISPLAY_NAME
                 ));
+                // listed = true is required upon ADD_PLAYER for modern client to fetch and render skin textures
                 PlayerInfoData pid = new PlayerInfoData(
-                        dg.fakeUUID, 0, false,
+                        dg.fakeUUID, 0, true,
                         EnumWrappers.NativeGameMode.SURVIVAL,
                         dg.profile, null
                 );
@@ -486,6 +487,27 @@ public class DoppelgangerManager {
                     info.getPlayerInfoDataLists().write(0, List.of(pid));
                 }
                 protocolManager.sendServerPacket(viewer, info);
+
+                // Unlist from tab menu after skin is initialized (4 ticks later)
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (!viewer.isOnline()) return;
+                            PacketContainer unlist = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO);
+                            unlist.getPlayerInfoActions().write(0, EnumSet.of(EnumWrappers.PlayerInfoAction.UPDATE_LISTED));
+                            PlayerInfoData unlistPid = new PlayerInfoData(
+                                    dg.fakeUUID, 0, false,
+                                    EnumWrappers.NativeGameMode.SURVIVAL,
+                                    dg.profile, null
+                            );
+                            if (unlist.getPlayerInfoDataLists().size() > 0) {
+                                unlist.getPlayerInfoDataLists().write(0, List.of(unlistPid));
+                            }
+                            protocolManager.sendServerPacket(viewer, unlist);
+                        } catch (Throwable ignored) {}
+                    }
+                }.runTaskLater(plugin, 4L);
             } catch (Throwable t) {
                 plugin.getLogger().warning("[Doppelganger] PlayerInfoUpdate packet notice: " + t.getMessage());
             }
