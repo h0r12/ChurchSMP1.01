@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -82,8 +83,24 @@ public class SinGemAbilityExecutor {
     private final Map<UUID, Long> flagitiousAirborneComboTargets = new ConcurrentHashMap<>(); // Victim UUID -> Airborne Combo Expire Timestamp
     private final Set<UUID> flagitiousCasters = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    // ZEN (Mythic Gem) state
+    private final Map<UUID, UUID> luminateVictims = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> luminateQteExpire = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> luminateExpulsionExpire = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> luminateExpulsionTargets = new ConcurrentHashMap<>();
+
+    private final Map<UUID, Integer> redemptSwings = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> redemptExpire = new ConcurrentHashMap<>();
+    private final Map<UUID, ItemStack> redemptOriginalGems = new ConcurrentHashMap<>();
+    private final NamespacedKey undyingSharpKey;
+
+    private final Map<UUID, Long> deflectActiveEnd = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> gemLockedUntil = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> projectilesLockedUntil = new ConcurrentHashMap<>();
+
     public SinGemAbilityExecutor(ChurchSMP plugin) {
         this.plugin = plugin;
+        this.undyingSharpKey = new NamespacedKey(plugin, "undying_sharp");
         startTickingLoops();
     }
 
@@ -298,6 +315,12 @@ public class SinGemAbilityExecutor {
             case SIN -> {
                 return handleRustyBloodClick(player);
             }
+            case ZEN -> {
+                if (handleLuminateExpulsion(player, target)) {
+                    return true;
+                }
+                return executeLuminate(player, target);
+            }
             default -> {}
         }
         return false;
@@ -372,6 +395,10 @@ public class SinGemAbilityExecutor {
                 activateVeinsOfFlagitious(player);
                 return true;
             }
+            case ZEN -> {
+                // Skill 2: Deflects (Right Click | 40s CD)
+                return executeDeflects(player);
+            }
             default -> { return false; }
         }
     }
@@ -389,7 +416,7 @@ public class SinGemAbilityExecutor {
                 UUID uuid = player.getUniqueId();
                 int rev = revengeStacks.getOrDefault(uuid, 0);
                 if (rev < 2) {
-                    player.sendMessage(miniMessage.deserialize("<red>✦ [OVERDRIVE] " + TextUtil.toSmallCaps("Requires 2 Revenge Stacks (currently ") + rev + "/2)! Attack or take hits during Fury to gain Revenge Stacks. ✦</red>"));
+                    player.sendMessage(miniMessage.deserialize("<red>[Overdrive] " + TextUtil.toSmallCaps("Requires 2 Revenge Stacks (currently ") + rev + "/2).</red>"));
                     return true;
                 }
                 String key = "gem_wrath_overdrive";
@@ -404,7 +431,7 @@ public class SinGemAbilityExecutor {
                 String key = "gem_greed_taken";
                 if (plugin.getCooldownManager().isOnCooldown(player, key)) {
                     double remaining = plugin.getCooldownManager().getRemainingCooldownSeconds(player, key);
-                    player.sendMessage(miniMessage.deserialize("<red>✦ <white>" + TextUtil.toSmallCaps("Ability is on cooldown") + ":</white> " + String.format("%.1f", remaining) + "s</red>"));
+                    player.sendMessage(miniMessage.deserialize("<red>[Cooldown] " + String.format("%.1f", remaining) + "s</red>"));
                     return true;
                 }
                 if (activateTaken(player)) {
@@ -453,6 +480,10 @@ public class SinGemAbilityExecutor {
                 if (checkCooldown(player, key, 50)) return true;
                 activateVeinsOfFlagitious(player);
                 return true;
+            }
+            case ZEN -> {
+                // Skill 2: Deflects (Sneak + RMB | 40s CD)
+                return executeDeflects(player);
             }
             default -> { return false; }
         }
@@ -658,6 +689,7 @@ public class SinGemAbilityExecutor {
                 case PRIDE -> "gem_pride_charge";
                 case SLOTH -> "gem_sloth_echo";
                 case SIN -> "gem_sin_flagitious";
+                case ZEN -> "gem_zen_redempt";
             };
         } else {
             return switch (gem) {
@@ -669,6 +701,7 @@ public class SinGemAbilityExecutor {
                 case PRIDE -> "gem_pride_duel";
                 case SLOTH -> "gem_sloth_stasis";
                 case SIN -> "gem_sin_flagitious";
+                case ZEN -> "gem_zen_deflects";
             };
         }
     }
@@ -1634,6 +1667,12 @@ public class SinGemAbilityExecutor {
                 if (charges > 0) {
                     return charges + "/5 ᴄʜᴀʀɢᴇꜱ";
                 }
+            } else if (gem == SinGemType.ZEN) {
+                if (hasActiveRedempt(player)) {
+                    int swings = getRedemptSwings(player);
+                    long rem = getRedemptRemainingSeconds(player);
+                    return "- " + swings + " / 3 swings left  | " + rem + "s";
+                }
             }
         } else {
             if (gem == SinGemType.SIN) {
@@ -1655,6 +1694,14 @@ public class SinGemAbilityExecutor {
                         double rem = Math.max(0, (end - System.currentTimeMillis()) / 1000.0);
                         return "ᴀᴄᴛɪᴠᴇ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)";
                     }
+                }
+            } else if (gem == SinGemType.ZEN) {
+                if (isDeflectActive(player)) {
+                    return "ᴘᴀʀʀʏ ꜰʀᴀᴍᴇ";
+                }
+                if (isGemLocked(player)) {
+                    double rem = getGemLockRemainingSeconds(player);
+                    return "ʟᴏᴄᴋᴇᴅ (" + String.format(Locale.US, "%.1f", rem) + "ꜱ)";
                 }
             }
         }
@@ -2316,5 +2363,486 @@ public class SinGemAbilityExecutor {
             target.playHurtAnimation(0.0f);
             target.damage(0.001, source);
         }
+    }
+
+    // =========================================================================
+    // ZEN GEM IMPLEMENTATION
+    // =========================================================================
+
+    public ItemStack createUndyingSharpItem() {
+        ItemStack item = new ItemStack(Material.NETHERITE_SWORD);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(miniMessage.deserialize("<gradient:#FFFFFF:#D8B4FE><bold>Undying Sharp</bold></gradient>"));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
+            lore.add(miniMessage.deserialize("<italic><gray>A piece of time's second coming ,Undefined at the rest were silence</gray></italic>"));
+            lore.add(Component.empty());
+            lore.add(miniMessage.deserialize("<gray>Slash: 20 blocks/s | 2.5 True HP</gray>"));
+            lore.add(miniMessage.deserialize("<gray>Swings: 3 | Range: Infinite</gray>"));
+            lore.add(miniMessage.deserialize("<gray>Finale: 4-Pointed Star Cleave</gray>"));
+            lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
+            meta.lore(lore);
+
+            meta.setCustomModelData(1005);
+            meta.setUnbreakable(true);
+            meta.getPersistentDataContainer().set(undyingSharpKey, PersistentDataType.BYTE, (byte) 1);
+            meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_UNBREAKABLE, org.bukkit.inventory.ItemFlag.HIDE_ATTRIBUTES);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    public boolean isHoldingUndyingSharp(Player player) {
+        if (player == null) return false;
+        ItemStack main = player.getInventory().getItemInMainHand();
+        if (main == null || !main.hasItemMeta()) return false;
+        return main.getItemMeta().getPersistentDataContainer().has(undyingSharpKey, PersistentDataType.BYTE);
+    }
+
+    public boolean hasActiveRedempt(Player player) {
+        if (player == null) return false;
+        return redemptSwings.containsKey(player.getUniqueId());
+    }
+
+    public int getRedemptSwings(Player player) {
+        if (player == null) return 0;
+        return redemptSwings.getOrDefault(player.getUniqueId(), 0);
+    }
+
+    public long getRedemptRemainingSeconds(Player player) {
+        if (player == null) return 0;
+        Long exp = redemptExpire.get(player.getUniqueId());
+        if (exp == null) return 0;
+        return Math.max(0, (exp - System.currentTimeMillis() + 999) / 1000);
+    }
+
+    public boolean executeRedempt(Player player) {
+        if (isGemLocked(player)) {
+            double rem = getGemLockRemainingSeconds(player);
+            player.sendMessage(miniMessage.deserialize("<red>Disarmed: Gem is locked (" + String.format(Locale.US, "%.1f", rem) + "s)</red>"));
+            return false;
+        }
+
+        String key = "gem_zen_redempt";
+        if (checkCooldown(player, key, 60)) return true;
+
+        UUID uuid = player.getUniqueId();
+        ItemStack held = player.getInventory().getItemInMainHand();
+        redemptOriginalGems.put(uuid, held.clone());
+        redemptSwings.put(uuid, 3);
+        long expire = System.currentTimeMillis() + 10000L;
+        redemptExpire.put(uuid, expire);
+
+        player.getInventory().setItemInMainHand(createUndyingSharpItem());
+
+        player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_NETHERITE, 1.2f, 1.2f);
+        player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.5f, 1.5f);
+        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1.2, 0), 20, 0.4, 0.6, 0.4, 0.05);
+
+        player.sendActionBar(miniMessage.deserialize("<#d8b4fe>- 3 / 3 swings left  | 10s</#d8b4fe>"));
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!player.isOnline()) {
+                    revertUndyingSharp(player);
+                    cancel();
+                    return;
+                }
+                Long exp = redemptExpire.get(uuid);
+                if (exp == null || System.currentTimeMillis() >= exp || !redemptSwings.containsKey(uuid)) {
+                    revertUndyingSharp(player);
+                    cancel();
+                    return;
+                }
+                int swings = redemptSwings.getOrDefault(uuid, 0);
+                if (swings <= 0) {
+                    revertUndyingSharp(player);
+                    cancel();
+                    return;
+                }
+                long remSec = Math.max(0, (exp - System.currentTimeMillis() + 999) / 1000);
+                player.sendActionBar(miniMessage.deserialize("<#d8b4fe>- " + swings + " / 3 swings left  | " + remSec + "s</#d8b4fe>"));
+            }
+        }.runTaskTimer(plugin, 10L, 10L);
+
+        return true;
+    }
+
+    public void handleUndyingSharpSwing(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (!redemptSwings.containsKey(uuid)) return;
+
+        int swings = redemptSwings.getOrDefault(uuid, 0);
+        if (swings <= 0) {
+            revertUndyingSharp(player);
+            return;
+        }
+
+        swings--;
+        redemptSwings.put(uuid, swings);
+        boolean isFinal = (swings == 0);
+
+        fireUndyingBladeWave(player, isFinal);
+
+        Long exp = redemptExpire.get(uuid);
+        long remSec = (exp != null) ? Math.max(0, (exp - System.currentTimeMillis() + 999) / 1000) : 0;
+        player.sendActionBar(miniMessage.deserialize("<#d8b4fe>- " + swings + " / 3 swings left  | " + remSec + "s</#d8b4fe>"));
+
+        if (swings <= 0) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> revertUndyingSharp(player), 2L);
+        }
+    }
+
+    public void revertUndyingSharp(Player player) {
+        if (player == null) return;
+        UUID uuid = player.getUniqueId();
+        redemptSwings.remove(uuid);
+        redemptExpire.remove(uuid);
+        ItemStack original = redemptOriginalGems.remove(uuid);
+
+        if (original == null) {
+            original = plugin.getSinGemManager().createGemItem(SinGemType.ZEN);
+        }
+
+        boolean replaced = false;
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack stack = contents[i];
+            if (stack != null && stack.hasItemMeta() && stack.getItemMeta().getPersistentDataContainer().has(undyingSharpKey, PersistentDataType.BYTE)) {
+                player.getInventory().setItem(i, original);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced && player.isOnline()) {
+            player.getInventory().addItem(original);
+        }
+        if (player.isOnline()) {
+            player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 0.8f, 1.2f);
+        }
+    }
+
+    private void fireUndyingBladeWave(Player player, boolean isFinal) {
+        Vector dir = player.getLocation().getDirection().normalize();
+        Location startLoc = player.getEyeLocation().add(dir.clone().multiply(0.8));
+
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_2, 1.2f, isFinal ? 1.9f : 1.6f);
+        if (isFinal) {
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_CAST_SPELL, 1.4f, 1.8f);
+        }
+
+        Set<UUID> hitEntities = new HashSet<>();
+        Vector rightVec = new Vector(-dir.getZ(), 0, dir.getX());
+        if (rightVec.lengthSquared() < 0.001) rightVec = new Vector(1, 0, 0);
+        final Vector right = rightVec.normalize();
+        final Vector up = dir.clone().crossProduct(right).normalize();
+
+        new BukkitRunnable() {
+            Location currLoc = startLoc.clone();
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks >= 80 || !currLoc.isChunkLoaded()) {
+                    cancel();
+                    return;
+                }
+                ticks++;
+                currLoc.add(dir);
+
+                int bx = currLoc.getBlockX();
+                int by = currLoc.getBlockY();
+                int bz = currLoc.getBlockZ();
+                World world = currLoc.getWorld();
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            org.bukkit.block.Block b = world.getBlockAt(bx + dx, by + dy, bz + dz);
+                            if (b.getType().isAir() || b.isLiquid()) continue;
+                            if (b.getType() == Material.BEDROCK || b.getType() == Material.BARRIER || b.getType().name().contains("COMMAND")) continue;
+                            world.spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 6, 0.3, 0.3, 0.3, b.getBlockData());
+                            b.setType(Material.AIR);
+                        }
+                    }
+                }
+
+                if (!isFinal) {
+                    for (int deg = -60; deg <= 60; deg += 15) {
+                        double rad = Math.toRadians(deg);
+                        Location p = currLoc.clone()
+                                .add(right.clone().multiply(Math.sin(rad) * 1.8))
+                                .add(up.clone().multiply(Math.cos(rad) * 0.9));
+                        world.spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(216, 180, 254), 1.2f));
+                        if (deg % 30 == 0) {
+                            world.spawnParticle(Particle.END_ROD, p, 1, 0, 0, 0, 0.01);
+                        }
+                    }
+                } else {
+                    double R = 2.4;
+                    double r = 0.65;
+                    double[][] starPts = {
+                            { 0, R },
+                            { r, r },
+                            { R, 0 },
+                            { r, -r },
+                            { 0, -R },
+                            { -r, -r },
+                            { -R, 0 },
+                            { -r, r }
+                    };
+                    Particle.DustOptions starDust = new Particle.DustOptions(Color.fromRGB(240, 225, 255), 1.3f);
+                    Particle.DustOptions lilacDust = new Particle.DustOptions(Color.fromRGB(216, 180, 254), 1.2f);
+
+                    for (int i = 0; i < 8; i++) {
+                        double[] p1 = starPts[i];
+                        double[] p2 = starPts[(i + 1) % 8];
+                        for (int step = 0; step < 5; step++) {
+                            double f = step / 5.0;
+                            double px = p1[0] * (1.0 - f) + p2[0] * f;
+                            double py = p1[1] * (1.0 - f) + p2[1] * f;
+                            Location ptLoc = currLoc.clone()
+                                    .add(right.clone().multiply(px))
+                                    .add(up.clone().multiply(py));
+                            world.spawnParticle(Particle.DUST, ptLoc, 1, 0, 0, 0, 0, (step % 2 == 0) ? starDust : lilacDust);
+                        }
+                        Location vertex = currLoc.clone()
+                                .add(right.clone().multiply(p1[0]))
+                                .add(up.clone().multiply(p1[1]));
+                        world.spawnParticle(Particle.END_ROD, vertex, 1, 0, 0, 0, 0.01);
+                    }
+                    world.spawnParticle(Particle.FLASH, currLoc, 1, 0, 0, 0, Color.fromRGB(216, 180, 254));
+                }
+
+                for (LivingEntity target : world.getNearbyLivingEntities(currLoc, 1.8)) {
+                    if (target.equals(player) || hitEntities.contains(target.getUniqueId())) continue;
+                    hitEntities.add(target.getUniqueId());
+
+                    dealTrueDamage(target, 5.0, player);
+                    world.playSound(target.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.2f, 1.6f);
+                    world.spawnParticle(Particle.CRIT, target.getLocation().add(0, 1, 0), 15, 0.3, 0.4, 0.3, 0.1);
+
+                    if (target instanceof Player victim) {
+                        int curScore = plugin.getAlignmentManager().getAlignmentScore(victim);
+                        int shift = (curScore >= 0) ? -30 : 30;
+                        plugin.getAlignmentManager().setAlignmentScore(victim, curScore + shift, true);
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                            if (victim.isOnline()) {
+                                int nowScore = plugin.getAlignmentManager().getAlignmentScore(victim);
+                                plugin.getAlignmentManager().setAlignmentScore(victim, nowScore - shift, false);
+                            }
+                        }, 300L);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    public boolean executeDeflects(Player player) {
+        if (isGemLocked(player)) {
+            double rem = getGemLockRemainingSeconds(player);
+            player.sendMessage(miniMessage.deserialize("<red>Disarmed: Gem is locked (" + String.format(Locale.US, "%.1f", rem) + "s)</red>"));
+            return false;
+        }
+
+        String key = "gem_zen_deflects";
+        if (checkCooldown(player, key, 40)) return true;
+
+        UUID uuid = player.getUniqueId();
+        long parryEnd = System.currentTimeMillis() + 80L;
+        deflectActiveEnd.put(uuid, parryEnd);
+
+        player.getWorld().playSound(player.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1.0f, 1.8f);
+        player.getWorld().spawnParticle(Particle.FLASH, player.getLocation().add(0, 1.2, 0), 1, 0, 0, 0, Color.fromRGB(216, 180, 254));
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (deflectActiveEnd.remove(uuid) != null) {
+                lockGem(player, 15);
+                lockProjectiles(player, 15);
+                player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 2, false, false, true));
+                player.sendMessage(miniMessage.deserialize("<gray>Deflect whiffed <dark_gray>(<red>Slowness III</red> <dark_gray>| <red>15s lock</red>)</dark_gray></gray>"));
+                player.playSound(player.getLocation(), Sound.BLOCK_CHAIN_BREAK, 1.0f, 0.8f);
+            }
+        }, 2L);
+
+        return true;
+    }
+
+    public boolean isDeflectActive(Player player) {
+        if (player == null) return false;
+        Long end = deflectActiveEnd.get(player.getUniqueId());
+        return end != null && System.currentTimeMillis() <= end;
+    }
+
+    public void handleDeflectSuccess(Player defender, LivingEntity attacker) {
+        UUID defId = defender.getUniqueId();
+        deflectActiveEnd.remove(defId);
+
+        plugin.getCooldownManager().removeCooldown(defender, "gem_zen_deflects");
+        defender.sendMessage(miniMessage.deserialize("<#d8b4fe>Deflected! Cooldown reset.</#d8b4fe>"));
+
+        defender.getWorld().playSound(defender.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.2f, 2.0f);
+        defender.getWorld().playSound(defender.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1.4f, 1.2f);
+        defender.getWorld().spawnParticle(Particle.FLASH, defender.getLocation().add(0, 1.2, 0), 1, 0, 0, 0, Color.WHITE);
+
+        if (attacker instanceof Player atkPlayer) {
+            lockGem(atkPlayer, 15);
+            lockProjectiles(atkPlayer, 15);
+            atkPlayer.sendMessage(miniMessage.deserialize("<red>Deflected! Disarmed for 15s.</red>"));
+            atkPlayer.playSound(atkPlayer.getLocation(), Sound.ITEM_SHIELD_BREAK, 1.2f, 0.8f);
+            atkPlayer.getWorld().spawnParticle(Particle.CRIT, atkPlayer.getLocation().add(0, 1.2, 0), 20, 0.3, 0.5, 0.3, 0.2);
+        }
+    }
+
+    public boolean executeLuminate(Player attacker, LivingEntity target) {
+        if (isGemLocked(attacker)) {
+            double rem = getGemLockRemainingSeconds(attacker);
+            attacker.sendMessage(miniMessage.deserialize("<red>Disarmed: Gem is locked (" + String.format(Locale.US, "%.1f", rem) + "s)</red>"));
+            return false;
+        }
+
+        String key = "gem_zen_luminate";
+        if (checkCooldown(attacker, key, 40)) return true;
+
+        dealTrueDamage(target, 6.0, attacker);
+
+        Vector dir = target.getLocation().toVector().subtract(attacker.getLocation().toVector()).setY(0);
+        if (dir.lengthSquared() < 0.001) {
+            dir = attacker.getLocation().getDirection().setY(0);
+        }
+        dir.normalize();
+        Vector launch = dir.multiply(1.8).setY(1.35);
+        target.setVelocity(launch);
+
+        attacker.getWorld().playSound(attacker.getLocation(), Sound.ENTITY_ILLUSIONER_CAST_SPELL, 1.2f, 1.6f);
+        target.getWorld().spawnParticle(Particle.END_ROD, target.getLocation().add(0, 1, 0), 25, 0.4, 0.6, 0.4, 0.1);
+        target.getWorld().spawnParticle(Particle.DUST, target.getLocation().add(0, 1, 0), 20, 0.4, 0.6, 0.4, new Particle.DustOptions(Color.fromRGB(216, 180, 254), 1.2f));
+
+        attacker.sendMessage(miniMessage.deserialize("<#d8b4fe>Luminate  <gray>Launched target into the sky</gray>"));
+
+        UUID atkId = attacker.getUniqueId();
+        UUID vicId = target.getUniqueId();
+        luminateVictims.put(atkId, vicId);
+        luminateQteExpire.put(atkId, System.currentTimeMillis() + 500L);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (luminateQteExpire.remove(atkId) != null) {
+                luminateVictims.remove(atkId);
+                if (attacker.isOnline()) {
+                    attacker.sendMessage(miniMessage.deserialize("<gray><i>Luminate pull time has expired.</i></gray>"));
+                }
+            }
+        }, 10L);
+
+        return true;
+    }
+
+    public void handleLuminateSneakQTE(Player attacker) {
+        UUID atkId = attacker.getUniqueId();
+        if (!luminateQteExpire.containsKey(atkId)) return;
+
+        luminateQteExpire.remove(atkId);
+        UUID vicId = luminateVictims.remove(atkId);
+        if (vicId == null) return;
+
+        Entity vicEntity = Bukkit.getEntity(vicId);
+        if (vicEntity instanceof LivingEntity victim && victim.isValid() && !victim.isDead()) {
+            attacker.sendMessage(miniMessage.deserialize("<#d8b4fe> <white>Target dragged back !</white>"));
+
+            Location pullTo = attacker.getLocation().add(attacker.getLocation().getDirection().setY(0).normalize().multiply(2.5));
+            pullTo.setY(attacker.getLocation().getY());
+            victim.teleport(pullTo);
+            victim.setVelocity(new Vector(0, 0.1, 0));
+
+            drawMathBolt(attacker.getEyeLocation(), victim.getEyeLocation());
+
+            attacker.playSound(attacker.getLocation(), Sound.ITEM_TRIDENT_RETURN, 1.2f, 1.5f);
+            victim.getWorld().playSound(victim.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.0f, 1.4f);
+
+            luminateExpulsionExpire.put(atkId, System.currentTimeMillis() + 2000L);
+            luminateExpulsionTargets.put(atkId, vicId);
+        }
+    }
+
+    public boolean handleLuminateExpulsion(Player attacker, LivingEntity target) {
+        UUID atkId = attacker.getUniqueId();
+        Long exp = luminateExpulsionExpire.get(atkId);
+        if (exp == null || System.currentTimeMillis() > exp) return false;
+
+        luminateExpulsionExpire.remove(atkId);
+        luminateExpulsionTargets.remove(atkId);
+
+        dealTrueDamage(target, 4.0, attacker);
+
+        Location center = target.getLocation();
+        for (LivingEntity nearby : center.getWorld().getNearbyLivingEntities(center, 6.0)) {
+            if (nearby.equals(attacker)) continue;
+            Vector blast = nearby.getLocation().toVector().subtract(center.toVector());
+            if (blast.lengthSquared() < 0.001) blast = attacker.getLocation().getDirection();
+            blast.setY(0).normalize().multiply(2.0).setY(0.7);
+            nearby.setVelocity(blast);
+            dealTrueDamage(nearby, 4.0, attacker);
+        }
+
+        center.getWorld().spawnParticle(Particle.FIREWORK, center.clone().add(0, 1, 0), 40, 0.5, 0.5, 0.5, 0.15);
+        center.getWorld().spawnParticle(Particle.END_ROD, center, 20, 0.4, 0.5, 0.4, 0.1);
+        center.getWorld().playSound(center, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1.2f, 1.0f);
+        center.getWorld().playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.8f);
+
+        return true;
+    }
+
+    public void drawMathBolt(Location from, Location to) {
+        World world = from.getWorld();
+        if (world == null || !world.equals(to.getWorld())) return;
+
+        Vector diff = to.toVector().subtract(from.toVector());
+        double dist = diff.length();
+        if (dist < 0.1) return;
+
+        Vector step = diff.clone().normalize().multiply(0.25);
+        int points = (int) Math.round(dist / 0.25);
+
+        Location current = from.clone();
+        Particle.DustOptions lilacDust = new Particle.DustOptions(Color.fromRGB(216, 180, 254), 1.0f);
+        Particle.DustOptions whiteDust = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.2f);
+
+        for (int i = 0; i <= points; i++) {
+            world.spawnParticle(Particle.DUST, current, 1, 0, 0, 0, 0, (i % 2 == 0) ? lilacDust : whiteDust);
+            if (i % 4 == 0) {
+                world.spawnParticle(Particle.END_ROD, current, 1, 0.01, 0.01, 0.01, 0.005);
+            }
+            current.add(step);
+        }
+    }
+
+    public void lockGem(Player player, int seconds) {
+        if (player == null) return;
+        gemLockedUntil.put(player.getUniqueId(), System.currentTimeMillis() + (seconds * 1000L));
+    }
+
+    public boolean isGemLocked(Player player) {
+        if (player == null) return false;
+        Long until = gemLockedUntil.get(player.getUniqueId());
+        return until != null && System.currentTimeMillis() < until;
+    }
+
+    public double getGemLockRemainingSeconds(Player player) {
+        if (player == null) return 0.0;
+        Long until = gemLockedUntil.get(player.getUniqueId());
+        if (until == null) return 0.0;
+        return Math.max(0.0, (until - System.currentTimeMillis()) / 1000.0);
+    }
+
+    public void lockProjectiles(Player player, int seconds) {
+        if (player == null) return;
+        projectilesLockedUntil.put(player.getUniqueId(), System.currentTimeMillis() + (seconds * 1000L));
+    }
+
+    public boolean isProjectilesLocked(Player player) {
+        if (player == null) return false;
+        Long until = projectilesLockedUntil.get(player.getUniqueId());
+        return until != null && System.currentTimeMillis() < until;
     }
 }

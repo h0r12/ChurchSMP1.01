@@ -78,6 +78,6 @@ public class TextUtil {
         String grad = weapon.getThemeGradientTag();
         String weaponCaps = toSmallCaps(weapon.getId().replace('_', ' '));
         String abilityCaps = toSmallCaps(abilityName);
-        return grad + "<bold>✦ ᴜꜱᴇᴅ [" + weaponCaps + "] ᴛᴏ [" + abilityCaps + "], ɪᴛ ɪꜱ ɴᴏᴡ ᴏɴ ᴄᴏᴏʟᴅᴏᴡɴ ғᴏʀ " + cooldownSeconds + "ꜱ.</bold></gradient>";
+        return grad + "<bold>[" + weaponCaps + "] " + abilityCaps + " (" + cooldownSeconds + "s)</bold></gradient>";
     }
 }

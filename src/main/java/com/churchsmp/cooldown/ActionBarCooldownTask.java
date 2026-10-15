@@ -31,6 +31,14 @@ public class ActionBarCooldownTask extends BukkitRunnable {
         final String readyStr = "<white><bold>ʀᴇᴀᴅʏ!</bold></white>";
 
         for (Player player : Bukkit.getOnlinePlayers()) {
+            // Undying Sharp Action Bar: - X / 3 swings left  | Ys
+            if (plugin.getGemAbilityExecutor().isHoldingUndyingSharp(player)) {
+                int swings = plugin.getGemAbilityExecutor().getRedemptSwings(player);
+                long remSec = plugin.getGemAbilityExecutor().getRedemptRemainingSeconds(player);
+                player.sendActionBar(miniMessage.deserialize("<#d8b4fe>- " + swings + " / 3 swings left  | " + remSec + "s</#d8b4fe>"));
+                continue;
+            }
+
             ItemStack mainHand = player.getInventory().getItemInMainHand();
             LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);
 
@@ -79,11 +87,11 @@ public class ActionBarCooldownTask extends BukkitRunnable {
             // Gem Action Bar Cooldown when holding an attuned / effective gem in hand
             SinGemType gem = plugin.getGemAbilityExecutor().getEffectiveGem(player);
             if (gem != null) {
-                String grad = (gem == SinGemType.SIN) ? gem.getDynamicThemeGradientTag(tick) : gem.getThemeGradientTag();
+                String grad = gem.getDynamicThemeGradientTag(tick);
 
                 // Skill 1 Status
                 String s1Key = gem.getPrimaryCooldownKey();
-                String s1Tag = (gem == SinGemType.SIN) ? "[Click] " : "";
+                String s1Tag = (gem == SinGemType.SIN) ? "[Click] " : (gem == SinGemType.ZEN) ? "[LMB] " : "";
                 String s1Name = grad + "<bold>" + s1Tag + TextUtil.toSmallCaps(gem.getPrimaryAbilityName()) + "</bold></gradient>";
                 String s1Status;
                 String customS1 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, false);
@@ -101,7 +109,7 @@ public class ActionBarCooldownTask extends BukkitRunnable {
 
                 // Skill 2 Status
                 String s2Key = gem.getSecondaryCooldownKey();
-                String s2Tag = (gem == SinGemType.SIN) ? "[RMB] " : "";
+                String s2Tag = (gem == SinGemType.SIN || gem == SinGemType.ZEN) ? "[RMB] " : "";
                 String s2Name = grad + "<bold>" + s2Tag + TextUtil.toSmallCaps(gem.getSecondaryAbilityName()) + "</bold></gradient>";
                 String s2Status;
                 String customS2 = plugin.getGemAbilityExecutor().getCustomActiveStatus(player, gem, true);
@@ -117,17 +125,25 @@ public class ActionBarCooldownTask extends BukkitRunnable {
                     s2Status = readyStr;
                 }
 
-                String prefix = (gem == SinGemType.SIN) ? (SinGemType.getAnimatedSinGemMiniMessage(tick) + " <dark_gray>| ") : "";
+                String prefix = (gem == SinGemType.SIN) ? (SinGemType.getAnimatedSinGemMiniMessage(tick) + " <dark_gray>| ")
+                        : (gem == SinGemType.ZEN) ? (SinGemType.getAnimatedZenGemMiniMessage(tick) + " <dark_gray>| ") : "";
                 String formatted = prefix + "<dark_gray>[ " + s1Name + "<gray>: " + s1Status + " <dark_gray>] <gray>| <dark_gray>[ " + s2Name + "<gray>: " + s2Status + " <dark_gray>]";
                 player.sendActionBar(miniMessage.deserialize(formatted));
 
-                // Periodically update the held SIN gem's display name to cycle smoothly in hand/inventory
-                if (gem == SinGemType.SIN && tick % 15 == 0) {
+                // Periodically update the held SIN / ZEN gem's display name to cycle smoothly in hand/inventory
+                if (tick % 15 == 0) {
                     ItemStack held = player.getInventory().getItemInMainHand();
-                    if (plugin.getSinGemManager().getGemType(held) == SinGemType.SIN) {
+                    SinGemType heldType = plugin.getSinGemManager().getGemType(held);
+                    if (heldType == SinGemType.SIN) {
                         ItemMeta meta = held.getItemMeta();
                         if (meta != null) {
                             meta.displayName(SinGemType.getAnimatedSinGemName(tick));
+                            held.setItemMeta(meta);
+                        }
+                    } else if (heldType == SinGemType.ZEN) {
+                        ItemMeta meta = held.getItemMeta();
+                        if (meta != null) {
+                            meta.displayName(SinGemType.getAnimatedZenGemName(tick));
                             held.setItemMeta(meta);
                         }
                     }

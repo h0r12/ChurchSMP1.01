@@ -46,6 +46,9 @@ public class ChurchSMP extends JavaPlugin {
     private com.churchsmp.event.StartEventManager startEventManager;
     private com.churchsmp.advancement.AdvancementManager advancementManager;
     private com.churchsmp.util.DoppelgangerManager doppelgangerManager;
+    private com.churchsmp.abyss.AbyssManager abyssManager;
+    private com.churchsmp.particle.ParticleAnimationManager particleAnimationManager;
+    private com.churchsmp.particle.ParticleStudioGuiManager particleStudioGuiManager;
 
     @Override
     public void onEnable() {
@@ -77,6 +80,9 @@ public class ChurchSMP extends JavaPlugin {
             this.finaleManager = new com.churchsmp.finale.FinaleManager(this);
             this.nullRoomManager = new com.churchsmp.finale.NullRoomManager(this);
             this.startEventManager = new com.churchsmp.event.StartEventManager(this);
+            this.abyssManager = new com.churchsmp.abyss.AbyssManager(this);
+            this.particleAnimationManager = new com.churchsmp.particle.ParticleAnimationManager(this);
+            this.particleStudioGuiManager = new com.churchsmp.particle.ParticleStudioGuiManager(this, this.particleAnimationManager);
 
             // Doppelganger Manager (reflection mirroring player clones)
             this.doppelgangerManager = new com.churchsmp.util.DoppelgangerManager(this);
@@ -97,6 +103,15 @@ public class ChurchSMP extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(this.finaleManager, this);
             Bukkit.getPluginManager().registerEvents(this.nullRoomManager, this);
             Bukkit.getPluginManager().registerEvents(this.startEventManager, this);
+            Bukkit.getPluginManager().registerEvents(this.abyssManager, this);
+            Bukkit.getPluginManager().registerEvents(this.particleStudioGuiManager, this);
+            Bukkit.getPluginManager().registerEvents(new com.churchsmp.listener.WandListener(this, this.particleAnimationManager), this);
+
+            // Particle Wand Action Bar HUD
+            new com.churchsmp.particle.WandActionBarTask(this, this.particleAnimationManager).runTaskTimer(this, 10L, 3L);
+
+            // Particle Wand Real-Time Hologram & Onion Skinning
+            new com.churchsmp.particle.WandHologramTask(this, this.particleAnimationManager).runTaskTimer(this, 10L, 4L);
 
             // Commands: Register directly via CommandMap first (universal for Paper, Purpur, Spigot)
             ChurchCommand churchCommand = new ChurchCommand(this);
@@ -208,6 +223,10 @@ public class ChurchSMP extends JavaPlugin {
         if (nullRoomManager != null) {
             nullRoomManager.cleanupRoomEntities();
         }
+        if (abyssManager != null) {
+            abyssManager.shutdown();
+        }
+        com.churchsmp.util.CinematicVFXUtil.cleanupAllFlashes();
         Bukkit.getScheduler().cancelTasks(this);
         getLogger().info("ChurchSMP has been disabled.");
     }
@@ -286,6 +305,18 @@ public class ChurchSMP extends JavaPlugin {
 
     public com.churchsmp.util.DoppelgangerManager getDoppelgangerManager() {
         return doppelgangerManager;
+    }
+
+    public com.churchsmp.abyss.AbyssManager getAbyssManager() {
+        return abyssManager;
+    }
+
+    public com.churchsmp.particle.ParticleAnimationManager getParticleAnimationManager() {
+        return particleAnimationManager;
+    }
+
+    public com.churchsmp.particle.ParticleStudioGuiManager getParticleStudioGuiManager() {
+        return particleStudioGuiManager;
     }
 
 }

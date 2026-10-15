@@ -58,7 +58,7 @@ public class InputListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getGemAbilityExecutor().isSealed(player)) {
             event.setCancelled(true);
-            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>✦ Your offhand is sealed by Taxing Ray! ✦</red>"));
+            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>Your offhand is sealed by Taxing Ray.</red>"));
             return;
         }
 
@@ -89,6 +89,17 @@ public class InputListener implements Listener {
             return;
         }
 
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+
+        // Check projectile lock (disarmed from Deflect)
+        if (plugin.getGemAbilityExecutor().isProjectilesLocked(player) && isProjectileItem(mainHand)) {
+            event.setCancelled(true);
+            player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                    .deserialize("<red>Disarmed: Cannot throw projectiles!</red>"));
+            return;
+        }
+
         Block clicked = event.getClickedBlock();
 
         // If clicking an interactive block (chest, door, crop, etc.), don't intercept!
@@ -102,9 +113,6 @@ public class InputListener implements Listener {
                 return;
             }
         }
-
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
-        ItemStack offHand = player.getInventory().getItemInOffHand();
 
         // 1. Check if Relic item (Iniquity, Impiety, Obscura) is right-clicked to choose path weapon
         com.churchsmp.item.RelicItem.RelicType relic = com.churchsmp.item.RelicItem.getRelicType(mainHand, plugin);
@@ -135,7 +143,7 @@ public class InputListener implements Listener {
                 event.setCancelled(true);
                 int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
                 player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                        .deserialize("<red>[Sorrowess] Riptide on cooldown (" + rem + "s)</red>"));
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
                 return;
             }
@@ -175,11 +183,19 @@ public class InputListener implements Listener {
 
         if (gemToActivate != null) {
             boolean sneak = player.isSneaking();
+            if (plugin.getGemAbilityExecutor().isGemLocked(player)) {
+                event.setCancelled(true);
+                double rem = plugin.getGemAbilityExecutor().getGemLockRemainingSeconds(player);
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>Disarmed: Gem is locked (" + String.format(java.util.Locale.US, "%.1f", rem) + "s)</red>"));
+                return;
+            }
+
             // If the gem ability is on cooldown: show actionbar timer, but do NOT cancel event!
             if (plugin.getGemAbilityExecutor().isGemAbilityOnCooldown(player, sneak)) {
                 double rem = plugin.getGemAbilityExecutor().getGemAbilityRemainingCooldown(player, sneak);
                 player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<red>✦ " + com.churchsmp.util.TextUtil.toSmallCaps("Cooldown") + ": " + String.format(java.util.Locale.US, "%.1f", rem) + "s ✦</red>"));
+                        .deserialize("<red>[Cooldown] " + String.format(java.util.Locale.US, "%.1f", rem) + "s</red>"));
                 return;
             }
 
@@ -200,6 +216,14 @@ public class InputListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onProjectileLaunch(org.bukkit.event.entity.ProjectileLaunchEvent event) {
+        if (event.getEntity().getShooter() instanceof Player player) {
+            if (plugin.getGemAbilityExecutor().isProjectilesLocked(player)) {
+                event.setCancelled(true);
+                player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<red>Disarmed: Cannot throw projectiles!</red>"));
+                return;
+            }
+        }
         if (event.getEntity() instanceof org.bukkit.entity.Trident trident) {
             if (trident.getShooter() instanceof Player player) {
                 ItemStack item = trident.getItem();
@@ -210,7 +234,7 @@ public class InputListener implements Listener {
                     if (plugin.getCooldownManager().isOnCooldown(player, cdKey)) {
                         int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
                         player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                                .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                                .deserialize("<red>[Sorrowess] Riptide on cooldown (" + rem + "s)</red>"));
                         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
                         return;
                     }
@@ -233,7 +257,7 @@ public class InputListener implements Listener {
                 player.setVelocity(new Vector(0, -0.1, 0));
                 int rem = (int) Math.ceil(plugin.getCooldownManager().getRemainingCooldownSeconds(player, cdKey));
                 player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<red>✦ Sorrowess Riptide on Cooldown: " + rem + "s ✦</red>"));
+                        .deserialize("<red>[Sorrowess] Riptide on cooldown (" + rem + "s)</red>"));
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.6f);
                 return;
             }
@@ -245,6 +269,15 @@ public class InputListener implements Listener {
     public void onLeftClick(PlayerInteractEvent event) {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
         Player player = event.getPlayer();
+
+        // Undying Sharp: Left Click triggers blade wave swing
+        if (plugin.getGemAbilityExecutor().isHoldingUndyingSharp(player)) {
+            event.setCancelled(true);
+            plugin.getGemAbilityExecutor().handleUndyingSharpSwing(player);
+            return;
+        }
+
+        // Sneak LMB gem abilities
         if (player.isSneaking()) {
             if (plugin.getGemAbilityExecutor().handleSneakLMB(player)) {
                 event.setCancelled(true);
@@ -252,8 +285,16 @@ public class InputListener implements Listener {
             }
         }
 
-        // SIN Gem: Click (Left Click) to throw / recast Rusty Blood
         com.churchsmp.gem.SinGemType gem = plugin.getGemAbilityExecutor().getEffectiveGem(player);
+        // ZEN Gem: Left Click triggers Redempt (awakens Undying Sharp)
+        if (gem == com.churchsmp.gem.SinGemType.ZEN) {
+            if (plugin.getGemAbilityExecutor().executeRedempt(player)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        // SIN Gem: Click (Left Click) to throw / recast Rusty Blood
         if (gem == com.churchsmp.gem.SinGemType.SIN) {
             if (plugin.getGemAbilityExecutor().handleRustyBloodClick(player)) {
                 event.setCancelled(true);
@@ -263,7 +304,7 @@ public class InputListener implements Listener {
 
     private void triggerWeaponAbility(Player player, LegendaryWeapon weapon, boolean secondary) {
         if (!plugin.getAlignmentManager().canWield(player, weapon.getRequiredAlignment())) {
-            player.sendMessage(Component.text("✦ Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
+            player.sendMessage(Component.text("Your soul's alignment prevents you from channeling " + weapon.getId() + "!", NamedTextColor.RED));
             return;
         }
 
@@ -278,6 +319,16 @@ public class InputListener implements Listener {
                         .deserialize(com.churchsmp.util.TextUtil.getAbilityUsedMessage(weapon, abilityName, cd)));
             }
         }
+    }
+
+    private boolean isProjectileItem(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return false;
+        Material mat = item.getType();
+        return switch (mat) {
+            case BOW, CROSSBOW, TRIDENT, ENDER_PEARL, SNOWBALL, EGG,
+                 WIND_CHARGE, SPLASH_POTION, LINGERING_POTION, FIREWORK_ROCKET, FISHING_ROD -> true;
+            default -> false;
+        };
     }
 
     private boolean isMainHandUsable(ItemStack item) {

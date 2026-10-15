@@ -147,6 +147,10 @@ public class CooldownManager {
         }
     }
 
+    public void removeCooldown(Player player, String abilityKey) {
+        resetCooldown(player, abilityKey);
+    }
+
     /**
      * Resets all cooldowns for a player.
      */

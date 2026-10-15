@@ -44,6 +44,16 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // /church abyss — Teleports player to the Abyss realm
+        if (label.equalsIgnoreCase("abyss") || (args.length > 0 && args[0].equalsIgnoreCase("abyss"))) {
+            if (plugin.getAbyssManager() != null) {
+                if (!plugin.getAbyssManager().teleportToAbyss(player)) {
+                    player.sendMessage(miniMessage.deserialize("<red>The Abyss has not been configured yet. An administrator must run <gold>/churchadmin abyss set main</gold>!</red>"));
+                }
+            }
+            return true;
+        }
+
         // /church ready or /ready command — Ready up for Genesis Start Event
         if (label.equalsIgnoreCase("ready") || (args.length > 0 && args[0].equalsIgnoreCase("ready"))) {
             if (plugin.getStartEventManager() != null) {
@@ -373,9 +383,32 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(miniMessage.deserialize("  <blue><bold>✦ " + TextUtil.toSmallCaps("Ability 1") + " — </bold></blue><yellow><bold>" + TextUtil.toSmallCaps("Temporal Echo") + "</bold></yellow> <dark_gray>[<white>Sneak + LMB</white> | <gray>35s CD</gray>]</dark_gray>"));
                 player.sendMessage(miniMessage.deserialize("    <gray>Summons a trailing shadow ghost that freezes incoming projectiles and applies Slowness II to nearby players.</gray>"));
                 player.sendMessage(Component.empty());
-                player.sendMessage(miniMessage.deserialize("  <blue><bold>✦ " + TextUtil.toSmallCaps("Ability 2") + " — </bold></blue><yellow><bold>" + TextUtil.toSmallCaps("Delayed Stasis") + "</bold></yellow> <dark_gray>[<white>RMB</white> | <gray>45s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("  <blue><bold>[Ability 2] — </bold></blue><yellow><bold>" + TextUtil.toSmallCaps("Delayed Stasis") + "</bold></yellow> <dark_gray>[<white>RMB</white> | <gray>45s CD</gray>]</dark_gray>"));
                 player.sendMessage(miniMessage.deserialize("    <gray>Negates all incoming damage for 6s.</gray>"));
                 player.sendMessage(miniMessage.deserialize("    <gray>Once expired, 50% of negated damage is slowly applied as tick-damage over 10s.</gray>"));
+            }
+            case SIN -> {
+                player.sendMessage(miniMessage.deserialize("  <dark_red><bold>[Passive]</bold></dark_red>"));
+                player.sendMessage(miniMessage.deserialize("  <dark_red>•</dark_red> <white><bold>" + TextUtil.toSmallCaps("Bloodfeast") + ":</bold></white> <gray>Debuffs converted into Strength III.</gray>"));
+                player.sendMessage(Component.empty());
+                player.sendMessage(miniMessage.deserialize("  <red><bold>[Skill 1] — </bold></red><yellow><bold>" + TextUtil.toSmallCaps("Rusty Blood") + "</bold></yellow> <dark_gray>[<white>Click</white> | <gray>35s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("    <gray>Tethers target siphoning vitality and filling core.</gray>"));
+                player.sendMessage(Component.empty());
+                player.sendMessage(miniMessage.deserialize("  <red><bold>[Skill 2] — </bold></red><yellow><bold>" + TextUtil.toSmallCaps("Veins of Flagitious") + "</bold></yellow> <dark_gray>[<white>RMB</white> | <gray>50s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("    <gray>Marks target with abyssal veins, enabling airborne combo slam.</gray>"));
+            }
+            case ZEN -> {
+                player.sendMessage(miniMessage.deserialize("  <#d8b4fe><bold>[Passive]</bold></#d8b4fe>"));
+                player.sendMessage(miniMessage.deserialize("  <#d8b4fe>•</#d8b4fe> <white><bold>Grace:</bold></white> <gray>Holy buffs +100% duration; debuffs converted to Resistance III.</gray>"));
+                player.sendMessage(Component.empty());
+                player.sendMessage(miniMessage.deserialize("  <#d8b4fe><bold>[Attack] — </bold></#d8b4fe><white><bold>Luminate</bold></white> <dark_gray>[<gray>40s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("    <gray>Launches enemy 20 blocks skyward (3 Hearts). Sneak within 10 ticks to pull back & follow up with blast (2 Hearts).</gray>"));
+                player.sendMessage(Component.empty());
+                player.sendMessage(miniMessage.deserialize("  <#d8b4fe><bold>[LMB] — </bold></#d8b4fe><white><bold>Redempt</bold></white> <dark_gray>[<gray>60s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("    <gray>Awakens Undying Sharp (10s, 3 swings). 20 blocks/s blade wave deals 2.5 True HP and cleaves blocks. 3rd swing forms a glowing 4-pointed star.</gray>"));
+                player.sendMessage(Component.empty());
+                player.sendMessage(miniMessage.deserialize("  <#d8b4fe><bold>[RMB] — </bold></#d8b4fe><white><bold>Deflects</bold></white> <dark_gray>[<gray>40s CD</gray>]</dark_gray>"));
+                player.sendMessage(miniMessage.deserialize("    <gray>1-tick divine parry frame. If hit: CD resets and attacker is disarmed for 15s. If missed: Slowness III (4s) and 15s lock.</gray>"));
             }
         }
 
@@ -385,7 +418,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            List<String> sub = List.of("guide", "null", "ritual", "reroll", "forsake", "ready", "confirm", "testclone");
+            List<String> sub = List.of("guide", "abyss", "null", "ritual", "reroll", "forsake", "ready", "confirm", "testclone");
             List<String> matches = new ArrayList<>();
             for (String s : sub) {
                 if (s.toLowerCase().startsWith(args[0].toLowerCase())) {
@@ -396,7 +429,7 @@ public class ChurchCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("confirm")) {
             List<String> matches = new ArrayList<>();
-            for (SinGemType t : SinGemType.values()) {
+            for (SinGemType t : SinGemType.BASE_SINS) {
                 if (t.name().toLowerCase().startsWith(args[1].toLowerCase())) {
                     matches.add(t.name());
                 }

@@ -57,6 +57,9 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onSneak(PlayerToggleSneakEvent event) {
         Player player = event.getPlayer();
+        if (event.isSneaking()) {
+            plugin.getGemAbilityExecutor().handleLuminateSneakQTE(player);
+        }
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(mainHand);
         if (weapon != null) {
@@ -107,7 +110,7 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getGemAbilityExecutor().isSealed(player)) {
             event.setCancelled(true);
-            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>✦ Your hotbar is sealed by Taxing Ray! ✦</red>"));
+            player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<red>Your hotbar is sealed by Taxing Ray.</red>"));
             return;
         }
 
@@ -142,8 +145,14 @@ public class PlayerListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
         ItemStack item = event.getItemDrop().getItemStack();
-        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
 
+        if (plugin.getGemAbilityExecutor().isHoldingUndyingSharp(player) || (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, "undying_sharp"), org.bukkit.persistence.PersistentDataType.BYTE))) {
+            event.setCancelled(true);
+            plugin.getGemAbilityExecutor().revertUndyingSharp(player);
+            return;
+        }
+
+        LegendaryWeapon weapon = plugin.getWeaponManager().getWeapon(item);
         if (weapon instanceof Mayim) {
             Mayim.restoreOffhand(player);
         }
@@ -186,6 +195,7 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        plugin.getGemAbilityExecutor().revertUndyingSharp(event.getPlayer());
         Mayim.restoreOffhand(event.getPlayer());
         if (plugin.getDoppelgangerManager() != null) {
             plugin.getDoppelgangerManager().cleanup(event.getPlayer().getUniqueId());
@@ -194,6 +204,7 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        plugin.getGemAbilityExecutor().revertUndyingSharp(event.getPlayer());
         Mayim.restoreOffhand(event.getPlayer());
         plugin.getBossBarManager().removeBossBar(event.getPlayer());
         if (plugin.getDoppelgangerManager() != null) {
@@ -230,14 +241,14 @@ public class PlayerListener implements Listener {
             org.bukkit.entity.Entity entity = event.getRightClicked();
             if (entity instanceof org.bukkit.entity.Villager) {
                 event.setCancelled(true);
-                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>✦ [HEAVY RHYTHM] Sloth forbids villager trading! ✦</blue>"));
+                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>[Sloth] Villager trading is forbidden.</blue>"));
                 return;
             }
             if (entity instanceof org.bukkit.entity.Animals) {
                 ItemStack held = player.getInventory().getItemInMainHand();
                 if (held != null && held.getType().isEdible()) {
                     event.setCancelled(true);
-                    player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>✦ [HEAVY RHYTHM] Sloth forbids animal breeding! ✦</blue>"));
+                    player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize("<blue>[Sloth] Animal breeding is forbidden.</blue>"));
                 }
             }
         }
@@ -246,6 +257,40 @@ public class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPotionEffect(org.bukkit.event.entity.EntityPotionEffectEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
+
+        // Grace Passive: ZEN Gem holder converts negative effects into Resistance III, and doubles holy/positive buff duration (+100%)
+        if (plugin.getSinGemManager() != null && plugin.getSinGemManager().isHoldingGem(player, com.churchsmp.gem.SinGemType.ZEN)) {
+            org.bukkit.potion.PotionEffect effect = event.getNewEffect();
+            org.bukkit.potion.PotionEffectType type = event.getModifiedType();
+            if (isHarmfulEffect(type)) {
+                event.setCancelled(true);
+                int duration = (effect != null && effect.getDuration() > 0) ? Math.min(effect.getDuration(), 72000) : 120;
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline()) {
+                        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                                org.bukkit.potion.PotionEffectType.RESISTANCE, duration, 2, false, false, true
+                        ));
+                        player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 1.8f);
+                        player.getWorld().spawnParticle(org.bukkit.Particle.END_ROD, player.getLocation().add(0, 1.2, 0), 10, 0.3, 0.4, 0.3, 0.05);
+                        player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                                .deserialize("<#d8b4fe>Grace: <white>" + type.getKey().getKey() + "</white> ➔ <gold>Resistance III</gold></#d8b4fe>"));
+                    }
+                });
+                return;
+            } else if (effect != null && event.getAction() == org.bukkit.event.entity.EntityPotionEffectEvent.Action.ADDED) {
+                if (effect.getDuration() < 72000) {
+                    int newDuration = (int) Math.min(72000, effect.getDuration() * 2L);
+                    org.bukkit.potion.PotionEffect doubled = new org.bukkit.potion.PotionEffect(
+                            effect.getType(), newDuration, effect.getAmplifier(), effect.isAmbient(), effect.hasParticles(), effect.hasIcon()
+                    );
+                    org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (player.isOnline()) {
+                            player.addPotionEffect(doubled);
+                        }
+                    });
+                }
+            }
+        }
 
         // Bloodfeast Passive: SIN Gem holder is totally immune to negative effects; converts them into Strength III for same duration!
         if (plugin.getSinGemManager() != null && plugin.getSinGemManager().isHoldingGem(player, com.churchsmp.gem.SinGemType.SIN)) {
@@ -262,7 +307,7 @@ public class PlayerListener implements Listener {
                         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 0.7f, 1.6f);
                         player.getWorld().spawnParticle(org.bukkit.Particle.CRIMSON_SPORE, player.getLocation().add(0, 1.2, 0), 15, 0.3, 0.5, 0.3, 0.05);
                         player.sendActionBar(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                                .deserialize("<dark_red><bold>☠ [BLOODFEAST]</bold></dark_red> <red>Debuff absorbed into </red><gold><bold>STRENGTH III</bold></gold><red>!</red>"));
+                                .deserialize("<dark_red>[Bloodfeast] Debuff converted to Strength III.</dark_red>"));
                     }
                 });
                 return;

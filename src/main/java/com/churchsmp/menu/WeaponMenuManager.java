@@ -133,11 +133,25 @@ public class WeaponMenuManager implements Listener {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("Trigger celestial and unholy server events.", NamedTextColor.GRAY));
             lore.add(Component.empty());
-            lore.add(Component.text("✦ Click to Open", NamedTextColor.YELLOW));
+            lore.add(Component.text("Click to Open", NamedTextColor.YELLOW));
             eMeta.lore(lore);
             eventsBtn.setItemMeta(eMeta);
         }
         inv.setItem(16, eventsBtn);
+
+        // Slot 22: Particle Studio
+        ItemStack particleBtn = new ItemStack(Material.AMETHYST_SHARD);
+        ItemMeta pMeta = particleBtn.getItemMeta();
+        if (pMeta != null) {
+            pMeta.displayName(miniMessage.deserialize("<gradient:#ffffff:#d8b4fe><bold>" + TextUtil.toSmallCaps("Particle Studio") + "</bold></gradient>"));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text("Keyframe timeline, 30+ VFX, presets, tweening & live motion recording.", NamedTextColor.GRAY));
+            lore.add(Component.empty());
+            lore.add(Component.text("Click to Open Studio", NamedTextColor.YELLOW));
+            pMeta.lore(lore);
+            particleBtn.setItemMeta(pMeta);
+        }
+        inv.setItem(22, particleBtn);
 
         player.openInventory(inv);
         player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.2f);
@@ -298,6 +312,9 @@ public class WeaponMenuManager implements Listener {
             else if (slot == 12) openCraftingMenu(player);
             else if (slot == 14) openRecipesMenu(player);
             else if (slot == 16) openEventsMenu(player);
+            else if (slot == 22) {
+                plugin.getParticleStudioGuiManager().openStudio(player, plugin.getParticleAnimationManager().getSession(player));
+            }
         } else if (holder instanceof WeaponsHolder) {
             event.setCancelled(true);
             int slot = event.getRawSlot();

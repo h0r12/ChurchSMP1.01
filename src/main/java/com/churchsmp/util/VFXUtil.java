@@ -486,4 +486,41 @@ public final class VFXUtil {
         Vector offset = perp1.multiply(Math.cos(phi) * sinA).add(perp2.multiply(Math.sin(phi) * sinA));
         return dir.multiply(cosA).add(offset).normalize();
     }
+
+    /**
+     * Celestial Black Sun (User Reference Image: media_1791958879867_c4021c24.png).
+     * Renders a massive, living celestial sun with:
+     * 1. Radiant Glowing Coronal Halo Ring (thick emissive rim) cycling through Sin colors.
+     * 2. Fibonacci Spherical Plasma Shell with mottled void granulation noise (black/crimson/gold spots).
+     * 3. Curved solar magnetic loops (prominences) arching off the surface.
+     * Purely in vanilla Paper 1.21 without any client resource packs or mods!
+     */
+    /**
+     * Subtle ambient cosmic aura accent for the 3D ItemDisplay Black Sun.
+     * Keeps particles clean, unobtrusive, and ethereal so the 3D textured model remains fully visible.
+     */
+    public static void drawCelestialBlackSun(Location center, double radius, double rotation,
+                                             Color sinColor, Color coronaColor) {
+        if (center == null || center.getWorld() == null) return;
+        World world = center.getWorld();
+
+        // 1. Subtle orbiting cosmic sparks (6 orbital nodes)
+        Particle.DustOptions auraDust = new Particle.DustOptions(sinColor, 1.2f);
+        for (int i = 0; i < 6; i++) {
+            double angle = rotation * 0.8 + (i * Math.PI / 3.0);
+            double r = radius * 0.95;
+            double x = Math.cos(angle) * r;
+            double z = Math.sin(angle) * r;
+            double y = Math.sin(rotation * 1.2 + i) * 0.35;
+            world.spawnParticle(Particle.DUST, center.clone().add(x, y, z), 1, 0, 0, 0, 0, auraDust);
+        }
+
+        // 2. Occasional celestial shimmer
+        if (Math.random() < 0.25) {
+            double rndAngle = Math.random() * 2 * Math.PI;
+            double rndDist = radius * (0.8 + Math.random() * 0.3);
+            Location sparkLoc = center.clone().add(Math.cos(rndAngle) * rndDist, (Math.random() - 0.5) * 1.5, Math.sin(rndAngle) * rndDist);
+            world.spawnParticle(Particle.END_ROD, sparkLoc, 1, 0, 0, 0, 0.005);
+    }
+}
 }

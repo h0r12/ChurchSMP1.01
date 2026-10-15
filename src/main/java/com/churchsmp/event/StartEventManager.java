@@ -14,20 +14,26 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.EnderDragon;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntitySpawnEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -78,16 +84,102 @@ public class StartEventManager implements Listener {
     private final List<ItemDisplay> activeSoulDisplays = new ArrayList<>();
     private final List<TextDisplay> activeTextDisplays = new ArrayList<>();
     private final List<Interaction> activeInteractions = new ArrayList<>();
+    private final Map<SinGemType, ItemDisplay> sinItemDisplays = new ConcurrentHashMap<>();
+    private final Map<SinGemType, TextDisplay> sinTextDisplays = new ConcurrentHashMap<>();
+    private final Map<SinGemType, Interaction> sinInteractions = new ConcurrentHashMap<>();
 
     private double originalBorderSize = 10000;
     private Location originalBorderCenter = null;
     private final Map<UUID, SinGemType> playerChosenSins = new ConcurrentHashMap<>();
+    private final Set<SinGemType> claimedSins = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> fallImmunityPlayers = ConcurrentHashMap.newKeySet();
+    private Location customCenter = null;
     private BukkitTask mainLoopTask = null;
     private BukkitTask autoTimeoutTask = null;
     private BukkitTask readyAmbientTask = null;
     private BukkitTask glideTrailTask = null;
     private BukkitTask continuousSoundscapeTask = null;
     private BossBar ceremonyBossBar = null;
+
+    // --- BLACK SUN CONSTANTS (Base Item: HEART_OF_THE_SEA) ---
+    public static final int CMD_BLACK_SUN_BASE = 7701;
+    public static final int CMD_BLACK_SUN_WRATH = 7702;
+    public static final int CMD_BLACK_SUN_GREED = 7703;
+    public static final int CMD_BLACK_SUN_GLUTTONY = 7704;
+    public static final int CMD_BLACK_SUN_LUST = 7705;
+    public static final int CMD_BLACK_SUN_ENVY = 7706;
+    public static final int CMD_BLACK_SUN_PRIDE = 7707;
+    public static final int CMD_BLACK_SUN_SLOTH = 7708;
+    public static final int CMD_BLACK_SUN_SIN = 7709;
+    public static final int CMD_BLACK_SUN_HOLE = 7710;
+    public static final int CMD_BLACK_SUN_WHITE = 7711;
+
+    private ItemDisplay blackSunDisplay = null;
+    private final Map<UUID, ItemDisplay> testBlackSunDisplays = new ConcurrentHashMap<>();
+
+    public static int getSinBlackSunCMD(SinGemType sin) {
+        if (sin == null) return CMD_BLACK_SUN_BASE;
+        return switch (sin) {
+            case WRATH -> CMD_BLACK_SUN_WRATH;
+            case GREED -> CMD_BLACK_SUN_GREED;
+            case GLUTTONY -> CMD_BLACK_SUN_GLUTTONY;
+            case LUST -> CMD_BLACK_SUN_LUST;
+            case ENVY -> CMD_BLACK_SUN_ENVY;
+            case PRIDE -> CMD_BLACK_SUN_PRIDE;
+            case SLOTH -> CMD_BLACK_SUN_SLOTH;
+            case SIN -> CMD_BLACK_SUN_SIN;
+            case ZEN -> CMD_BLACK_SUN_WHITE;
+        };
+    }
+
+    public static ItemStack createBlackSunItem(int customModelData) {
+        ItemStack item = new ItemStack(Material.HEART_OF_THE_SEA);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setCustomModelData(customModelData);
+            meta.displayName(Component.empty());
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    public ItemDisplay spawnBlackSunDisplay(Location center, int customModelData, float initialScale) {
+        World world = center.getWorld();
+        if (world == null) return null;
+        return world.spawn(center, ItemDisplay.class, d -> {
+            d.setItemStack(createBlackSunItem(customModelData));
+            d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            d.setBillboard(Display.Billboard.FIXED);
+            d.setBrightness(new Display.Brightness(15, 15));
+            d.setTransformation(new Transformation(
+                    new Vector3f(0f, 0f, 0f),
+                    new AxisAngle4f(0f, 0f, 1f, 0f),
+                    new Vector3f(initialScale, initialScale, initialScale),
+                    new AxisAngle4f(0f, 1f, 0f, 0f)
+            ));
+            d.setInterpolationDuration(2);
+            d.setInterpolationDelay(0);
+        });
+    }
+
+    public void updateBlackSunTransform(ItemDisplay display, float rotY, float tiltAngle, float scale) {
+        if (display == null || !display.isValid()) return;
+        display.setTransformation(new Transformation(
+                new Vector3f(0f, 0f, 0f),
+                new AxisAngle4f(rotY, 0f, 1f, 0f),
+                new Vector3f(scale, scale, scale),
+                new AxisAngle4f(tiltAngle, 1f, 0f, 0.4f)
+        ));
+        display.setInterpolationDuration(2);
+        display.setInterpolationDelay(0);
+    }
+
+    public void removeBlackSun() {
+        if (blackSunDisplay != null) {
+            if (blackSunDisplay.isValid()) blackSunDisplay.remove();
+            blackSunDisplay = null;
+        }
+    }
 
     public StartEventManager(ChurchSMP plugin) {
         this.plugin = plugin;
@@ -99,6 +191,39 @@ public class StartEventManager implements Listener {
 
     public boolean isEventActive() {
         return state != EventState.IDLE;
+    }
+
+    public void setCustomCenter(Location loc) {
+        this.customCenter = loc;
+        if (loc != null) {
+            plugin.getConfig().set("start_event.blacksun_world", loc.getWorld().getName());
+            plugin.getConfig().set("start_event.blacksun_x", loc.getX());
+            plugin.getConfig().set("start_event.blacksun_y", loc.getY());
+            plugin.getConfig().set("start_event.blacksun_z", loc.getZ());
+            plugin.saveConfig();
+        }
+    }
+
+    public Location getCustomCenter() {
+        if (customCenter == null) {
+            String wName = plugin.getConfig().getString("start_event.blacksun_world");
+            if (wName != null && Bukkit.getWorld(wName) != null) {
+                World w = Bukkit.getWorld(wName);
+                double x = plugin.getConfig().getDouble("start_event.blacksun_x");
+                double y = plugin.getConfig().getDouble("start_event.blacksun_y");
+                double z = plugin.getConfig().getDouble("start_event.blacksun_z");
+                this.customCenter = new Location(w, x, y, z);
+            }
+        }
+        return customCenter;
+    }
+
+    public Location getEventCenter(World world) {
+        Location custom = getCustomCenter();
+        if (custom != null && custom.getWorld().equals(world)) {
+            return custom.clone();
+        }
+        return new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.2, 0.5);
     }
 
     /**
@@ -188,11 +313,6 @@ public class StartEventManager implements Listener {
                 // 4. Celestial sky vortex (stars and cosmos spinning overhead)
                 if (state == EventState.SOUL_EXTRACTION || state == EventState.STAR_CYCLE || state == EventState.VOID_CLIMAX) {
                     world.setTime(world.getTime() + 120);
-                }
-
-                // 5. Sacred Dual-Ring Magic Circle on Ground at Sanctuary Center (0, 0)
-                if (ticks % 2 == 0) {
-                    renderSanctuaryMagicCircle(center, ticks);
                 }
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -367,8 +487,9 @@ public class StartEventManager implements Listener {
         this.originalBorderSize = border.getSize();
         this.originalBorderCenter = border.getCenter();
 
-        // 1. Shrink World Border to 25 blocks at spawn (0, 0)
-        border.setCenter(0.5, 0.5);
+        Location center = getEventCenter(world);
+        // 1. Shrink World Border to 25 blocks at Black Sun center
+        border.setCenter(center.getX(), center.getZ());
         border.setSize(25.0);
 
         // Shift sky to midnight twilight and tempest
@@ -382,6 +503,8 @@ public class StartEventManager implements Listener {
         cachedChestplates.clear();
         glidingPlayers.clear();
         sinSoulLocations.clear();
+        claimedSins.clear();
+        fallImmunityPlayers.clear();
         cleanupDisplays();
 
         this.state = EventState.READY_CHECK;
@@ -402,7 +525,9 @@ public class StartEventManager implements Listener {
                 Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(500))
         );
 
-        Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
+        Location spawnLoc = center.clone();
+        int groundY = world.getHighestBlockYAt((int) spawnLoc.getX(), (int) spawnLoc.getZ());
+        spawnLoc.setY(Math.max(groundY + 1.0, center.getY()));
         startContinuousSoundscapeTask(world, spawnLoc);
 
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -477,29 +602,15 @@ public class StartEventManager implements Listener {
 
                 World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
 
-                // 1. Ethereal Sanctuary Boundary ring (radius 12.5 blocks)
-                if (ticks % 3 == 0) {
-                    double bRadius = 12.5;
-                    for (int d = 0; d < 360; d += 20) {
-                        double rad = Math.toRadians(d + (ticks * 2));
-                        double bx = 0.5 + Math.cos(rad) * bRadius;
-                        double bz = 0.5 + Math.sin(rad) * bRadius;
-                        double by = world.getHighestBlockYAt((int) bx, (int) bz) + 0.1;
-                        Location bLoc = new Location(world, bx, by, bz);
-                        world.spawnParticle(Particle.DUST, bLoc, 1, 0, 0, 0, 0,
-                                new Particle.DustOptions(Color.fromRGB(120, 190, 255), 1.1f));
-                    }
-                }
-
-                // 2. Ready Trance spiritual aura for aligned players
+                // Ready spiritual aura for aligned players (clean vertical energy, zero circular rings)
                 for (UUID uuid : readyPlayers) {
                     Player rp = Bukkit.getPlayer(uuid);
                     if (rp != null && rp.isOnline()) {
-                        double a = Math.toRadians((ticks * 8) % 360);
-                        Location pAura = rp.getLocation().add(Math.cos(a) * 0.75, 0.1, Math.sin(a) * 0.75);
-                        world.spawnParticle(Particle.SOUL_FIRE_FLAME, pAura, 1, 0, 0, 0, 0.005);
-                        if (ticks % 4 == 0) {
-                            world.spawnParticle(Particle.END_ROD, rp.getLocation().add(0, 1.0, 0), 1, 0.2, 0.4, 0.2, 0.01);
+                        if (ticks % 3 == 0) {
+                            world.spawnParticle(Particle.SOUL_FIRE_FLAME, rp.getLocation().add(0, 0.1, 0), 1, 0.15, 0.05, 0.15, 0.01);
+                        }
+                        if (ticks % 6 == 0) {
+                            world.spawnParticle(Particle.END_ROD, rp.getLocation().add(0, 1.2, 0), 1, 0.15, 0.3, 0.15, 0.01);
                         }
                     }
                 }
@@ -557,7 +668,7 @@ public class StartEventManager implements Listener {
         }
 
         World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
-        Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.2, 0.5);
+        Location center = getEventCenter(world);
 
         List<Player> participants = new ArrayList<>(Bukkit.getOnlinePlayers());
         final Map<UUID, Location> startSoulLocs = new HashMap<>();
@@ -589,17 +700,35 @@ public class StartEventManager implements Listener {
                             world.spawnParticle(Particle.ELECTRIC_SPARK, rift, 2, 0.3, 0.3, 0.3, 0.04);
                         }
 
-                        // Violent branching lightning tendril descending to player
-                        for (double y = 0; y <= 12; y += 0.4) {
-                            double swayX = Math.sin((ticks * 0.45) + y) * 0.4 + (Math.random() - 0.5) * 0.18;
-                            double swayZ = Math.cos((ticks * 0.35) + y) * 0.4 + (Math.random() - 0.5) * 0.18;
-                            Location veinPt = head.clone().add(swayX, y, swayZ);
+                        // Clean Mathematical Particle Bolt descending to player's head:
+                        // 1. Pure straight mathematical vertical core line
+                        // 2. Double counter-rotating mathematical helix around core
+                        // 3. Mathematical expanding cone / funnel on top (y >= 9)
+                        for (double y = 0; y <= 14; y += 0.25) {
+                            // Core straight line
+                            Location corePt = new Location(world, head.getX(), head.getY() + y, head.getZ());
+                            world.spawnParticle(Particle.DUST, corePt, 1, 0, 0, 0, 0,
+                                    new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.8f));
 
-                            world.spawnParticle(Particle.DUST, veinPt, 1, 0, 0, 0, 0,
-                                    new Particle.DustOptions(Color.fromRGB(245, 250, 255), 1.6f));
+                            // Mathematical Double Helix
+                            double r = 0.35;
+                            double a1 = (ticks * 0.25) + (y * 0.85);
+                            double a2 = -(ticks * 0.25) + (y * 0.85) + Math.PI;
+                            Location h1 = new Location(world, head.getX() + Math.cos(a1) * r, head.getY() + y, head.getZ() + Math.sin(a1) * r);
+                            Location h2 = new Location(world, head.getX() + Math.cos(a2) * r, head.getY() + y, head.getZ() + Math.sin(a2) * r);
+                            world.spawnParticle(Particle.DUST, h1, 1, 0, 0, 0, 0,
+                                    new Particle.DustOptions(Color.fromRGB(210, 240, 255), 1.3f));
+                            world.spawnParticle(Particle.DUST, h2, 1, 0, 0, 0, 0,
+                                    new Particle.DustOptions(Color.fromRGB(180, 210, 255), 1.3f));
 
-                            if (y > 4 && Math.random() < 0.3) {
-                                world.spawnParticle(Particle.END_ROD, veinPt, 1, 0.01, 0.01, 0.01, 0.01);
+                            // Mathematical expanding cone on top (y >= 9)
+                            if (y >= 9.0) {
+                                double coneRadius = (y - 9.0) * 0.38;
+                                for (int k = 0; k < 4; k++) {
+                                    double ca = (k * Math.PI / 2.0) + (ticks * 0.08);
+                                    Location conePt = new Location(world, head.getX() + Math.cos(ca) * coneRadius, head.getY() + y, head.getZ() + Math.sin(ca) * coneRadius);
+                                    world.spawnParticle(Particle.END_ROD, conePt, 1, 0, 0, 0, 0.005);
+                                }
                             }
                         }
                     }
@@ -769,43 +898,87 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Phase 3: Blinding Convergence & Star Cycling 7 Sins Colors.
+     * Phase 3: Blinding Convergence & Black Sun Manifestation:
+     * - Screen shake at lowest level (Hardness 1)
+     * - Screen vintage of the Sin color before it appears
+     * - Single straight unreversed particle bolt ascending from ground to apex, expanding on top
+     * - Flash-fade white when it manifests
+     * - Rotates Celestial Black Sun cycling through all 7 Sin colors (zero cross circles)
      */
     private void triggerBlindingFlashAndStar(Location center) {
         this.state = EventState.STAR_CYCLE;
         World world = center.getWorld();
+        if (world == null) return;
 
-        // 1. Blinding Flash of Light & Detonation with clean long decay
-        world.spawnParticle(Particle.FLASH, center, 14, 1.0, 1.0, 1.0, 0, Color.WHITE);
-        world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 2);
-        world.spawnParticle(Particle.SONIC_BOOM, center, 1);
-        playRetroCrystalChime(center, 1.5f, 2.0f);
-        world.playSound(center, Sound.BLOCK_BELL_RESONATE, 2.0f, 0.65f);
-        world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 2.0f, 2.0f);
-        world.playSound(center, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 2.0f, 2.0f);
-        world.playSound(center, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 2.0f, 0.8f);
-        world.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 2.0f, 1.0f);
+        // 1. Screen shake at lowest level (Hardness 1)
+        com.churchsmp.util.CinematicVFXUtil.triggerScreenShakeAll(1, 35, plugin);
 
-        Title flashTitle = Title.title(
-                miniMessage.deserialize("<white>█</white>"),
-                Component.empty(),
-                Title.Times.times(Duration.ofMillis(0), Duration.ofMillis(300), Duration.ofMillis(500))
-        );
-
+        // 2. Screen vintage of the sin color before it appears (Wrath #ff1a1a)
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.showTitle(flashTitle);
-            p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 45, 0, false, false, false));
-            p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, 45, 0, false, false, false));
+            com.churchsmp.util.CinematicVFXUtil.flashScreen(p, "#ff1a1a", 30, 220, 600);
         }
 
-        // 2. Expand into spinning star cycling through 7 Sins colors
-        final SinGemType[] sins = SinGemType.values(); // WRATH, GREED, GLUTTONY, LUST, ENVY, PRIDE, SLOTH
+        // 3. Particle bolt: single straight line that expands on top (unreversed)
+        int groundY = world.getHighestBlockYAt((int) center.getX(), (int) center.getZ());
+        double startY = Math.min(groundY, center.getY() - 10);
+        double endY = center.getY();
+
+        new BukkitRunnable() {
+            int boltTicks = 0;
+            final int maxBoltTicks = 25; // 1.25s ascending
+
+            @Override
+            public void run() {
+                boltTicks++;
+                double progress = Math.min(1.0, (double) boltTicks / maxBoltTicks);
+                double currentY = startY + (endY - startY) * progress;
+
+                // Single straight vertical line ascending to apex
+                for (double y = startY; y <= currentY; y += 0.12) {
+                    Location pt = new Location(world, center.getX(), y, center.getZ());
+                    world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(255, 30, 40), 1.6f));
+                    if (Math.random() < 0.2) {
+                        world.spawnParticle(Particle.END_ROD, pt, 1, 0, 0, 0, 0.005);
+                    }
+                }
+
+                if (boltTicks >= maxBoltTicks) {
+                    cancel();
+
+                    // Expand on top! (Coronal canopy / starburst)
+                    com.churchsmp.util.VFXUtil.drawRadialLightningBurst(center, 12, 4.5, Color.fromRGB(255, 40, 50), 1.6f);
+
+                    // Flash-fade white when it does!
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        com.churchsmp.util.CinematicVFXUtil.flashScreen(p, "#ffffff", 20, 250, 700);
+                    }
+
+                    world.spawnParticle(Particle.FLASH, center, 14, 1.0, 1.0, 1.0, 0, Color.WHITE);
+                    world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 2);
+                    world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.6f);
+                    world.playSound(center, Sound.BLOCK_BELL_RESONATE, 2.0f, 0.65f);
+                    playRetroCrystalChime(center, 1.5f, 2.0f);
+
+                    startBlackSunColorCycle(center);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void startBlackSunColorCycle(Location center) {
+        World world = center.getWorld();
+        if (world == null) return;
+        final SinGemType[] sins = SinGemType.BASE_SINS;
         final double ringRadius = 9.0;
         final double angleStep = (2 * Math.PI) / sins.length;
 
+        removeBlackSun();
+        blackSunDisplay = spawnBlackSunDisplay(center, CMD_BLACK_SUN_WRATH, 4.5f);
+
         new BukkitRunnable() {
             int ticks = 0;
-            final int starDuration = 140; // 7.0 seconds of star spinning and screen cycling (20 ticks per Sin)
+            final int starDuration = 140; // 7.0 seconds of cycling
             int lastSinIndex = -1;
 
             @Override
@@ -819,19 +992,27 @@ public class StartEventManager implements Listener {
                         (currentSin.getColor().value() >> 8) & 0xFF,
                         currentSin.getColor().value() & 0xFF
                 );
-                Particle.DustOptions dust = new Particle.DustOptions(c, 1.5f);
 
-                // Render 3D Gyroscopic Hyper-Star Anomaly at (0, 0)
+                // Render 3D Celestial Black Sun ItemDisplay with smooth continuous rotation
+                if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                    float rot = (float) (ticks * 0.06);
+                    updateBlackSunTransform(blackSunDisplay, rot, 0.25f, 4.5f);
+                }
+
+                // Render subtle ambient celestial aura particles (Zero cross-circles!)
                 double rot = ticks * 0.08;
-                render3DGyroscopicHyperStar(center, rot, 4.8, dust, c);
+                com.churchsmp.util.VFXUtil.drawCelestialBlackSun(center, 4.2, rot, c, Color.fromRGB(255, 240, 160));
 
-                // Screen Cycle & Soul Materialization & Expanding Spherical Sin Wave
                 if (sinIdx != lastSinIndex) {
                     lastSinIndex = sinIdx;
 
+                    if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                        blackSunDisplay.setItemStack(createBlackSunItem(getSinBlackSunCMD(currentSin)));
+                    }
+
                     Title sinTitle = Title.title(
-                            miniMessage.deserialize("<bold><color:" + currentSin.getColor().asHexString() + ">✦ " + currentSin.getDisplayName() + " ✦</color></bold>"),
-                            miniMessage.deserialize("<gray>✦ Sin Essence Manifesting... ✦</gray>"),
+                            miniMessage.deserialize("<bold><color:" + currentSin.getColor().asHexString() + ">" + currentSin.getDisplayName() + "</color></bold>"),
+                            miniMessage.deserialize("<gray>Sin Essence Manifesting...</gray>"),
                             Title.Times.times(Duration.ofMillis(100), Duration.ofMillis(750), Duration.ofMillis(150))
                     );
 
@@ -844,18 +1025,19 @@ public class StartEventManager implements Listener {
                         case PRIDE -> 1.95f;
                         case SLOTH -> 0.70f;
                         case SIN -> 0.50f;
+                        case ZEN -> 1.60f;
                     };
 
                     for (Player p : Bukkit.getOnlinePlayers()) {
                         p.showTitle(sinTitle);
                         playRetroCrystalChime(p.getLocation(), sinPitch, 1.25f);
+                        com.churchsmp.util.CinematicVFXUtil.triggerSinScreenFX(p, currentSin, plugin);
                     }
 
-                    // Detonate an expanding spherical Sin Pulse Wave across the 25-block sanctuary
                     triggerSinColorWave(center, currentSin);
                 }
 
-                // In the 9-block ring, faint colored souls begin to slowly revolve in orbit
+                // In the 9-block ring, faint colored souls begin to slowly revolve in orbit (zero cross-circles)
                 double soulOrbit = rot * 0.4;
                 for (int i = 0; i <= sinIdx; i++) {
                     SinGemType sin = sins[i];
@@ -1020,12 +1202,15 @@ public class StartEventManager implements Listener {
         this.state = EventState.SIN_CHOICE;
         World world = center.getWorld();
 
-        SinGemType[] sins = SinGemType.values();
+        SinGemType[] sins = SinGemType.BASE_SINS;
         double ringRadius = 9.0; // 9 blocks radius (fits safely inside 25-block diameter sanctuary)
         double angleStep = (2 * Math.PI) / sins.length;
 
         sinSoulLocations.clear();
-        cleanupDisplays();
+        cleanupSoulDisplays();
+        if (blackSunDisplay == null || !blackSunDisplay.isValid()) {
+            blackSunDisplay = spawnBlackSunDisplay(center, CMD_BLACK_SUN_BASE, 4.5f);
+        }
 
         for (int i = 0; i < sins.length; i++) {
             SinGemType sin = sins[i];
@@ -1034,7 +1219,11 @@ public class StartEventManager implements Listener {
             double z = center.getZ() + Math.sin(angle) * ringRadius;
             double y = Math.max(world.getHighestBlockYAt((int) x, (int) z) + 1.2, center.getY());
 
-            Location soulLoc = new Location(world, x, y, z);
+            double dx = x - center.getX();
+            double dz = z - center.getZ();
+            float yawAway = (float) Math.toDegrees(Math.atan2(-dx, dz));
+
+            Location soulLoc = new Location(world, x, y, z, yawAway, 0f);
             sinSoulLocations.put(sin, soulLoc);
 
             // 1. Floating ItemDisplay (visual icon with full brightness)
@@ -1042,15 +1231,16 @@ public class StartEventManager implements Listener {
                 d.setItemStack(new ItemStack(sin.getIconMaterial()));
                 d.setTransformation(new Transformation(
                         new Vector3f(0, 0, 0),
-                        new AxisAngle4f(0, 0, 1, 0),
+                        new AxisAngle4f(0, 1, 0, 0),
                         new Vector3f(1.5f, 1.5f, 1.5f),
                         new AxisAngle4f(0, 0, 1, 0)
                 ));
                 d.setBrightness(new org.bukkit.entity.Display.Brightness(15, 15));
-                d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+                d.setBillboard(org.bukkit.entity.Display.Billboard.FIXED);
                 d.getPersistentDataContainer().set(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING, sin.name());
             });
             activeSoulDisplays.add(id);
+            sinItemDisplays.put(sin, id);
 
             // 2. Floating TextDisplay holographic title
             TextDisplay td = world.spawn(soulLoc.clone().add(0, 1.4, 0), TextDisplay.class, t -> {
@@ -1058,6 +1248,7 @@ public class StartEventManager implements Listener {
                 t.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
             });
             activeTextDisplays.add(td);
+            sinTextDisplays.put(sin, td);
 
             // 3. Dedicated Interaction Hitbox Entity (Fixes display entities having no hitbox!)
             Interaction hitbox = world.spawn(soulLoc.clone().subtract(0, 0.4, 0), Interaction.class, it -> {
@@ -1067,6 +1258,7 @@ public class StartEventManager implements Listener {
                 it.getPersistentDataContainer().set(new NamespacedKey(plugin, "sin_soul"), PersistentDataType.STRING, sin.name());
             });
             activeInteractions.add(hitbox);
+            sinInteractions.put(sin, hitbox);
         }
 
         // Broadcast interactive chat selection roster
@@ -1101,54 +1293,58 @@ public class StartEventManager implements Listener {
                 }
                 ticks++;
 
-                // 1. Planetary Orbital Revolution: Revolve all 7 Sin Souls around (0, 0)
+                // 1. Planetary Orbital Revolution & Slow Outward Drift:
+                // Gems slowly flip away from the black sun as radius expands slowly
+                double driftRadius = ringRadius + (ticks * 0.005);
                 double orbitAngle = ticks * 0.02; // Smooth continuous orbital revolution
                 for (int i = 0; i < sins.length; i++) {
                     SinGemType sin = sins[i];
+                    if (claimedSins.contains(sin)) continue; // Disappeared when chosen!
+
                     double angle = (i * angleStep) + orbitAngle;
-                    double x = center.getX() + Math.cos(angle) * ringRadius;
-                    double z = center.getZ() + Math.sin(angle) * ringRadius;
+                    double x = center.getX() + Math.cos(angle) * driftRadius;
+                    double z = center.getZ() + Math.sin(angle) * driftRadius;
                     double groundY = world.getHighestBlockYAt((int) x, (int) z);
                     double baseY = Math.max(groundY + 1.2, center.getY());
-                    // Sci-fi antigravity levitation hover bobbing
                     double hoverY = baseY + Math.sin((ticks * 0.12) + (i * 0.9)) * 0.28;
-                    Location newSoulLoc = new Location(world, x, hoverY, z);
+
+                    double dx = x - center.getX();
+                    double dz = z - center.getZ();
+                    float yawAway = (float) Math.toDegrees(Math.atan2(-dx, dz));
+
+                    Location newSoulLoc = new Location(world, x, hoverY, z, yawAway, 0f);
                     sinSoulLocations.put(sin, newSoulLoc);
 
-                    // Move and axially spin ItemDisplay in 3D
-                    if (i < activeSoulDisplays.size()) {
-                        ItemDisplay id = activeSoulDisplays.get(i);
-                        if (id != null && id.isValid()) {
-                            id.teleport(newSoulLoc);
-                            id.setTransformation(new Transformation(
-                                    new Vector3f(0, 0, 0),
-                                    new AxisAngle4f((float) (ticks * 0.1 + i), 0, 1, 0),
-                                    new Vector3f(1.5f, 1.5f, 1.5f),
-                                    new AxisAngle4f(0, 0, 1, 0)
-                            ));
-                        }
+                    // Move and slowly flip ItemDisplay in 3D facing away from Black Sun
+                    ItemDisplay id = sinItemDisplays.get(sin);
+                    if (id != null && id.isValid()) {
+                        id.teleport(newSoulLoc);
+                        float flipAngle = (float) (ticks * 0.06); // slow tumble/flip on pitch
+                        id.setTransformation(new Transformation(
+                                new Vector3f(0, 0, 0),
+                                new AxisAngle4f(flipAngle, 1, 0, 0),
+                                new Vector3f(1.5f, 1.5f, 1.5f),
+                                new AxisAngle4f(0, 0, 1, 0)
+                        ));
                     }
 
                     // Move TextDisplay holographic title
-                    if (i < activeTextDisplays.size()) {
-                        TextDisplay td = activeTextDisplays.get(i);
-                        if (td != null && td.isValid()) {
-                            td.teleport(newSoulLoc.clone().add(0, 1.4, 0));
-                        }
+                    TextDisplay td = sinTextDisplays.get(sin);
+                    if (td != null && td.isValid()) {
+                        td.teleport(newSoulLoc.clone().add(0, 1.4, 0));
                     }
 
                     // Move Interaction hitbox
-                    if (i < activeInteractions.size()) {
-                        Interaction it = activeInteractions.get(i);
-                        if (it != null && it.isValid()) {
-                            it.teleport(newSoulLoc.clone().subtract(0, 0.4, 0));
-                        }
+                    Interaction it = sinInteractions.get(sin);
+                    if (it != null && it.isValid()) {
+                        it.teleport(newSoulLoc.clone().subtract(0, 0.4, 0));
                     }
                 }
 
                 // 2. Render revolving Elemental Vortex Pillars & Sweeping Sacred Light Beams
                 for (Map.Entry<SinGemType, Location> entry : sinSoulLocations.entrySet()) {
                     SinGemType sin = entry.getKey();
+                    if (claimedSins.contains(sin)) continue;
                     Location loc = entry.getValue();
 
                     Color c = Color.fromRGB(
@@ -1174,6 +1370,7 @@ public class StartEventManager implements Listener {
                     double nearestDistSq = Double.MAX_VALUE;
 
                     for (Map.Entry<SinGemType, Location> entry : sinSoulLocations.entrySet()) {
+                        if (claimedSins.contains(entry.getKey())) continue;
                         double distSq = p.getLocation().distanceSquared(entry.getValue());
                         if (distSq <= 12.25 && distSq < nearestDistSq) { // Within 3.5 blocks
                             nearestDistSq = distSq;
@@ -1195,8 +1392,12 @@ public class StartEventManager implements Listener {
                     }
                 }
 
-                // 4. Keep central 3D Gyroscopic Hyper-Star precessing
-                render3DGyroscopicHyperStar(center, ticks * 0.08, 4.8, new Particle.DustOptions(Color.fromRGB(240, 240, 255), 1.3f), Color.WHITE);
+                // 4. Keep central Celestial Black Sun ItemDisplay rotating smoothly (Zero cross-circles!)
+                if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                    float rot = (float) (ticks * 0.06);
+                    updateBlackSunTransform(blackSunDisplay, rot, 0.25f, 4.5f);
+                }
+                com.churchsmp.util.VFXUtil.drawCelestialBlackSun(center, 4.2, ticks * 0.08, Color.fromRGB(240, 40, 50), Color.fromRGB(255, 230, 140));
             }
         }.runTaskTimer(plugin, 0L, 2L);
 
@@ -1353,6 +1554,12 @@ public class StartEventManager implements Listener {
             return;
         }
 
+        if (claimedSins.contains(sin)) {
+            player.sendMessage(miniMessage.deserialize("<red>✦ " + sin.getDisplayName() + " has already been claimed by another soul! ✦</red>"));
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+            return;
+        }
+
         if (attunedPlayers.contains(player.getUniqueId())) {
             player.sendMessage(miniMessage.deserialize("<red>You have already chosen your Sin Attunement!</red>"));
             return;
@@ -1502,8 +1709,34 @@ public class StartEventManager implements Listener {
             return false;
         }
 
+        if (claimedSins.contains(sin)) {
+            player.sendMessage(miniMessage.deserialize("<red>✦ " + sin.getDisplayName() + " has already been claimed by another soul! ✦</red>"));
+            return false;
+        }
+
+        claimedSins.add(sin);
         attunedPlayers.add(player.getUniqueId());
         playerChosenSins.put(player.getUniqueId(), sin);
+
+        // Despawn this Sin's displays immediately so no one else can take it
+        ItemDisplay id = sinItemDisplays.remove(sin);
+        if (id != null && id.isValid()) {
+            Location loc = id.getLocation();
+            loc.getWorld().spawnParticle(Particle.EXPLOSION, loc, 2, 0.2, 0.2, 0.2, 0.01);
+            Color c = Color.fromRGB(
+                    (sin.getColor().value() >> 16) & 0xFF,
+                    (sin.getColor().value() >> 8) & 0xFF,
+                    sin.getColor().value() & 0xFF
+            );
+            loc.getWorld().spawnParticle(Particle.DUST, loc, 30, 0.4, 0.4, 0.4, 0, new Particle.DustOptions(c, 1.8f));
+            loc.getWorld().playSound(loc, Sound.ENTITY_ENDER_EYE_DEATH, 1.5f, 0.7f);
+            id.remove();
+        }
+        TextDisplay td = sinTextDisplays.remove(sin);
+        if (td != null && td.isValid()) td.remove();
+        Interaction it = sinInteractions.remove(sin);
+        if (it != null && it.isValid()) it.remove();
+        Location soulLoc = sinSoulLocations.remove(sin);
 
         // Attune via SinGemManager
         plugin.getSinGemManager().forceAttune(player, sin);
@@ -1514,6 +1747,7 @@ public class StartEventManager implements Listener {
 
         // Screen pop & Title
         player.playEffect(EntityEffect.TOTEM_RESURRECT);
+        com.churchsmp.util.CinematicVFXUtil.triggerSinScreenFX(player, sin, plugin);
         Title sinTitle = Title.title(
                 miniMessage.deserialize("<bold><color:" + sin.getColor().asHexString() + ">✦ " + sin.getDisplayName().toUpperCase() + " ✦</color></bold>"),
                 miniMessage.deserialize("<gradient:#FFFFFF:#AAAAAA><italic>Soul Attuned to " + sin.getDisplayName() + "</italic></gradient>"),
@@ -1537,15 +1771,16 @@ public class StartEventManager implements Listener {
         player.getWorld().spawnParticle(Particle.FIREWORK, player.getLocation().add(0, 1.0, 0), 8, 0.2, 0.2, 0.2, 0.02);
 
         // Pillar of lightning and expanding ground shockwave
-        Location soulLoc = sinSoulLocations.get(sin);
         triggerSinPillarAndShockwave(soulLoc != null ? soulLoc : player.getLocation(), sin);
 
-        Bukkit.broadcast(miniMessage.deserialize("<light_purple>✦ <bold>" + player.getName() + "</bold> has embraced the Sin of " + sin.getDisplayName() + "! (" + attunedPlayers.size() + "/" + Bukkit.getOnlinePlayers().size() + ")</light_purple>"));
+        Bukkit.broadcast(miniMessage.deserialize("<light_purple>✦ <bold>" + player.getName() + "</bold> has embraced the Sin of " + sin.getDisplayName() + "! (" + claimedSins.size() + "/" + Math.min(SinGemType.BASE_SINS.length, Bukkit.getOnlinePlayers().size()) + ")</light_purple>"));
 
-        // Check if all online players have chosen their sin
+        // Check if all sins are chosen or all online players are attuned
         int totalOnline = Bukkit.getOnlinePlayers().size();
-        if (attunedPlayers.size() >= totalOnline) {
-            triggerVoidClimaxAndLaunch();
+        if (claimedSins.size() >= SinGemType.BASE_SINS.length || attunedPlayers.size() >= totalOnline) {
+            World world = player.getWorld();
+            Location center = getEventCenter(world);
+            triggerVoidClimaxAndLaunch(center);
         }
 
         return true;
@@ -1557,13 +1792,18 @@ public class StartEventManager implements Listener {
     private void autoAssignRemainingSins() {
         if (state != EventState.SIN_CHOICE) return;
 
-        List<SinGemType> availableSins = new ArrayList<>(Arrays.asList(SinGemType.values()));
+        List<SinGemType> availableSins = new ArrayList<>();
+        for (SinGemType s : SinGemType.BASE_SINS) {
+            if (!claimedSins.contains(s)) {
+                availableSins.add(s);
+            }
+        }
         Collections.shuffle(availableSins);
 
         int sinIdx = 0;
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (!attunedPlayers.contains(p.getUniqueId())) {
-                SinGemType assign = availableSins.get(sinIdx % availableSins.size());
+            if (!attunedPlayers.contains(p.getUniqueId()) && sinIdx < availableSins.size()) {
+                SinGemType assign = availableSins.get(sinIdx);
                 sinIdx++;
                 confirmSinChoice(p, assign);
             }
@@ -1581,119 +1821,194 @@ public class StartEventManager implements Listener {
 
         sender.sendMessage(miniMessage.deserialize("<green>Forcing progression of Start Event...</green>"));
 
+        World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
+        Location center = getEventCenter(world);
+
         if (state == EventState.READY_CHECK) {
             readyPlayers.clear();
             for (Player p : Bukkit.getOnlinePlayers()) readyPlayers.add(p.getUniqueId());
             triggerSoulExtraction();
         } else if (state == EventState.SOUL_EXTRACTION || state == EventState.STAR_CYCLE) {
-            World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
-            Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
             spawnSinSoulsRing(center);
         } else if (state == EventState.SIN_CHOICE) {
             autoAssignRemainingSins();
         } else if (state == EventState.VOID_CLIMAX) {
-            World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
-            Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
             executeGrandLaunch(center);
         }
     }
 
     /**
-     * Phase 5: Void Climax, Lightning, & Sky Elytra Launch.
+     * Phase 5: Void Climax Sequence.
+     * Sequence:
+     * 1. Sun replaced by Black Hole singularity (Ticks 0-50).
+     * 2. Blinding White State (Ticks 51-80) -> PUSH EVERYONE OUT at Tick 65!
+     * 3. Reversal: PULL BACK IN (Ticks 81-95) with inward gravitational vortex.
+     * 4. BECOME BLACK with vignette of black (Ticks 96-120).
+     * 5. At Tick 120: Launch everyone to Y: 300 with untakeoffable Elytra and fall damage immunity!
      */
-    private void triggerVoidClimaxAndLaunch() {
+    private void triggerVoidClimaxAndLaunch(Location center) {
         this.state = EventState.VOID_CLIMAX;
         if (mainLoopTask != null) mainLoopTask.cancel();
         if (autoTimeoutTask != null) autoTimeoutTask.cancel();
-        cleanupDisplays();
+        cleanupSoulDisplays();
 
-        World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
-        Location center = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 2.0, 0.5);
+        World world = center.getWorld();
+        if (world == null) return;
 
-        Bukkit.broadcast(miniMessage.deserialize("<dark_red><bold>✦ ALL SINS EMBRACED! THE ABYSS CONSUMES THE REALM! ✦</bold></dark_red>"));
+        if (blackSunDisplay == null || !blackSunDisplay.isValid()) {
+            blackSunDisplay = spawnBlackSunDisplay(center, CMD_BLACK_SUN_HOLE, 4.0f);
+        }
+
+        Bukkit.broadcast(miniMessage.deserialize("<dark_red><bold>✦ ALL SINS EMBRACED! THE COSMOS COLLAPSES INTO THE ABYSS! ✦</bold></dark_red>"));
 
         new BukkitRunnable() {
             int ticks = 0;
-            final int maxTicks = 80; // Exactly 4.0 seconds of black hole & widening beacon beam
+            final int maxTicks = 120; // 6.0 seconds total climax
 
             @Override
             public void run() {
                 ticks++;
 
-                double beamRadius = Math.min(3.5, 0.5 + (ticks * 0.05));
+                if (ticks <= 50) {
+                    // STAGE 1 (Ticks 0-50): Black Sun shrinks into collapsing Black Hole singularity
+                    double shrinkProgress = (double) ticks / 50.0;
+                    double holeRadius = Math.max(0.6, 4.0 * (1.0 - shrinkProgress));
+                    float holeScale = (float) Math.max(0.7, 4.5 * (1.0 - shrinkProgress));
+                    float rot = (float) (ticks * 0.16);
 
-                // 1. Swirling Deep Space Black Hole Singularity & Accretion Disk
-                world.spawnParticle(Particle.DUST, center, 12, 0.35, 0.35, 0.35, 0,
-                        new Particle.DustOptions(Color.fromRGB(10, 10, 15), 2.2f));
-                world.spawnParticle(Particle.DUST, center, 6, 0.45, 0.45, 0.45, 0,
-                        new Particle.DustOptions(Color.fromRGB(60, 45, 80), 1.6f));
-                world.spawnParticle(Particle.SMOKE, center, 4, 0.25, 0.25, 0.25, 0.03);
+                    if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                        if (ticks == 1) {
+                            blackSunDisplay.setItemStack(createBlackSunItem(CMD_BLACK_SUN_HOLE));
+                        }
+                        updateBlackSunTransform(blackSunDisplay, rot, 0.45f, holeScale);
+                    }
 
-                // Inner accretion disk matter vortex (spinning plasma ring - Clockwise)
-                for (int a = 0; a < 360; a += 30) {
-                    double diskRad = 1.6 + (a % 4) * 0.8;
-                    double diskAngle = Math.toRadians(a + ticks * 14);
-                    Location diskPt = center.clone().add(Math.cos(diskAngle) * diskRad, (Math.sin(ticks * 0.25 + a) * 0.25), Math.sin(diskAngle) * diskRad);
-                    world.spawnParticle(Particle.DUST, diskPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(35, 25, 55), 1.6f));
-                    if (a % 60 == 0) {
-                        world.spawnParticle(Particle.DRAGON_BREATH, diskPt, 1, 0, 0, 0, 0.01, 0.5f);
+                    world.spawnParticle(Particle.DUST, center, 14, 0.25, 0.25, 0.25, 0,
+                            new Particle.DustOptions(Color.fromRGB(5, 5, 8), 2.4f));
+                    world.spawnParticle(Particle.SQUID_INK, center, 8, 0.2, 0.2, 0.2, 0.02);
+                    world.spawnParticle(Particle.SMOKE, center, 5, 0.3, 0.3, 0.3, 0.03);
+
+                    // Shrinking accretion swirl
+                    for (int a = 0; a < 360; a += 45) {
+                        double ang = Math.toRadians(a + ticks * 12);
+                        Location p = center.clone().add(Math.cos(ang) * holeRadius, Math.sin(ticks * 0.2 + a) * 0.2, Math.sin(ang) * holeRadius);
+                        world.spawnParticle(Particle.DUST, p, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(40, 20, 60), 1.6f));
+                    }
+
+                    if (ticks % 10 == 0) {
+                        world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.4f, 0.5f + (ticks * 0.01f));
+                        world.playSound(center, Sound.ENTITY_WARDEN_HEARTBEAT, 1.2f, 0.7f + (ticks * 0.01f));
+                    }
+                } else if (ticks <= 80) {
+                    // STAGE 2 (Ticks 51-80): White State Expansion & PUSH OUT at Tick 65
+                    double whiteProgress = (double) (ticks - 50) / 30.0;
+                    double whiteRadius = 1.0 + (whiteProgress * 7.0);
+                    float whiteScale = (float) (1.0 + (whiteProgress * 6.0));
+                    float rot = (float) (ticks * 0.1);
+
+                    if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                        if (ticks == 51) {
+                            blackSunDisplay.setItemStack(createBlackSunItem(CMD_BLACK_SUN_WHITE));
+                        }
+                        updateBlackSunTransform(blackSunDisplay, rot, 0.15f, whiteScale);
+                    }
+
+                    world.spawnParticle(Particle.FLASH, center, 6, 0.5, 0.5, 0.5, 0, Color.WHITE);
+                    world.spawnParticle(Particle.DUST, center, 20, 0.4, 0.4, 0.4, 0,
+                            new Particle.DustOptions(Color.fromRGB(255, 255, 255), 2.5f));
+                    world.spawnParticle(Particle.END_ROD, center, 8, 0.5, 0.5, 0.5, 0.03);
+
+                    // Expanding white aura sphere
+                    for (int a = 0; a < 360; a += 30) {
+                        double ang = Math.toRadians(a + ticks * 16);
+                        Location pt = center.clone().add(Math.cos(ang) * whiteRadius, 0, Math.sin(ang) * whiteRadius);
+                        world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.WHITE, 1.8f));
+                        world.spawnParticle(Particle.END_ROD, pt, 1, 0, 0, 0, 0.005);
+                    }
+
+                    // AT TICKS 65-74: CONTINUOUS POWERFUL PUSH EVERYONE OUT ~30 BLOCKS!
+                    if (ticks >= 65 && ticks <= 74) {
+                        if (ticks == 65) {
+                            world.spawnParticle(Particle.FLASH, center, 4, 1.0, 1.0, 1.0, 0, Color.WHITE);
+                            world.spawnParticle(Particle.FIREWORK, center, 50, 2.0, 1.0, 2.0, 0.25);
+                            world.playSound(center, Sound.ENTITY_FIREWORK_ROCKET_LARGE_BLAST, 2.5f, 0.6f);
+                            world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.5f, 0.5f);
+                            world.playSound(center, Sound.ITEM_TRIDENT_THUNDER, 2.0f, 0.8f);
+                        }
+
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            Vector dirAway = p.getLocation().toVector().subtract(center.toVector());
+                            if (dirAway.lengthSquared() < 0.01) {
+                                dirAway = new Vector(Math.random() - 0.5, 0, Math.random() - 0.5);
+                            }
+                            dirAway.setY(0).normalize();
+                            // Powerful push velocity to propel ~30 blocks horizontally
+                            p.setVelocity(dirAway.multiply(3.85).setY(0.26));
+                            if (ticks == 65) {
+                                com.churchsmp.util.CinematicVFXUtil.triggerScreenShake(p, 4, 30, plugin);
+                                com.churchsmp.util.CinematicVFXUtil.flashScreen(p, "#ffffff", 10, 180, 400);
+                            }
+                        }
+                    }
+                } else if (ticks <= 95) {
+                    // STAGE 3 (Ticks 81-95): PULL BACK IN (Inward Gravitational Vortex ~30 blocks)
+                    double pullProgress = (double) (ticks - 80) / 15.0;
+                    float pullScale = (float) (7.0 - (pullProgress * 3.5));
+                    float rot = (float) (ticks * 0.22);
+
+                    if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                        updateBlackSunTransform(blackSunDisplay, rot, 0.35f, pullScale);
+                    }
+
+                    for (int i = 0; i < 8; i++) {
+                        double pullAngle = Math.random() * 2 * Math.PI;
+                        double pullDist = 3.0 + Math.random() * 9.0;
+                        Location pullStart = center.clone().add(Math.cos(pullAngle) * pullDist, (Math.random() - 0.5) * 3.0, Math.sin(pullAngle) * pullDist);
+                        Vector pullVec = center.toVector().subtract(pullStart.toVector()).normalize().multiply(0.65);
+                        world.spawnParticle(Particle.PORTAL, pullStart, 0, pullVec.getX(), pullVec.getY(), pullVec.getZ(), 0.9);
+                        world.spawnParticle(Particle.DUST, pullStart, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(80, 50, 120), 1.4f));
+                    }
+
+                    // Continuous powerful inward vacuum force to pull ~30 blocks back to center!
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        Vector toCenter = center.toVector().subtract(p.getLocation().toVector());
+                        double distSq = toCenter.lengthSquared();
+                        if (distSq > 2.0) {
+                            toCenter.setY(0).normalize();
+                            p.setVelocity(toCenter.multiply(2.85).setY(0.22));
+                        }
+                    }
+
+                    if (ticks % 5 == 0) {
+                        world.playSound(center, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 1.2f, 0.6f);
+                        world.playSound(center, Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 0.7f);
+                    }
+                } else {
+                    // STAGE 4 (Ticks 96-120): BECOME BLACK WITH VIGNETTE OF BLACK
+                    float rot = (float) (ticks * 0.05);
+                    if (blackSunDisplay != null && blackSunDisplay.isValid()) {
+                        if (ticks == 96) {
+                            blackSunDisplay.setItemStack(createBlackSunItem(CMD_BLACK_SUN_BASE));
+                        }
+                        updateBlackSunTransform(blackSunDisplay, rot, 0.2f, 3.5f);
+                    }
+
+                    world.spawnParticle(Particle.DUST, center, 22, 0.4, 0.4, 0.4, 0,
+                            new Particle.DustOptions(Color.fromRGB(0, 0, 0), 3.0f));
+                    world.spawnParticle(Particle.SQUID_INK, center, 14, 0.3, 0.3, 0.3, 0.02);
+
+                    if (ticks == 96) {
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            com.churchsmp.util.CinematicVFXUtil.triggerDarknessVignette(p, 30);
+                            com.churchsmp.util.CinematicVFXUtil.flashScreen(p, "#050505", 35, 240, 400);
+                            com.churchsmp.util.CinematicVFXUtil.triggerScreenShake(p, 1, 25, plugin);
+                            p.playSound(p.getLocation(), Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 1.2f, 0.4f);
+                            p.playSound(p.getLocation(), Sound.AMBIENT_SOUL_SAND_VALLEY_MOOD, 1.4f, 0.5f);
+                        }
                     }
                 }
 
-                // Outer plasma accretion corona (Counter-Clockwise)
-                for (int a = 0; a < 360; a += 40) {
-                    double outRad = 3.2 + (a % 3) * 0.9;
-                    double outAngle = Math.toRadians(a - ticks * 10);
-                    Location outPt = center.clone().add(Math.cos(outAngle) * outRad, (Math.cos(ticks * 0.2 + a) * 0.2), Math.sin(outAngle) * outRad);
-                    world.spawnParticle(Particle.DUST, outPt, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(90, 30, 120), 1.4f));
-                    if (a % 80 == 0) {
-                        world.spawnParticle(Particle.PORTAL, outPt, 1, 0, 0, 0, 0.2);
-                    }
-                }
-
-                // Violent gravitational pull from 12 blocks inwards
-                for (int i = 0; i < 4; i++) {
-                    double pullAngle = Math.random() * 2 * Math.PI;
-                    double pullDist = 3.0 + Math.random() * 8.0;
-                    Location pullStart = center.clone().add(Math.cos(pullAngle) * pullDist, (Math.random() - 0.5) * 4.0, Math.sin(pullAngle) * pullDist);
-                    Vector pullVec = center.toVector().subtract(pullStart.toVector()).normalize().multiply(0.45);
-                    world.spawnParticle(Particle.PORTAL, pullStart, 0, pullVec.getX(), pullVec.getY(), pullVec.getZ(), 0.8);
-                }
-
-                // 2. Heaven-Piercing Orbital Beam shooting up to world limit (Y:320)
-                double maxHeight = Math.min(320.0, world.getMaxHeight());
-                for (double y = 0; y <= maxHeight; y += 3.5) {
-                    for (int d = 0; d < 360; d += 90) {
-                        double rad = Math.toRadians(d + (ticks * 12));
-                        Location bPt = center.clone().add(Math.cos(rad) * beamRadius, y, Math.sin(rad) * beamRadius);
-                        world.spawnParticle(Particle.END_ROD, bPt, 1, 0, 0, 0, 0.01);
-                    }
-                }
-
-                // Counter-Rotating Double-Helix Spiral Braids ascending the orbital beam
-                for (double y = 0; y <= Math.min(100.0, maxHeight); y += 2.5) {
-                    // Braid 1 (Clockwise Ascending)
-                    double ang1 = Math.toRadians((ticks * 16) + (y * 22));
-                    Location b1 = center.clone().add(Math.cos(ang1) * (beamRadius + 0.45), y, Math.sin(ang1) * (beamRadius + 0.45));
-                    world.spawnParticle(Particle.DUST, b1, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(160, 220, 255), 1.6f));
-
-                    // Braid 2 (Counter-Clockwise Ascending)
-                    double ang2 = Math.toRadians((-ticks * 16) - (y * 22) + 180);
-                    Location b2 = center.clone().add(Math.cos(ang2) * (beamRadius + 0.45), y, Math.sin(ang2) * (beamRadius + 0.45));
-                    world.spawnParticle(Particle.DUST, b2, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.fromRGB(240, 200, 255), 1.6f));
-
-                    if (y % 10 == 0) {
-                        world.spawnParticle(Particle.END_ROD, b1, 1, 0, 0, 0, 0.005);
-                    }
-                }
-
-                if (ticks % 8 == 0) {
-                    world.playSound(center, Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 1.5f, 0.5f + (ticks * 0.01f));
-                    world.playSound(center, Sound.ENTITY_WARDEN_HEARTBEAT, 1.4f, 0.8f + (ticks * 0.01f));
-                    world.playSound(center, Sound.ITEM_TRIDENT_THUNDER, 1.0f, 0.7f);
-                }
-
-                // Climax at exactly 4 seconds
+                // Climax at exactly 120 ticks (6.0s): Grand Launch to Y: 300
                 if (ticks >= maxTicks) {
                     cancel();
                     executeGrandLaunch(center);
@@ -1705,11 +2020,14 @@ public class StartEventManager implements Listener {
     private void executeGrandLaunch(Location center) {
         this.state = EventState.LAUNCH_GLIDE;
         World world = center.getWorld();
+        if (world == null) return;
+
+        removeBlackSun();
 
         // 1. Black hole collapses & Titanic lightning detonation
         world.strikeLightningEffect(center);
-        world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 3);
-        world.spawnParticle(Particle.FLASH, center, 10, 1.0, 1.0, 1.0, 0, Color.WHITE);
+        world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 4);
+        world.spawnParticle(Particle.FLASH, center, 15, 1.0, 1.0, 1.0, 0, Color.WHITE);
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.5f, 0.6f);
         world.playSound(center, Sound.ITEM_TRIDENT_THUNDER, 2.5f, 0.8f);
         world.playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 2.0f, 0.9f);
@@ -1734,12 +2052,12 @@ public class StartEventManager implements Listener {
         border.setSize(originalBorderSize > 25 ? originalBorderSize : 10000);
 
         Title launchTitle = Title.title(
-                miniMessage.deserialize("<gradient:#FFD700:#FF4500><bold>✦ THE NEW ERA DAWNS ✦</bold></gradient>"),
-                miniMessage.deserialize("<yellow>Glide to your starting sanctuary • The realm is born!</yellow>"),
-                Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(600))
+                miniMessage.deserialize("<white><bold>Arc - 1 | Illuminate what <gold>He</gold> left us.</bold></white>"),
+                miniMessage.deserialize("<gray><italic>" + TextUtil.toSmallCaps("Glide to grace with wings.") + "</italic></gray>"),
+                Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(5), Duration.ofMillis(1000))
         );
 
-        // 3. Launch everyone into air to Y:200 with temporary Elytra & Supersonic Mach Cone
+        // 3. Launch everyone into air to Y:300 with untakeoffable Elytra & fall damage immunity
         for (Player p : Bukkit.getOnlinePlayers()) {
             Location loc = p.getLocation();
 
@@ -1749,29 +2067,42 @@ public class StartEventManager implements Listener {
                 cachedChestplates.put(p.getUniqueId(), cp.clone());
             }
 
-            // Equip temporary Elytra
+            // Equip temporary untakeoffable Elytra
             ItemStack elytra = new ItemStack(Material.ELYTRA);
+            org.bukkit.inventory.meta.ItemMeta meta = elytra.getItemMeta();
+            if (meta != null) {
+                meta.setUnbreakable(true);
+                meta.displayName(miniMessage.deserialize("<gold><bold>Arc I Genesis Wings</bold></gold>"));
+                meta.lore(List.of(
+                        miniMessage.deserialize("<gray>" + TextUtil.toSmallCaps("Glide to grace with wings.") + "</gray>"),
+                        miniMessage.deserialize("<dark_purple>Bound to your soul for the Genesis flight.</dark_purple>")
+                ));
+                elytra.setItemMeta(meta);
+            }
             p.getInventory().setChestplate(elytra);
             glidingPlayers.add(p.getUniqueId());
+            fallImmunityPlayers.add(p.getUniqueId());
 
-            // Teleport smoothly to Y:200 and launch forward
-            Location launchLoc = new Location(world, loc.getX(), 200, loc.getZ(), loc.getYaw(), loc.getPitch());
+            // Teleport smoothly to Y:300 and launch forward
+            Location launchLoc = new Location(world, loc.getX(), 300.0, loc.getZ(), loc.getYaw(), loc.getPitch());
             p.teleport(launchLoc);
-            p.setVelocity(loc.getDirection().normalize().multiply(1.6).setY(0.25));
+            p.setVelocity(loc.getDirection().normalize().multiply(1.8).setY(0.2));
             p.setGliding(true);
 
             // Hyperspace FOV warp stretch
-            p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 45, 12, false, false, false));
+            p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 50, 10, false, false, false));
 
             // Supersonic Mach Shock Rings behind player
-            Location trail = loc.clone().subtract(loc.getDirection().multiply(1.5));
+            Location trail = launchLoc.clone().subtract(loc.getDirection().multiply(1.5));
             world.spawnParticle(Particle.SONIC_BOOM, trail, 1);
             world.spawnParticle(Particle.FIREWORK, trail, 15, 0.5, 0.5, 0.5, 0.08);
             world.spawnParticle(Particle.FLASH, trail, 2, 0.2, 0.2, 0.2, 0, Color.WHITE);
 
             p.showTitle(launchTitle);
+            com.churchsmp.util.CinematicVFXUtil.flashVintage(p, com.churchsmp.util.CinematicVFXUtil.VintageStyle.SOLAR_ECLIPSE, plugin);
             p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_ELYTRA, 1.5f, 1.0f);
             p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.4f, 1.0f);
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1.0f);
         }
 
         startGlideTrailTask();
@@ -1836,18 +2167,53 @@ public class StartEventManager implements Listener {
     }
 
     /**
+     * Prevents players from removing the temporary Genesis Elytra from their chest slot.
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onInventoryClick(org.bukkit.event.inventory.InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (!glidingPlayers.contains(player.getUniqueId())) return;
+
+        if (event.getSlotType() == org.bukkit.event.inventory.InventoryType.SlotType.ARMOR || event.getRawSlot() == 6) {
+            event.setCancelled(true);
+            player.sendMessage(miniMessage.deserialize("<red>Your wings are bound to your soul until safe landing!</red>"));
+            return;
+        }
+
+        ItemStack current = event.getCurrentItem();
+        ItemStack cursor = event.getCursor();
+        if ((current != null && current.getType() == Material.ELYTRA) || (cursor != null && cursor.getType() == Material.ELYTRA)) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Prevents players from dropping the Genesis Elytra while gliding.
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onItemDrop(org.bukkit.event.player.PlayerDropItemEvent event) {
+        if (!glidingPlayers.contains(event.getPlayer().getUniqueId())) return;
+        if (event.getItemDrop().getItemStack().getType() == Material.ELYTRA) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(miniMessage.deserialize("<red>You cannot discard your wings while gliding!</red>"));
+        }
+    }
+
+    /**
      * Cleans up temporary Elytra and restores original chestplate upon landing.
+     * Retains fall damage immunity for a 10s grace period.
      */
     @EventHandler
     public void onPlayerLand(PlayerMoveEvent event) {
-        if (!glidingPlayers.contains(event.getPlayer().getUniqueId())) return;
         Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        if (!glidingPlayers.contains(uuid)) return;
 
         if (player.isOnGround() || player.isInWater() || player.getLocation().getBlock().isLiquid()) {
-            glidingPlayers.remove(player.getUniqueId());
+            glidingPlayers.remove(uuid);
 
             // Restore chestplate
-            ItemStack original = cachedChestplates.remove(player.getUniqueId());
+            ItemStack original = cachedChestplates.remove(uuid);
             if (original != null) {
                 player.getInventory().setChestplate(original);
             } else {
@@ -1859,8 +2225,12 @@ public class StartEventManager implements Listener {
             player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation().add(0, 0.2, 0), 10, 0.3, 0.1, 0.3, 0.02);
             player.sendMessage(miniMessage.deserialize("<green><bold>✦ Safely landed! Your gear has been restored. ✦</bold></green>"));
 
+            // 10s grace period for fall damage immunity
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                fallImmunityPlayers.remove(uuid);
+            }, 200L);
+
             if (glidingPlayers.isEmpty()) {
-                // All players have safely landed
                 if (glideTrailTask != null) {
                     glideTrailTask.cancel();
                     glideTrailTask = null;
@@ -1871,13 +2241,17 @@ public class StartEventManager implements Listener {
     }
 
     /**
-     * Prevent fall damage during the initial launch and glide.
+     * Fall and kinetic wall damage immunity while gliding + safe landing grace period.
      */
-    @EventHandler
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onFallDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player p && glidingPlayers.contains(p.getUniqueId())) {
-            if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
-                event.setCancelled(true);
+        if (event.getEntity() instanceof Player p) {
+            UUID uuid = p.getUniqueId();
+            if (glidingPlayers.contains(uuid) || fallImmunityPlayers.contains(uuid)) {
+                if (event.getCause() == EntityDamageEvent.DamageCause.FALL ||
+                        event.getCause() == EntityDamageEvent.DamageCause.FLY_INTO_WALL) {
+                    event.setCancelled(true);
+                }
             }
         }
     }
@@ -1906,7 +2280,10 @@ public class StartEventManager implements Listener {
     public void onPlayerJoinDuringEvent(org.bukkit.event.player.PlayerJoinEvent event) {
         if (isEventActive()) {
             World world = (eventWorld != null) ? eventWorld : Bukkit.getWorlds().get(0);
-            Location spawnLoc = new Location(world, 0.5, world.getHighestBlockYAt(0, 0) + 1.0, 0.5);
+            Location center = getEventCenter(world);
+            Location spawnLoc = center.clone();
+            int groundY = world.getHighestBlockYAt((int) spawnLoc.getX(), (int) spawnLoc.getZ());
+            spawnLoc.setY(Math.max(groundY + 1.0, center.getY()));
             event.getPlayer().teleport(spawnLoc);
             if (ceremonyBossBar != null) {
                 event.getPlayer().showBossBar(ceremonyBossBar);
@@ -1914,6 +2291,35 @@ public class StartEventManager implements Listener {
             event.getPlayer().sendMessage(miniMessage.deserialize("<gold>✦ A Genesis Ceremony is currently active at Spawn! Type <yellow><bold>/church ready</bold></yellow>! ✦</gold>"));
             updateReadyActionBar();
         }
+    }
+
+    public void cleanupSoulDisplays() {
+        for (ItemDisplay id : activeSoulDisplays) {
+            if (id != null && id.isValid()) id.remove();
+        }
+        activeSoulDisplays.clear();
+        for (ItemDisplay id : sinItemDisplays.values()) {
+            if (id != null && id.isValid()) id.remove();
+        }
+        sinItemDisplays.clear();
+
+        for (TextDisplay td : activeTextDisplays) {
+            if (td != null && td.isValid()) td.remove();
+        }
+        activeTextDisplays.clear();
+        for (TextDisplay td : sinTextDisplays.values()) {
+            if (td != null && td.isValid()) td.remove();
+        }
+        sinTextDisplays.clear();
+
+        for (Interaction it : activeInteractions) {
+            if (it != null && it.isValid()) it.remove();
+        }
+        activeInteractions.clear();
+        for (Interaction it : sinInteractions.values()) {
+            if (it != null && it.isValid()) it.remove();
+        }
+        sinInteractions.clear();
     }
 
     public void cleanupDisplays() {
@@ -1943,19 +2349,147 @@ public class StartEventManager implements Listener {
             autoTimeoutTask.cancel();
             autoTimeoutTask = null;
         }
-        for (ItemDisplay id : activeSoulDisplays) {
-            if (id != null && id.isValid()) id.remove();
-        }
-        activeSoulDisplays.clear();
+        cleanupSoulDisplays();
+        removeBlackSun();
+    }
 
-        for (TextDisplay td : activeTextDisplays) {
-            if (td != null && td.isValid()) td.remove();
-        }
-        activeTextDisplays.clear();
+    private final Map<UUID, BukkitTask> testBlackSunTasks = new ConcurrentHashMap<>();
 
-        for (Interaction it : activeInteractions) {
-            if (it != null && it.isValid()) it.remove();
-        }
-        activeInteractions.clear();
+    public void startTestBlackSun(Player player) {
+        stopTestBlackSun(player);
+        Location center = player.getLocation().add(0, 5.0, 0);
+        final SinGemType[] sins = SinGemType.BASE_SINS;
+        World world = player.getWorld();
+
+        // 1. Screen shake at lowest level (Hardness 1)
+        com.churchsmp.util.CinematicVFXUtil.triggerScreenShake(player, 1, 35, plugin);
+
+        // 2. Screen vintage of the sin color before it appears (Wrath #ff1a1a)
+        com.churchsmp.util.CinematicVFXUtil.flashScreen(player, "#ff1a1a", 30, 220, 600);
+
+        // 3. Particle bolt: single straight line that expands on top (unreversed)
+        double startY = player.getLocation().getY();
+        double endY = center.getY();
+
+        new BukkitRunnable() {
+            int boltTicks = 0;
+            final int maxBoltTicks = 20;
+
+            @Override
+            public void run() {
+                boltTicks++;
+                double progress = Math.min(1.0, (double) boltTicks / maxBoltTicks);
+                double currentY = startY + (endY - startY) * progress;
+
+                for (double y = startY; y <= currentY; y += 0.15) {
+                    Location pt = new Location(world, center.getX(), y, center.getZ());
+                    world.spawnParticle(Particle.DUST, pt, 1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(255, 30, 40), 1.6f));
+                    if (Math.random() < 0.2) {
+                        world.spawnParticle(Particle.END_ROD, pt, 1, 0, 0, 0, 0.005);
+                    }
+                }
+
+                if (boltTicks >= maxBoltTicks) {
+                    cancel();
+
+                    // Expand on top! (Radial burst)
+                    com.churchsmp.util.VFXUtil.drawRadialLightningBurst(center, 12, 4.5, Color.fromRGB(255, 40, 50), 1.6f);
+
+                    // Flash-fade white when it does!
+                    com.churchsmp.util.CinematicVFXUtil.flashScreen(player, "#ffffff", 20, 250, 700);
+                    world.spawnParticle(Particle.FLASH, center, 14, 1.0, 1.0, 1.0, 0, Color.WHITE);
+                    world.spawnParticle(Particle.EXPLOSION_EMITTER, center, 2);
+                    player.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.6f);
+                    player.playSound(center, Sound.BLOCK_BELL_RESONATE, 2.0f, 0.65f);
+                    playRetroCrystalChime(center, 1.5f, 2.0f);
+
+                    // Start rotating and cycling through sin colors with 3D ItemDisplay (Zero cross-circles!)
+                    ItemDisplay testDisplay = spawnBlackSunDisplay(center, CMD_BLACK_SUN_WRATH, 4.5f);
+                    if (testDisplay != null) {
+                        testBlackSunDisplays.put(player.getUniqueId(), testDisplay);
+                    }
+
+                    BukkitTask task = new BukkitRunnable() {
+                        int ticks = 0;
+                        int lastSinIdx = -1;
+                        @Override
+                        public void run() {
+                            if (!player.isOnline()) {
+                                cancel();
+                                stopTestBlackSun(player);
+                                return;
+                            }
+                            ticks++;
+                            double rot = ticks * 0.08;
+                            int sinIdx = (ticks / 25) % sins.length;
+                            SinGemType cur = sins[sinIdx];
+                            Color c = Color.fromRGB(
+                                    (cur.getColor().value() >> 16) & 0xFF,
+                                    (cur.getColor().value() >> 8) & 0xFF,
+                                    cur.getColor().value() & 0xFF
+                            );
+
+                            ItemDisplay td = testBlackSunDisplays.get(player.getUniqueId());
+                            if (td != null && td.isValid()) {
+                                float modelRot = (float) (ticks * 0.06);
+                                updateBlackSunTransform(td, modelRot, 0.25f, 4.5f);
+                                if (sinIdx != lastSinIdx) {
+                                    lastSinIdx = sinIdx;
+                                    td.setItemStack(createBlackSunItem(getSinBlackSunCMD(cur)));
+                                }
+                            }
+
+                            // Constant unreversed math particle bolt strikes down from celestial sun upon the player!
+                            if (ticks % 8 == 0) {
+                                Location pLoc = player.getLocation();
+                                double topY = center.getY();
+                                double bottomY = pLoc.getY() + 1.8;
+                                double height = topY - bottomY;
+
+                                for (double y = 0; y <= height; y += 0.25) {
+                                    double currentY = bottomY + y;
+                                    // Central straight line
+                                    Location boltPt = new Location(world, pLoc.getX(), currentY, pLoc.getZ());
+                                    world.spawnParticle(Particle.DUST, boltPt, 1, 0, 0, 0, 0, new Particle.DustOptions(c, 1.9f));
+
+                                    // Mathematical counter-rotating double helix
+                                    double hr = 0.35;
+                                    double ha1 = (ticks * 0.3) + (y * 0.9);
+                                    double ha2 = -(ticks * 0.3) + (y * 0.9) + Math.PI;
+                                    Location h1 = new Location(world, pLoc.getX() + Math.cos(ha1) * hr, currentY, pLoc.getZ() + Math.sin(ha1) * hr);
+                                    Location h2 = new Location(world, pLoc.getX() + Math.cos(ha2) * hr, currentY, pLoc.getZ() + Math.sin(ha2) * hr);
+                                    world.spawnParticle(Particle.DUST, h1, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.WHITE, 1.2f));
+                                    world.spawnParticle(Particle.DUST, h2, 1, 0, 0, 0, 0, new Particle.DustOptions(Color.WHITE, 1.2f));
+
+                                    // Mathematical expanding cone on top (highest 4 blocks)
+                                    if (y >= height - 4.0) {
+                                        double coneRadius = (y - (height - 4.0)) * 0.45;
+                                        for (int k = 0; k < 4; k++) {
+                                            double ca = (k * Math.PI / 2.0) + (ticks * 0.1);
+                                            Location conePt = new Location(world, pLoc.getX() + Math.cos(ca) * coneRadius, currentY, pLoc.getZ() + Math.sin(ca) * coneRadius);
+                                            world.spawnParticle(Particle.END_ROD, conePt, 1, 0, 0, 0, 0.005);
+                                        }
+                                    }
+                                }
+                                world.playSound(pLoc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.9f, 1.8f);
+                                world.playSound(pLoc, Sound.ITEM_TRIDENT_RETURN, 0.8f, 1.6f);
+                            }
+
+                            com.churchsmp.util.VFXUtil.drawCelestialBlackSun(center, 4.5, rot, c, Color.fromRGB(255, 240, 160));
+                        }
+                    }.runTaskTimer(plugin, 0L, 2L);
+
+                    testBlackSunTasks.put(player.getUniqueId(), task);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    public void stopTestBlackSun(Player player) {
+        BukkitTask task = testBlackSunTasks.remove(player.getUniqueId());
+        if (task != null) task.cancel();
+        ItemDisplay td = testBlackSunDisplays.remove(player.getUniqueId());
+        if (td != null && td.isValid()) td.remove();
     }
 }

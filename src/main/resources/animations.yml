@@ -1,0 +1,9 @@
+# ========================================================
+# ChurchSMP Particle & Keyframe Animation Presets
+# ========================================================
+
+animations:
+  undying_star_slash:
+    portable: "PAT:undying_star_slash[DIR]{F0:dustwhite:^-1.00,^0.60,^1.50:1.60:1:LINEAR|F1:dustzen:^0.00,^0.20,^2.00:1.50:1:EASE_OUT_CUBIC|F2:dustzen:^1.60,^0.00,^2.50:1.50:1:EASE_OUT_BACK|F2:fireworkexplosion:^0.00,^0.00,^2.50:1.00:1:LINEAR}"
+  zen_bolt_veins:
+    portable: "PAT:zen_bolt_veins[DIR]{F0:dustzen:^0.00,^0.00,^0.00:1.40:1:LINEAR}"

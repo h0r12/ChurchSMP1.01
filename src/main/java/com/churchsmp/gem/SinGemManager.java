@@ -50,48 +50,35 @@ public class SinGemManager {
 
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
-            if (type == SinGemType.SIN) {
+            if (type == SinGemType.ZEN) {
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<dark_red><bold>✦ MYTHIC APEX RELIC ✦</bold></dark_red>"));
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<italic><gray>\"Weighed by a thousand losses, the definition of retaliation.\"</gray></italic>"));
+                        .deserialize("<italic><gray>A piece of time's second coming ,Undefined at the rest were silence</gray></italic>"));
                 lore.add(Component.empty());
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<dark_red><bold>☠ Passive:</bold></dark_red> <red><bold>Bloodfeast</bold></red>"));
+                        .deserialize("<gray>Passive: Grace</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Immune to negative effects; debuffs become </gray><gold>Strength III</gold><gray>.</gray>"));
+                        .deserialize("<gray>Attack: Luminate (40s)</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• At < 4 HP (2 hearts): Instant CD reset & 2x clocking rate.</gray>"));
+                        .deserialize("<gray>Left Click: Redempt (60s)</gray>"));
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<gray>Right Click: Deflects (40s)</gray>"));
+            } else if (type == SinGemType.SIN) {
+                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                        .deserialize("<italic><gray>Weighed by a thousand losses, the definition of retaliation.</gray></italic>"));
                 lore.add(Component.empty());
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gold><bold>✦ Skill 1 [Click / LMB]:</bold></gold> <yellow><bold>Rusty Blood</bold></yellow> <gray>(35s CD)</gray>"));
+                        .deserialize("<gray>Passive: Bloodfeast</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Throws rotating redstone block with physical red block chain.</gray>"));
+                        .deserialize("<gray>Skill 1 [LMB]: Rusty Blood (35s)</gray>"));
                 lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Airborne/Combo targets: Instantly trigger Aerial Slam (no double press)!</gray>"));
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Ground targets: Siphons life; click again to drill through shields (3 true hearts).</gray>"));
-                lore.add(Component.empty());
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gold><bold>✦ Skill 2 [Right Click / RMB]:</bold></gold> <yellow><bold>Veins of Flagitious</bold></yellow> <gray>(50s CD)</gray>"));
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Dissolve into void. Steer a heavy crimson core with cursor (8m/s).</gray>"));
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Marked victims are struck by reverse red lightning (40m fling)!</gray>"));
-                lore.add(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gray>• Sets up 100% lock-on instant 6 true hearts Aerial Slam!</gray>"));
+                        .deserialize("<gray>Skill 2 [RMB]: Veins of Flagitious (50s)</gray>"));
             } else {
-                lore.add(Component.text("Sin Relic: ", NamedTextColor.GRAY)
-                        .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD)));
-                lore.add(Component.text(type.getDescription(), NamedTextColor.WHITE));
+                lore.add(Component.text(type.getDisplayName(), NamedTextColor.WHITE).decorate(TextDecoration.BOLD));
+                lore.add(Component.text(type.getDescription(), NamedTextColor.GRAY));
                 lore.add(Component.empty());
-                lore.add(Component.text("✦ Skill 1 [RMB]: ", NamedTextColor.GOLD)
-                        .append(Component.text(type.getPrimaryAbilityName(), NamedTextColor.YELLOW)));
-                lore.add(Component.text("✦ Skill 2 [Shift + RMB]: ", NamedTextColor.GOLD)
-                        .append(Component.text(type.getSecondaryAbilityName(), NamedTextColor.YELLOW)));
+                lore.add(Component.text("Skill 1 [RMB]: " + type.getPrimaryAbilityName(), NamedTextColor.GRAY));
+                lore.add(Component.text("Skill 2 [Shift + RMB]: " + type.getSecondaryAbilityName(), NamedTextColor.GRAY));
             }
-            lore.add(Component.empty());
-            lore.add(Component.text("✦ Hold in hand to channel powers", NamedTextColor.AQUA));
             lore.add(Component.text("-----------------------------", NamedTextColor.DARK_GRAY));
 
             meta.lore(lore);
@@ -189,9 +176,9 @@ public class SinGemManager {
     public void forceAttune(Player player, SinGemType type) {
         player.getPersistentDataContainer().set(attunedKey, PersistentDataType.STRING, type.name());
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-        player.sendMessage(Component.text("✦ You have permanently attuned your soul to the ", NamedTextColor.GOLD)
+        player.sendMessage(Component.text("Attuned soul to the ", NamedTextColor.GOLD)
                 .append(Component.text(type.getDisplayName(), type.getColor()).decorate(TextDecoration.BOLD))
-                .append(Component.text(" Relic Gem!", NamedTextColor.GOLD)));
+                .append(Component.text(" Gem.", NamedTextColor.GOLD)));
     }
 
     /**
@@ -205,9 +192,9 @@ public class SinGemManager {
             SinGemType chosen = values[random.nextInt(values.length)];
             player.getInventory().addItem(createGemItem(chosen));
 
-            player.sendMessage(Component.text("✦ A mysterious relic materialized in your inventory: ", NamedTextColor.YELLOW)
+            player.sendMessage(Component.text("A relic materialized in your inventory: ", NamedTextColor.YELLOW)
                     .append(chosen.getFormattedName()));
-            player.sendMessage(Component.text("✦ Right-click to attune, or use /church reroll before attuning!", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Right-click to attune, or use /church reroll before attuning.", NamedTextColor.GRAY));
         }
     }
 
@@ -235,7 +222,7 @@ public class SinGemManager {
 
         player.getInventory().setItemInMainHand(createGemItem(next));
         player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.2f);
-        player.sendMessage(Component.text("✦ Your gem resonated and transformed into: ", NamedTextColor.GREEN)
+        player.sendMessage(Component.text("Gem transformed into: ", NamedTextColor.GREEN)
                 .append(next.getFormattedName()));
         return true;
     }

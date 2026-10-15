@@ -111,7 +111,7 @@ public class ForsakingRitualManager implements Listener {
 
         // 3. Spawn all 7 Sin Gems floating in a halo around the player
         Location center = player.getLocation().add(0, 1.2, 0);
-        SinGemType[] gemTypes = SinGemType.values();
+        SinGemType[] gemTypes = SinGemType.BASE_SINS;
         List<Item> haloItems = new ArrayList<>();
         List<SinGemType> haloGems = new ArrayList<>();
 
@@ -361,6 +361,7 @@ public class ForsakingRitualManager implements Listener {
             case PRIDE -> Color.fromRGB(255, 255, 255);    // Diamond pure white
             case SLOTH -> Color.fromRGB(160, 100, 255);    // Void purple
             case SIN -> Color.fromRGB(255, 215, 0);        // Crimson-Gold Apex
+            case ZEN -> Color.fromRGB(216, 180, 254);      // Pure Lilac Ethereal
         };
 
         // Sound cues for awakening

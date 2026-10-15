@@ -45,6 +45,24 @@ public class CombatListener implements Listener {
         this.plugin = plugin;
     }
 
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerDeflect(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player victim) {
+            if (plugin.getGemAbilityExecutor().isDeflectActive(victim)) {
+                event.setCancelled(true);
+                LivingEntity attacker = null;
+                if (event instanceof EntityDamageByEntityEvent edbe) {
+                    if (edbe.getDamager() instanceof LivingEntity le) {
+                        attacker = le;
+                    } else if (edbe.getDamager() instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof LivingEntity le) {
+                        attacker = le;
+                    }
+                }
+                plugin.getGemAbilityExecutor().handleDeflectSuccess(victim, attacker);
+            }
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
         Player attacker = null;
@@ -55,6 +73,13 @@ public class CombatListener implements Listener {
         }
         if (attacker == null) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
+
+        // Undying Sharp blade wave trigger on melee hit
+        if (plugin.getGemAbilityExecutor().isHoldingUndyingSharp(attacker)) {
+            event.setCancelled(true);
+            plugin.getGemAbilityExecutor().handleUndyingSharpSwing(attacker);
+            return;
+        }
 
         // Juggernaut knockback resistance perk
         if (target instanceof Player targetPlayer && plugin.getFinaleManager() != null && plugin.getFinaleManager().isJuggernaut(targetPlayer.getUniqueId())) {
@@ -69,7 +94,7 @@ public class CombatListener implements Listener {
         if (plugin.getGemAbilityExecutor().isInsideShameChamber(attacker.getUniqueId())) {
             event.setCancelled(true);
             attacker.damage(event.getDamage());
-            attacker.sendMessage(Component.text("✦ Your attack was reflected back onto you by Mirror of Shame!", NamedTextColor.RED));
+            attacker.sendMessage(Component.text("Your attack was reflected back onto you by Mirror of Shame!", NamedTextColor.RED));
             return;
         }
 
@@ -102,7 +127,7 @@ public class CombatListener implements Listener {
                         attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, false, false));
                         attacker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false));
                         attacker.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                                .deserialize("<dark_purple>✦ [ILLUSION] <white>You struck a doppelganger! Gloom overwhelms you!</white> ✦</dark_purple>"));
+                                .deserialize("<dark_purple>[Illusion] <white>You struck a doppelganger! Gloom overwhelms you!</white></dark_purple>"));
 
                         Location hitLoc = as.getLocation();
                         for (LivingEntity nearby : hitLoc.getWorld().getNearbyLivingEntities(hitLoc, 4.0)) {
@@ -112,7 +137,7 @@ public class CombatListener implements Listener {
                                 sorrowess.applyGloom(owner, nearby);
                                 if (nearby instanceof Player np) {
                                     np.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                                            .deserialize("<dark_purple>✦ [ILLUSION] <white>Gloom radiates from a shattered doppelganger!</white> ✦</dark_purple>"));
+                                            .deserialize("<dark_purple>[Illusion] <white>Gloom radiates from a shattered doppelganger!</white></dark_purple>"));
                                 }
                             }
                         }
@@ -144,7 +169,7 @@ public class CombatListener implements Listener {
 
         // Fallen effect check on attacker
         if (plugin.getFallenManager().isFallen(attacker)) {
-            attacker.sendMessage(Component.text("✦ Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
+            attacker.sendMessage(Component.text("Your weapon powers and gems are suppressed by Fallen!", NamedTextColor.DARK_PURPLE));
             event.setDamage(event.getDamage() * 0.5);
             return;
         }
@@ -161,7 +186,7 @@ public class CombatListener implements Listener {
             // Alignment check
             if (!plugin.getAlignmentManager().canWield(attacker, weapon.getRequiredAlignment())) {
                 event.setCancelled(true);
-                attacker.sendMessage(Component.text("✦ Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
+                attacker.sendMessage(Component.text("Your alignment clashes with this holy/unholy relic! Attack nullified.", NamedTextColor.RED));
                 return;
             }
 
@@ -246,7 +271,7 @@ public class CombatListener implements Listener {
                 event.setCancelled(true);
                 player.getWorld().spawnParticle(Particle.SOUL, player.getLocation().add(0, 1, 0), 5, 0.3, 0.3, 0.3, 0.05);
                 player.playSound(player.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.8f, 1.4f);
-                player.sendActionBar(net.kyori.adventure.text.Component.text("✦ Illusion Evasion! ✦", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+                player.sendActionBar(net.kyori.adventure.text.Component.text("[Illusion] Evaded!", net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
                 return;
             }
         }

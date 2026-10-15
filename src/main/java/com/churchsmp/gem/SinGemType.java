@@ -22,12 +22,14 @@ public enum SinGemType {
     SLOTH("Sloth", Material.CRYING_OBSIDIAN, TextColor.color(0x4682B4),
             "Slow time and movement around you; an immovable anchor of apathy."),
     SIN("SIN", Material.NETHERITE_BLOCK, TextColor.color(0xDC2626),
-            "Weighed by a thousand losses, the definition of retaliation.");
+            "Weighed by a thousand losses, the definition of retaliation."),
+    ZEN("ZEN", Material.ECHO_SHARD, TextColor.color(0xD8B4FE),
+            "A piece of time's second coming ,Undefined at the rest were silence");
 
     public static final SinGemType[] BASE_SINS = { WRATH, GREED, GLUTTONY, LUST, ENVY, PRIDE, SLOTH };
 
     public boolean isMythic() {
-        return this == SIN;
+        return this == SIN || this == ZEN;
     }
 
     private final String displayName;
@@ -82,12 +84,28 @@ public enum SinGemType {
             { 255, 248, 225 }  // #FFF8E1
     };
 
+    // Palette for ZEN: Pure White -> Soft Lilac -> Light Purple -> Soft Lilac -> Pure White
+    private static final int[][] ZEN_PALETTE = {
+            { 255, 255, 255 }, // #FFFFFF
+            { 245, 235, 255 }, // #F5EBFF
+            { 225, 195, 255 }, // #E1C3FF
+            { 216, 180, 254 }, // #D8B4FE
+            { 192, 132, 252 }, // #C084FC
+            { 216, 180, 254 }, // #D8B4FE
+            { 235, 215, 255 }, // #EBD7FF
+            { 255, 255, 255 }  // #FFFFFF
+    };
+
     public static String getSinColorHex(double phase) {
         return interpolatePalette(SIN_PALETTE, phase);
     }
 
     public static String getGemColorHex(double phase) {
         return interpolatePalette(GEM_PALETTE, phase);
+    }
+
+    public static String getZenColorHex(double phase) {
+        return interpolatePalette(ZEN_PALETTE, phase);
     }
 
     private static String interpolatePalette(int[][] palette, double phase) {
@@ -121,9 +139,23 @@ public enum SinGemType {
         return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(getAnimatedSinGemMiniMessage(tick));
     }
 
+    public static String getAnimatedZenGemMiniMessage(long tick) {
+        double t = tick * 0.12;
+        String z1 = getZenColorHex(t);
+        String z2 = getZenColorHex(t + 1.5);
+        return "<bold><gradient:" + z1 + ":" + z2 + ">ZEN</gradient></bold> <yellow>ɢᴇᴍ</yellow>";
+    }
+
+    public static Component getAnimatedZenGemName(long tick) {
+        return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(getAnimatedZenGemMiniMessage(tick));
+    }
+
     public Component getFormattedName() {
         if (this == SIN) {
             return getAnimatedSinGemName(System.currentTimeMillis() / 100);
+        }
+        if (this == ZEN) {
+            return getAnimatedZenGemName(System.currentTimeMillis() / 100);
         }
         return Component.text("Relic Gem of " + displayName, color).decorate(TextDecoration.BOLD);
     }
@@ -138,6 +170,7 @@ public enum SinGemType {
             case PRIDE -> "Sovereign Charge";
             case SLOTH -> "Temporal Echo";
             case SIN -> "Rusty Blood";
+            case ZEN -> "Redempt";
         };
     }
 
@@ -151,6 +184,7 @@ public enum SinGemType {
             case PRIDE -> "Tombstone Duel";
             case SLOTH -> "Delayed Stasis";
             case SIN -> "Veins of Flagitious";
+            case ZEN -> "Deflects";
         };
     }
 
@@ -164,6 +198,7 @@ public enum SinGemType {
             case PRIDE -> "gem_pride_charge";
             case SLOTH -> "gem_sloth_echo";
             case SIN -> "gem_sin_rusty_blood";
+            case ZEN -> "gem_zen_redempt";
         };
     }
 
@@ -177,6 +212,7 @@ public enum SinGemType {
             case PRIDE -> "gem_pride_duel";
             case SLOTH -> "gem_sloth_stasis";
             case SIN -> "gem_sin_flagitious";
+            case ZEN -> "gem_zen_deflects";
         };
     }
 
@@ -190,6 +226,7 @@ public enum SinGemType {
             case PRIDE -> "<gradient:#FFD700:#FFF8DC>";
             case SLOTH -> "<gradient:#4169E1:#4682B4>";
             case SIN -> "<gradient:#000000:#DC2626:#FFD700>";
+            case ZEN -> "<gradient:#FFFFFF:#D8B4FE>";
         };
     }
 
@@ -200,6 +237,12 @@ public enum SinGemType {
             String c2 = "#DC2626";
             String c3 = getGemColorHex(t + 1.5);
             return "<gradient:" + c1 + ":" + c2 + ":" + c3 + ">";
+        }
+        if (this == ZEN) {
+            double t = tick * 0.12;
+            String z1 = getZenColorHex(t);
+            String z2 = getZenColorHex(t + 1.5);
+            return "<gradient:" + z1 + ":" + z2 + ">";
         }
         return getThemeGradientTag();
     }
